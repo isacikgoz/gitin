@@ -174,7 +174,7 @@ func (r *Repository) loadCommits() error {
 			currentbranch = b
 		}
 	}
-	if currentbranch != nil {
+	if currentbranch != nil && currentbranch.Upstream != nil {
 		oid, err := lib.NewOid(currentbranch.Upstream.Hash)
 		if err != nil {
 			return err

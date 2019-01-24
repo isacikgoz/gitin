@@ -15,7 +15,8 @@ import (
 
 func main() {
 	log.SetLevel(log.ErrorLevel)
-	if err := run("/Users/ibrahim/Development/repositories/gitbatch"); err != nil {
+	pwd, _ := os.Getwd()
+	if err := run(pwd); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
