@@ -2,23 +2,13 @@ package git
 
 import (
 	// "errors"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/justincampbell/timeago"
 
 	log "github.com/sirupsen/logrus"
 	lib "gopkg.in/libgit2/git2go.v27"
-)
-
-var (
-	yellow = color.New(color.FgYellow)
-	blue   = color.New(color.FgBlue)
-	green  = color.New(color.FgGreen)
-	red    = color.New(color.FgRed)
-	cyan   = color.New(color.FgCyan)
 )
 
 // Repository is the main entity of the application.
@@ -141,7 +131,6 @@ func (r *Repository) loadBranches() error {
 				}
 			}
 		}
-
 		b := &Branch{
 			Name:     name,
 			FullName: fullname,
@@ -331,51 +320,4 @@ func (r *Repository) DiffFromHash(hash string) (*Diff, error) {
 		return nil, err
 	}
 	return r.Diff(&Commit{commit: c})
-}
-
-type Diff struct {
-	deltas []*DiffDelta
-	stats  []string
-	patchs []string
-}
-
-func (d *Diff) Deltas() []*DiffDelta {
-	return d.deltas
-}
-
-func (d *Diff) Patches() []string {
-	return d.patchs
-}
-
-func (d *Diff) Stats() []string {
-	return d.stats
-}
-
-type DiffDelta struct {
-	Status  int
-	OldFile *DiffFile
-	NewFile *DiffFile
-	Patch   string
-}
-
-func (d *DiffDelta) String() string {
-	var s string
-	s = s + strconv.Itoa(d.Status) + " "
-	if len(d.OldFile.Path) > 0 && len(d.NewFile.Path) > 0 {
-		if d.OldFile.Path == d.NewFile.Path {
-			s = s + d.OldFile.Path + " " + d.OldFile.Hash[:7] + ".." + d.NewFile.Hash[:7]
-		} else {
-			s = s + d.OldFile.Path + " -> " + d.NewFile.Path
-		}
-	}
-	return s
-}
-
-func (d *DiffDelta) PatchString() string {
-	return "patch: " + d.Patch
-}
-
-type DiffFile struct {
-	Path string
-	Hash string
 }
