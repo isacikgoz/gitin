@@ -35,12 +35,21 @@ func Log(r *git.Repository, pos int) error {
 		return strings.Contains(name, input)
 	}
 
+	qfunc := func(in interface{}, chb chan bool, pos int) error {
+		chb <- true
+		defer os.Exit(0)
+		return nil
+	}
+	kset := make(map[rune]promptui.CustomFunc)
+	kset['q'] = qfunc
+
 	prompt := promptui.Select{
-		Label:     "Commits",
-		Items:     r.Commits,
-		HideHelp:  true,
-		Searcher:  searcher,
-		Templates: templates,
+		Label:       "Commits",
+		Items:       r.Commits,
+		HideHelp:    true,
+		Searcher:    searcher,
+		Templates:   templates,
+		CustomFuncs: kset,
 	}
 	// make terminal not line wrap
 	fmt.Printf("\x1b[?7l")
