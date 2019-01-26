@@ -19,7 +19,6 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-
 }
 
 func run(path string) error {

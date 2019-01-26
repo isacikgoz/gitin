@@ -9,6 +9,7 @@ import (
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
+	"github.com/isacikgoz/promptui/screenbuf"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -33,13 +34,13 @@ func Log(r *git.Repository, pos int) error {
 
 		return strings.Contains(name, input)
 	}
+
 	prompt := promptui.Select{
 		Label:     "Commits",
 		Items:     r.Commits,
 		HideHelp:  true,
 		Searcher:  searcher,
 		Templates: templates,
-		CanSelect: true,
 	}
 	// make terminal not line wrap
 	fmt.Printf("\x1b[?7l")
@@ -47,11 +48,10 @@ func Log(r *git.Repository, pos int) error {
 	defer fmt.Printf("\x1b[?7h")
 	i, _, err := prompt.Run()
 
-	if err != nil {
-		return err
+	if err == nil {
+		return gitStat(r, r.Commits[i])
 	}
-
-	return gitStat(r, r.Commits[i])
+	return screenbuf.Clear(os.Stdin)
 }
 
 func gitStat(r *git.Repository, c *git.Commit) error {
@@ -71,26 +71,14 @@ func gitStat(r *git.Repository, c *git.Commit) error {
 		return err
 	}
 
-	ll := func(in interface{}, pos int) error {
-		val := diff.Deltas()[pos].PatchString()
-		return more(val)
-	}
-	fp1 := &promptui.FuncPair{
-		ll,
-		false,
-	}
-
-	mm := func(in interface{}, pos int) error {
+	lfunc := func(in interface{}, chb chan bool, pos int) error {
+		screenbuf.Clear(os.Stdin)
+		chb <- true
 		return Log(r, pos)
 	}
-	fp2 := &promptui.FuncPair{
-		mm,
-		true,
-	}
 
-	kset := make(map[rune]*promptui.FuncPair)
-	kset[promptui.KeySpace] = fp1
-	kset[promptui.KeyBackspace] = fp2
+	kset := make(map[rune]promptui.CustomFunc)
+	kset['q'] = lfunc
 
 	prompt := promptui.Select{
 		Label:       c,
@@ -99,12 +87,15 @@ func gitStat(r *git.Repository, c *git.Commit) error {
 		Templates:   templates,
 		CustomFuncs: kset,
 	}
-	_, _, err = prompt.Run()
-
-	return nil
+	i, _, err := prompt.Run()
+	if err == nil {
+		return more(r, c, diff.Deltas()[i].PatchString())
+	}
+	return screenbuf.Clear(os.Stdin)
 }
 
-func more(in string) error {
+func more(r *git.Repository, c *git.Commit, in string) error {
+	os.Setenv("LESS", "-RC")
 	cmd := exec.Command("less")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -119,8 +110,11 @@ func more(in string) error {
 		defer stdin.Close()
 		io.WriteString(stdin, in)
 	}()
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return err
+	}
+	if err := cmd.Wait(); err == nil {
+		return gitStat(r, c)
 	}
 	return nil
 }
