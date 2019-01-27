@@ -22,6 +22,8 @@ type Repository struct {
 	Branches []*Branch
 	Commits  []*Commit
 	Remotes  []*Remote
+	Ahead    int
+	Behind   int
 }
 
 type Branch struct {
@@ -80,7 +82,6 @@ func Open(path string) (*Repository, error) {
 		AbsPath: path,
 		repo:    r,
 	}
-
 	if err := repo.loadStatus(); err != nil {
 		return nil, err
 	}
@@ -125,16 +126,22 @@ func (r *Repository) loadBranches() error {
 		hash := rawOid.String()
 		isRemote := branch.IsRemote()
 		var upstream *Branch
-
+		var aheads, behinds []*Commit
 		if !isRemote {
 			us, err := branch.Upstream()
 			if err != nil || us == nil {
 				log.Warn("upstream not found")
 			} else {
 				upstream = &Branch{
+					Name:     strings.Replace(us.Name(), "refs/remotes/", "", 1),
 					FullName: us.Name(),
 					Hash:     us.Target().String(),
 					isRemote: true,
+				}
+				a, b, err := r.repo.AheadBehind(branch.Target(), us.Target())
+				if err == nil {
+					aheads = make([]*Commit, a)
+					behinds = make([]*Commit, b)
 				}
 			}
 		}
@@ -144,6 +151,8 @@ func (r *Repository) loadBranches() error {
 			Hash:     hash,
 			isRemote: isRemote,
 			Upstream: upstream,
+			Ahead:    aheads,
+			Behind:   behinds,
 		}
 		bs = append(bs, b)
 		return nil
@@ -154,6 +163,9 @@ func (r *Repository) loadBranches() error {
 		return err
 	}
 	for _, b := range r.Branches {
+		if b.isRemote {
+			continue
+		}
 		if head.Target().String() == b.Hash {
 			r.Branch = b
 		}
