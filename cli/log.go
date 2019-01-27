@@ -98,12 +98,12 @@ func gitStat(r *git.Repository, c *git.Commit) error {
 	}
 	i, _, err := prompt.Run()
 	if err == nil {
-		return more(r, c, diff.Deltas()[i].PatchString())
+		return logmore(r, c, diff.Deltas()[i].PatchString())
 	}
 	return screenbuf.Clear(os.Stdin)
 }
 
-func more(r *git.Repository, c *git.Commit, in string) error {
+func logmore(r *git.Repository, c *git.Commit, in string) error {
 	os.Setenv("LESS", "-RC")
 	cmd := exec.Command("less")
 	stdin, err := cmd.StdinPipe()

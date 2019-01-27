@@ -17,6 +17,8 @@ type Repository struct {
 	Name     string
 	AbsPath  string
 	repo     *lib.Repository
+	Status   *Status
+	Branch   *Branch
 	Branches []*Branch
 	Commits  []*Commit
 	Remotes  []*Remote
@@ -78,6 +80,11 @@ func Open(path string) (*Repository, error) {
 		AbsPath: path,
 		repo:    r,
 	}
+
+	if err := repo.loadStatus(); err != nil {
+		return nil, err
+	}
+
 	if err := repo.loadBranches(); err != nil {
 		return nil, err
 	}
@@ -142,6 +149,15 @@ func (r *Repository) loadBranches() error {
 		return nil
 	})
 	r.Branches = bs
+	head, err := r.repo.Head()
+	if err != nil {
+		return err
+	}
+	for _, b := range r.Branches {
+		if head.Target().String() == b.Hash {
+			r.Branch = b
+		}
+	}
 	return err
 }
 

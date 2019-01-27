@@ -31,6 +31,8 @@ func run(path string) error {
 	}
 	if os.Args[1] == "log" {
 		return cli.Log(r, 0)
+	} else if os.Args[1] == "status" {
+		return cli.Status(r, 0)
 	}
 	return nil
 }
