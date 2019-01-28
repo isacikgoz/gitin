@@ -197,3 +197,19 @@ func (r *Repository) ResetEntry(e *StatusEntry) error {
 	}
 	return r.loadStatus()
 }
+
+func (r *Repository) AddAll() error {
+	cmd := exec.Command("git", "add", ".")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return r.loadStatus()
+}
+
+func (r *Repository) ResetAll() error {
+	cmd := exec.Command("git", "reset", "--mixed")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return r.loadStatus()
+}

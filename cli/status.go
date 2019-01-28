@@ -23,6 +23,10 @@ func Status(r *git.Repository, pos int) error {
 		fmt.Println("Nothing to commit, working tree clean")
 		return nil
 	}
+	// make terminal not line wrap
+	fmt.Printf("\x1b[?7l")
+	// defer restoring line wrap
+	defer fmt.Printf("\x1b[?7h")
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . |yellow}}:",
 		Active:   "* {{- if .Indexed }} {{ printf \"%.1s\" .StatusEntryString | green}}{{- else}} {{ printf \"%.1s\" .StatusEntryString | red}}{{- end}} {{ .String }}",
@@ -31,16 +35,16 @@ func Status(r *git.Repository, pos int) error {
 		Details: "\n" +
 			"---------------- Status -----------------" + "\n" +
 			"{{ \"On branch\" }} " + "{{ \"" + r.Branch.Name + "\" | yellow }}" + "\n" +
-			// "{{ \"Upstream:\"   | faint }} " + "{{ \"" + getAheadBehind(r.Branch) + "\" | yellow }}" + "\n" +
 			getAheadBehind(r.Branch),
 	}
 	var prompt promptui.Select
-	qfunc := func(in interface{}, chb chan bool, pos int) error {
+	kset := make(map[rune]promptui.CustomFunc)
+	kset['q'] = func(in interface{}, chb chan bool, pos int) error {
 		chb <- true
 		defer os.Exit(0)
 		return nil
 	}
-	afunc := func(in interface{}, chb chan bool, pos int) error {
+	kset[' '] = func(in interface{}, chb chan bool, pos int) error {
 		e := r.Status.Entries[pos]
 		if e.Indexed() {
 			r.ResetEntry(e)
@@ -48,13 +52,21 @@ func Status(r *git.Repository, pos int) error {
 			r.AddEntry(e)
 		}
 		chb <- false
-		prompt.RefreshList(r.Status.Entries)
-
+		prompt.RefreshList(r.Status.Entries, pos)
 		return nil
 	}
-	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = qfunc
-	kset[' '] = afunc
+	kset['a'] = func(in interface{}, chb chan bool, pos int) error {
+		r.AddAll()
+		chb <- false
+		prompt.RefreshList(r.Status.Entries, pos)
+		return nil
+	}
+	kset['r'] = func(in interface{}, chb chan bool, pos int) error {
+		r.ResetAll()
+		chb <- false
+		prompt.RefreshList(r.Status.Entries, pos)
+		return nil
+	}
 
 	prompt = promptui.Select{
 		Label:       "Files",
@@ -63,10 +75,6 @@ func Status(r *git.Repository, pos int) error {
 		Templates:   templates,
 		CustomFuncs: kset,
 	}
-	// make terminal not line wrap
-	fmt.Printf("\x1b[?7l")
-	// defer restoring line wrap
-	defer fmt.Printf("\x1b[?7h")
 	i, _, err := prompt.Run()
 
 	if err == nil {
