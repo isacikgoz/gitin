@@ -14,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Status(r *git.Repository, pos int) error {
+func Status(r *git.Repository, pos, scroll int) error {
 	if len(r.Status.Entries) <= 0 {
 
 		yellow := color.New(color.FgYellow)
@@ -39,32 +39,32 @@ func Status(r *git.Repository, pos int) error {
 	}
 	var prompt promptui.Select
 	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = func(in interface{}, chb chan bool, pos int) error {
+	kset['q'] = func(in interface{}, chb chan bool, index int) error {
 		chb <- true
 		defer os.Exit(0)
 		return nil
 	}
-	kset[' '] = func(in interface{}, chb chan bool, pos int) error {
-		e := r.Status.Entries[pos]
+	kset[' '] = func(in interface{}, chb chan bool, index int) error {
+		e := r.Status.Entries[index]
 		if e.Indexed() {
 			r.ResetEntry(e)
 		} else {
 			r.AddEntry(e)
 		}
 		chb <- false
-		prompt.RefreshList(r.Status.Entries, pos)
+		prompt.RefreshList(r.Status.Entries, index)
 		return nil
 	}
-	kset['a'] = func(in interface{}, chb chan bool, pos int) error {
+	kset['a'] = func(in interface{}, chb chan bool, index int) error {
 		r.AddAll()
 		chb <- false
-		prompt.RefreshList(r.Status.Entries, pos)
+		prompt.RefreshList(r.Status.Entries, index)
 		return nil
 	}
-	kset['r'] = func(in interface{}, chb chan bool, pos int) error {
+	kset['r'] = func(in interface{}, chb chan bool, index int) error {
 		r.ResetAll()
 		chb <- false
-		prompt.RefreshList(r.Status.Entries, pos)
+		prompt.RefreshList(r.Status.Entries, index)
 		return nil
 	}
 
@@ -75,15 +75,15 @@ func Status(r *git.Repository, pos int) error {
 		Templates:   templates,
 		CustomFuncs: kset,
 	}
-	i, _, err := prompt.Run()
+	i, _, err := prompt.RunCursorAt(pos, scroll)
 
 	if err == nil {
-		return statusmore(r, r.Status.Entries[i].Patch())
+		return statusmore(r, r.Status.Entries[i].Patch(), prompt.CursorPosition(), prompt.ScrollPosition())
 	}
 	return screenbuf.Clear(os.Stdin)
 }
 
-func statusmore(r *git.Repository, in string) error {
+func statusmore(r *git.Repository, in string, pos, scroll int) error {
 	os.Setenv("LESS", "-RC")
 	cmd := exec.Command("less")
 	stdin, err := cmd.StdinPipe()
@@ -103,7 +103,7 @@ func statusmore(r *git.Repository, in string) error {
 		return err
 	}
 	if err := cmd.Wait(); err == nil {
-		return Status(r, 0)
+		return Status(r, pos, scroll)
 	}
 	return nil
 }

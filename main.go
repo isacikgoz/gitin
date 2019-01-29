@@ -30,9 +30,9 @@ func run(path string) error {
 		return errors.New("usage: gitin <command>\n\nCommands:\n  log\n  status")
 	}
 	if os.Args[1] == "log" {
-		return cli.Log(r, 0)
+		return cli.Log(r, 0, 0)
 	} else if os.Args[1] == "status" {
-		return cli.Status(r, 0)
+		return cli.Status(r, 0, 0)
 	}
 	return nil
 }

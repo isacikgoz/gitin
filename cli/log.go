@@ -14,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Log(r *git.Repository, pos int) error {
+func Log(r *git.Repository, pos, scroll int) error {
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . |yellow}}:",
 		Active:   "* {{ printf \"%.7s\" .Hash | cyan}} {{ .Summary | green}}",
@@ -35,13 +35,12 @@ func Log(r *git.Repository, pos int) error {
 		return strings.Contains(name, input)
 	}
 
-	qfunc := func(in interface{}, chb chan bool, pos int) error {
+	kset := make(map[rune]promptui.CustomFunc)
+	kset['q'] = func(in interface{}, chb chan bool, index int) error {
 		chb <- true
 		defer os.Exit(0)
 		return nil
 	}
-	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = qfunc
 
 	prompt := promptui.Select{
 		Label:       "Commits",
@@ -55,15 +54,15 @@ func Log(r *git.Repository, pos int) error {
 	fmt.Printf("\x1b[?7l")
 	// defer restoring line wrap
 	defer fmt.Printf("\x1b[?7h")
-	i, _, err := prompt.Run()
+	i, _, err := prompt.RunCursorAt(pos, scroll)
 
 	if err == nil {
-		return gitStat(r, r.Commits[i])
+		return gitStat(r, r.Commits[i], 0, 0, prompt.CursorPosition(), prompt.ScrollPosition())
 	}
 	return screenbuf.Clear(os.Stdin)
 }
 
-func gitStat(r *git.Repository, c *git.Commit) error {
+func gitStat(r *git.Repository, c *git.Commit, pos, scroll int, parentpos, parentscroll int) error {
 
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ .Summary | yellow }}",
@@ -80,14 +79,12 @@ func gitStat(r *git.Repository, c *git.Commit) error {
 		return err
 	}
 
-	lfunc := func(in interface{}, chb chan bool, pos int) error {
+	kset := make(map[rune]promptui.CustomFunc)
+	kset['q'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
 		chb <- true
-		return Log(r, pos)
+		return Log(r, parentpos, parentscroll)
 	}
-
-	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = lfunc
 
 	prompt := promptui.Select{
 		Label:       c,
@@ -96,14 +93,14 @@ func gitStat(r *git.Repository, c *git.Commit) error {
 		Templates:   templates,
 		CustomFuncs: kset,
 	}
-	i, _, err := prompt.Run()
+	i, _, err := prompt.RunCursorAt(pos, scroll)
 	if err == nil {
-		return logmore(r, c, diff.Deltas()[i].PatchString())
+		return logmore(r, c, diff.Deltas()[i].PatchString(), prompt.CursorPosition(), prompt.ScrollPosition(), parentpos, parentscroll)
 	}
 	return screenbuf.Clear(os.Stdin)
 }
 
-func logmore(r *git.Repository, c *git.Commit, in string) error {
+func logmore(r *git.Repository, c *git.Commit, in string, pos, scroll int, parentpos, parentscroll int) error {
 	os.Setenv("LESS", "-RC")
 	cmd := exec.Command("less")
 	stdin, err := cmd.StdinPipe()
@@ -123,7 +120,7 @@ func logmore(r *git.Repository, c *git.Commit, in string) error {
 		return err
 	}
 	if err := cmd.Wait(); err == nil {
-		return gitStat(r, c)
+		return gitStat(r, c, pos, scroll, parentpos, parentscroll)
 	}
 	return nil
 }
