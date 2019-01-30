@@ -14,7 +14,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func StatusBuilder(r *git.Repository, pos, scroll int) error {
+	if err := r.InitializeBranches(); err != nil {
+		return err
+	}
+	return Status(r, pos, scroll)
+}
 func Status(r *git.Repository, pos, scroll int) error {
+
 	if len(r.Status.Entries) <= 0 {
 
 		yellow := color.New(color.FgYellow)
@@ -71,7 +78,7 @@ func Status(r *git.Repository, pos, scroll int) error {
 	prompt = promptui.Select{
 		Label:       "Files",
 		Items:       r.Status.Entries,
-		HideHelp:    true,
+		HideHelp:    false,
 		Templates:   templates,
 		CustomFuncs: kset,
 	}

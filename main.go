@@ -1,17 +1,46 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/isacikgoz/gitin/cli"
 	"github.com/isacikgoz/gitin/git"
 
+	env "github.com/kelseyhightower/envconfig"
 	log "github.com/sirupsen/logrus"
+	pin "gopkg.in/alecthomas/kingpin.v2"
+)
+
+type Config struct {
+	LineSize int
+}
+
+var (
+	cfg           Config
+	branchCommand = pin.Command("branch", "Checkout, list, or delete branches.")
+	branchAll     = branchCommand.Flag("all", "list both remote and local branches").Bool()
+	branchRemotes = branchCommand.Flag("remote", "list only remote branches").Bool()
+	logCommand    = pin.Command("log", "Show commit logs.")
+	logAhead      = logCommand.Flag("ahead", "show commits that not pushed to upstream").Bool()
+	logAuthor     = logCommand.Flag("author", "limit commits to those by given author").String()
+	logBefore     = logCommand.Flag("before", "show commits older than given date (RFC3339)").String()
+	logBehind     = logCommand.Flag("behind", "show commits that not merged from upstream").Bool()
+	logCommitter  = logCommand.Flag("committer", "limit commits to those by given committer").String()
+	logMaxCount   = logCommand.Flag("max-count", "maximum number of commits to display").Int()
+	logTags       = logCommand.Flag("tags", "show tags alongside commits").Bool()
+	logSince      = logCommand.Flag("since", "show commits newer than given date (RFC3339)").String()
+	status        = pin.Command("status", "Show working-tree status.")
 )
 
 func main() {
+	err := env.Process("gitin", &cfg)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	pin.Version("gitin version 0.1.0")
+	pin.CommandLine.HelpFlag.Short('h')
+	pin.CommandLine.VersionFlag.Short('v')
 	log.SetLevel(log.ErrorLevel)
 	pwd, _ := os.Getwd()
 
@@ -26,13 +55,32 @@ func run(path string) error {
 	if err != nil {
 		return err
 	}
-	if len(os.Args) < 2 {
-		return errors.New("usage: gitin <command>\n\nCommands:\n  log\n  status")
-	}
-	if os.Args[1] == "log" {
-		return cli.Log(r, 0, 0)
-	} else if os.Args[1] == "status" {
-		return cli.Status(r, 0, 0)
+	switch pin.Parse() {
+	case "branch":
+		return cli.BranchBuilder(r, 0, 0)
+	case "log":
+		opts := &cli.LogOptions{
+			Author:    *logAuthor,
+			Before:    *logBefore,
+			Committer: *logCommitter,
+			Tags:      *logTags,
+			MaxCount:  *logMaxCount,
+			Since:     *logSince,
+			Cursor:    0,
+			Scroll:    0,
+		}
+		if *logAhead {
+			opts.Mode = cli.LogAhead
+			return cli.LogBuilder(r, opts)
+		} else if *logBehind {
+			opts.Mode = cli.LogBehind
+			return cli.LogBuilder(r, opts)
+		} else {
+			opts.Mode = cli.LogNormal
+			return cli.LogBuilder(r, opts)
+		}
+	case "status":
+		return cli.StatusBuilder(r, 0, 0)
 	}
 	return nil
 }
