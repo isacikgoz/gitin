@@ -1,6 +1,8 @@
 package git
 
 import (
+	"os/exec"
+
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
@@ -20,11 +22,14 @@ type Repository struct {
 	Behind   int
 }
 
+// Remote is to communicate with the outside world. fetch, pull or push operations
+// are targetted to specific remotes
 type Remote struct {
 	Name string
 	URL  []string
 }
 
+// Open the repository from given path and return Repository pointer
 func Open(path string) (*Repository, error) {
 	r, err := lib.OpenRepository(path)
 	if err != nil {
@@ -42,6 +47,7 @@ func Open(path string) (*Repository, error) {
 	return repo, err
 }
 
+// InitializeBranches loads the branches
 func (r *Repository) InitializeBranches() error {
 	if err := r.loadBranches(); err != nil {
 		return err
@@ -49,6 +55,15 @@ func (r *Repository) InitializeBranches() error {
 	return nil
 }
 
+// InitializeStatus loads the files of working dir
+func (r *Repository) InitializeStatus() error {
+	if err := r.loadStatus(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// InitializeTags loads tags
 func (r *Repository) InitializeTags() error {
 	if _, err := r.loadTags(); err != nil {
 		return err
@@ -56,6 +71,7 @@ func (r *Repository) InitializeTags() error {
 	return nil
 }
 
+// InitializeCommits loads all commits from current HEAD
 func (r *Repository) InitializeCommits(opts *CommitLoadOptions) error {
 	if shallow, err := r.repo.IsShallow(); shallow || err != nil {
 		commits, err := r.failOverShallow(opts)
@@ -72,4 +88,10 @@ func (r *Repository) InitializeCommits(opts *CommitLoadOptions) error {
 	}
 	r.Commits = commits
 	return nil
+}
+
+func (r *Repository) DoCommit(message string) (string, error) {
+	cmd := exec.Command("git", "commit", "-m", message)
+	out, err := cmd.Output()
+	return string(out), err
 }

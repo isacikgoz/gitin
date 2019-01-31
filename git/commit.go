@@ -12,6 +12,7 @@ import (
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
+// Commit is the wrapper of actual lib.Commit object
 type Commit struct {
 	commit  *lib.Commit
 	Hash    string
@@ -42,6 +43,7 @@ type Contributor struct {
 	When  time.Time
 }
 
+// CommitLoadOptions holds limitation while loading commits from the store
 type CommitLoadOptions struct {
 	Author    string
 	Before    string
@@ -113,6 +115,8 @@ func (r *Repository) loadCommits(from, to *lib.Oid, opts *CommitLoadOptions) ([]
 	return cs, nil
 }
 
+// failOverShallow is a backdoor to load commits. Since gitlib.v27 cannot load
+// shallow repositories this is a failover mechanism that uses actual git commands
 // TODO: Fix magic numbers
 func (r *Repository) failOverShallow(opts *CommitLoadOptions) ([]*Commit, error) {
 	file, err := os.Open(".git/shallow")
@@ -184,10 +188,12 @@ func (c *Commit) String() string {
 	return c.Hash
 }
 
+// Date returns the commits's creation date as string
 func (c *Commit) Date() string {
 	return c.Author.When.String()
 }
 
+// Since returns xx ago string
 func (c *Commit) Since() string {
 	return timeago.FromTime(c.Author.When)
 }
@@ -196,6 +202,7 @@ func (c *Contributor) String() string {
 	return c.Name + " " + "<" + c.Email + ">"
 }
 
+// Diff is the equivelant of "git diff <commit>", but it is restricted to commits
 func (r *Repository) Diff(c *Commit) (*Diff, error) {
 	// if c.commit.ParentCount() > 1 {
 	// 	return nil, errors.New("commit has multiple parents")
@@ -286,6 +293,7 @@ func (r *Repository) Diff(c *Commit) (*Diff, error) {
 	return d, nil
 }
 
+// DiffFromHash is a wrapper for Actual diff which takes a hash string for input
 func (r *Repository) DiffFromHash(hash string) (*Diff, error) {
 	objectid, err := lib.NewOid(hash)
 	if err != nil {
@@ -298,6 +306,7 @@ func (r *Repository) DiffFromHash(hash string) (*Diff, error) {
 	return r.Diff(&Commit{commit: c})
 }
 
+// revlist is the wrapped of "git rev-list oid1..oid2" command
 func (r *Repository) revlist(from, to *lib.Oid) ([]*Commit, error) {
 	commits := make([]*Commit, 0)
 
@@ -394,6 +403,7 @@ func signaturefilter(opts *CommitLoadOptions) bool {
 	return false
 }
 
+// Decoration returns the string if the commit has tag or reference
 func (c *Commit) Decoration() string {
 	var decor string
 	if c.Tag != nil {

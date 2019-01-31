@@ -12,31 +12,33 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func BranchBuilder(r *git.Repository, pos, scroll int) error {
+type BranchOptions struct {
+	Types     BranchTypes
+	PromptOps *PromptOptions
+}
+
+type BranchTypes uint8
+
+const (
+	LocalBranches BranchTypes = iota
+	RemoteBranches
+	AllBranches
+)
+
+func BranchBuilder(r *git.Repository, opts *BranchOptions) error {
 	if err := r.InitializeBranches(); err != nil {
 		return err
 	}
-	return Branch(r, pos, scroll)
+	return branchPrompt(r, opts.PromptOps)
 }
-func Branch(r *git.Repository, pos, scroll int) error {
+
+func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 
 	// make terminal not line wrap
 	fmt.Printf("\x1b[?7l")
 	// defer restoring line wrap
 	defer fmt.Printf("\x1b[?7h")
-	templates := &promptui.SelectTemplates{
-		Label:    "{{ . |yellow}}:",
-		Active:   "*  {{ .Name | green }}",
-		Inactive: "   {{ .Name }}",
-		Selected: "{{ .Name }}",
-		Details: "\n" +
-			"-------------- Last Commit --------------" + "\n" +
-			"{{ \"Hash:\"  | faint }}    {{ .Hash | yellow }} " + "\n" +
-			"{{ \"Message:\"  | faint }} {{ .LastCommitMessage }} " + "\n" +
-			"{{ \"Author:\"  | faint }}  {{ .LastCommitAuthor }} " + "\n" +
-			"{{ \"Date:\"  | faint }}    {{ .LastCommitDate }} " + "\n" +
-			"{{- if .IsRemote }} {{- else }} \n---------------- Status -----------------\n{{ .Status }} {{- end }}",
-	}
+
 	var prompt promptui.Select
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
@@ -65,11 +67,12 @@ func Branch(r *git.Repository, pos, scroll int) error {
 	prompt = promptui.Select{
 		Label:       "Branches",
 		Items:       r.Branches,
-		HideHelp:    false,
-		Templates:   templates,
+		HideHelp:    opts.HideHelp,
+		Size:        opts.Size,
+		Templates:   branchTemplate(),
 		CustomFuncs: kset,
 	}
-	i, _, err := prompt.RunCursorAt(pos, scroll)
+	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
 
 	if err == nil {
 		screenbuf.Clear(os.Stdin)
@@ -81,4 +84,24 @@ func Branch(r *git.Repository, pos, scroll int) error {
 	}
 
 	return screenbuf.Clear(os.Stdin)
+}
+
+func branchTemplate() *promptui.SelectTemplates {
+	templates := &promptui.SelectTemplates{
+		Label:    "{{ . |yellow}}:",
+		Active:   "*  {{ .Name | green }}",
+		Inactive: "   {{ .Name }}",
+		Selected: "{{ .Name }}",
+		Extra:    "delete: d checkout: enter",
+		Details: "\n" +
+			"-------------- Last Commit --------------" + "\n" +
+			"{{ \"Hash:\"  | faint }}    {{ .Hash | yellow }} " + "\n" +
+			"{{ \"Message:\"  | faint }} {{ .LastCommitMessage }} " + "\n" +
+			"{{ \"Author:\"  | faint }}  {{ .LastCommitAuthor }} " + "\n" +
+			"{{ \"Date:\"  | faint }}    {{ .LastCommitDate }} " + "\n" +
+			"{{- if .IsRemote }} {{- else }} \n" +
+			"---------------- Status -----------------\n" +
+			"{{ .Status }} {{- end }}",
+	}
+	return templates
 }

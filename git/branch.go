@@ -8,6 +8,7 @@ import (
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
+// Branch is simply a lightweight movable pointer to one of repositories' commits
 type Branch struct {
 	Name       string
 	FullName   string
@@ -20,6 +21,8 @@ type Branch struct {
 	lastCommit *Commit
 }
 
+// loadBranches loads branches with the lib's branch iterator loads both remote and
+// local branches
 func (r *Repository) loadBranches() error {
 	bs := make([]*Branch, 0)
 	branchIter, err := r.repo.NewBranchIterator(lib.BranchAll)
@@ -129,6 +132,7 @@ func (r *Repository) loadBranches() error {
 	return err
 }
 
+// Status genrates a string similar to "git status"
 func (b *Branch) Status() string {
 	if b.isRemote {
 		return ""
@@ -157,6 +161,7 @@ func (b *Branch) Status() string {
 	return str
 }
 
+// LastCommitMessage returns the message of the targeted commit by this branch
 func (b *Branch) LastCommitMessage() string {
 	if b.lastCommit != nil {
 		return b.lastCommit.Summary
@@ -164,6 +169,7 @@ func (b *Branch) LastCommitMessage() string {
 	return ""
 }
 
+// LastCommitDate returns the date of the targeted commit by this branch
 func (b *Branch) LastCommitDate() string {
 	if b.lastCommit != nil {
 		return b.lastCommit.Date()
@@ -171,6 +177,7 @@ func (b *Branch) LastCommitDate() string {
 	return ""
 }
 
+// LastCommitAuthor returns the author of the targeted commit by this branch
 func (b *Branch) LastCommitAuthor() string {
 	if b.lastCommit != nil {
 		return b.lastCommit.Author.String()
@@ -178,6 +185,7 @@ func (b *Branch) LastCommitAuthor() string {
 	return ""
 }
 
+// IsRemote is true if the ref is a remote ref
 func (b *Branch) IsRemote() bool {
 	return b.isRemote
 }

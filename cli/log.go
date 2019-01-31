@@ -8,7 +8,6 @@ import (
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
-	"github.com/isacikgoz/promptui/screenbuf"
 )
 
 type LogOptions struct {
@@ -20,20 +19,15 @@ type LogOptions struct {
 	Tags      bool
 	Since     string
 
-	Cursor int
-	Scroll int
+	PromptOps *PromptOptions
 }
-type LogMode string
+type LogMode uint8
 
 const (
-	LogNormal LogMode = "normal"
-	LogAhead  LogMode = "ahead"
-	LogBehind LogMode = "behind"
-	LogMixed  LogMode = "mixed"
-)
-
-var (
-	NoErrRecurse error = errors.New("catch")
+	LogNormal LogMode = iota
+	LogAhead
+	LogBehind
+	LogMixed
 )
 
 func LogBuilder(r *git.Repository, opts *LogOptions) error {
@@ -77,22 +71,10 @@ func LogBuilder(r *git.Repository, opts *LogOptions) error {
 		commits = r.Branch.Ahead
 		commits = append(commits, r.Commits...)
 	}
-	return glog(r, opts.Cursor, opts.Scroll, commits)
+	return logPrompt(r, opts.PromptOps, commits)
 }
 
-func glog(r *git.Repository, pos, scroll int, commits []*git.Commit) error {
-
-	templates := &promptui.SelectTemplates{
-		Label:    "{{ . |yellow}}:",
-		Active:   "* {{ printf \"%.7s\" .Hash | cyan}} {{ .Summary | green}}",
-		Inactive: "  {{ printf \"%.7s\" .Hash | cyan}} {{ .Summary}}",
-		Selected: "{{ .Summary }}",
-		Details: `
----------------- Commit Detail -----------------
-{{ "Hash:"  | faint }}   {{ .Hash | yellow }} {{ .Decoration }}
-{{ "Author:"| faint }} {{ .Author }}
-{{ "Date:"  | faint }}   {{ .Date }} ({{ .Since | blue }})`,
-	}
+func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) error {
 	if len(commits) <= 0 {
 		return errors.New("there are no commits to log")
 	}
@@ -114,22 +96,50 @@ func glog(r *git.Repository, pos, scroll int, commits []*git.Commit) error {
 	prompt := promptui.Select{
 		Label:       "Commits",
 		Items:       commits,
-		HideHelp:    false,
+		HideHelp:    opts.HideHelp,
+		Size:        opts.Size,
 		Searcher:    searcher,
-		Templates:   templates,
+		Templates:   logTemplate(),
 		CustomFuncs: kset,
 	}
 	// make terminal not line wrap
 	fmt.Printf("\x1b[?7l")
 	// defer restoring line wrap
 	defer fmt.Printf("\x1b[?7h")
-	i, _, err := prompt.RunCursorAt(pos, scroll)
+	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
 
 	if err == nil {
-		if err := gitStat(r, commits[i], 0, 0); err != nil && err == NoErrRecurse {
-			return glog(r, prompt.CursorPosition(), prompt.ScrollPosition(), commits)
+		o := &PromptOptions{
+			Cursor:   0,
+			Scroll:   0,
+			Size:     opts.Size,
+			HideHelp: opts.HideHelp,
 		}
-		return err
+		if err := statPrompt(r, commits[i], o); err != nil && err == NoErrRecurse {
+			o := &PromptOptions{
+				Cursor:   prompt.CursorPosition(),
+				Scroll:   prompt.ScrollPosition(),
+				Size:     opts.Size,
+				HideHelp: opts.HideHelp,
+			}
+			return logPrompt(r, o, commits)
+		}
 	}
-	return screenbuf.Clear(os.Stdin)
+	return nil
+}
+
+func logTemplate() *promptui.SelectTemplates {
+	templates := &promptui.SelectTemplates{
+		Label:    "{{ . |yellow}}:",
+		Active:   "* {{ printf \"%.7s\" .Hash | cyan}} {{ .Summary | green}}",
+		Inactive: "  {{ printf \"%.7s\" .Hash | cyan}} {{ .Summary}}",
+		Selected: "{{ .Summary }}",
+		Extra:    "select: enter",
+		Details: `
+---------------- Commit Detail -----------------
+{{ "Hash:"  | faint }}   {{ .Hash | yellow }} {{ .Decoration }}
+{{ "Author:"| faint }} {{ .Author }}
+{{ "Date:"  | faint }}   {{ .Date }} ({{ .Since | blue }})`,
+	}
+	return templates
 }

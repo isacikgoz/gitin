@@ -14,6 +14,7 @@ import (
 
 type Config struct {
 	LineSize int
+	HideHelp bool
 }
 
 var (
@@ -34,13 +35,14 @@ var (
 )
 
 func main() {
+
+	pin.Version("gitin version 0.1.0")
+	pin.CommandLine.HelpFlag.Short('h')
+	pin.CommandLine.VersionFlag.Short('v')
 	err := env.Process("gitin", &cfg)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	pin.Version("gitin version 0.1.0")
-	pin.CommandLine.HelpFlag.Short('h')
-	pin.CommandLine.VersionFlag.Short('v')
 	log.SetLevel(log.ErrorLevel)
 	pwd, _ := os.Getwd()
 
@@ -55,9 +57,25 @@ func run(path string) error {
 	if err != nil {
 		return err
 	}
+	promptOps := &cli.PromptOptions{
+		Cursor:   0,
+		Scroll:   0,
+		Size:     cfg.LineSize,
+		HideHelp: cfg.HideHelp,
+	}
 	switch pin.Parse() {
 	case "branch":
-		return cli.BranchBuilder(r, 0, 0)
+		types := cli.LocalBranches
+		if *branchAll {
+			types = cli.AllBranches
+		} else if *branchRemotes {
+			types = cli.RemoteBranches
+		}
+		opts := &cli.BranchOptions{
+			Types:     types,
+			PromptOps: promptOps,
+		}
+		return cli.BranchBuilder(r, opts)
 	case "log":
 		opts := &cli.LogOptions{
 			Author:    *logAuthor,
@@ -66,8 +84,7 @@ func run(path string) error {
 			Tags:      *logTags,
 			MaxCount:  *logMaxCount,
 			Since:     *logSince,
-			Cursor:    0,
-			Scroll:    0,
+			PromptOps: promptOps,
 		}
 		if *logAhead {
 			opts.Mode = cli.LogAhead
@@ -80,7 +97,10 @@ func run(path string) error {
 			return cli.LogBuilder(r, opts)
 		}
 	case "status":
-		return cli.StatusBuilder(r, 0, 0)
+		opts := &cli.StatusOptions{
+			PromptOps: promptOps,
+		}
+		return cli.StatusBuilder(r, opts)
 	}
 	return nil
 }

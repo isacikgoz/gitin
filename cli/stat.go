@@ -12,18 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func gitStat(r *git.Repository, c *git.Commit, pos, scroll int) error {
+func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 	var back bool
-	templates := &promptui.SelectTemplates{
-		Label:    "{{ .Summary | yellow }}",
-		Active:   "* {{ .String | green}} ",
-		Inactive: "  {{ .String }}",
-		Details: "\n" +
-			"---------------- Commit Detail -----------------" + "\n" +
-			"{{ \"Hash:\"   | faint }}   " + "{{ \"" + c.Hash + "\" | yellow }}" + "\n" +
-			"{{ \"Author:\" | faint }} " + c.Author.String() + "\n" +
-			"{{ \"Date:\"   | faint }}   " + c.Date() + " (" + "{{ \"" + c.Since() + "\" | blue }}" + ")",
-	}
 	diff, err := r.DiffFromHash(c.Hash)
 	if err != nil {
 		return err
@@ -40,21 +30,30 @@ func gitStat(r *git.Repository, c *git.Commit, pos, scroll int) error {
 	prompt := promptui.Select{
 		Label:       c,
 		Items:       diff.Deltas(),
-		HideHelp:    false,
-		Templates:   templates,
+		HideHelp:    opts.HideHelp,
+		Size:        opts.Size,
+		Templates:   statTemplate(c),
 		CustomFuncs: kset,
 	}
-	i, _, err := prompt.RunCursorAt(pos, scroll)
+	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
 	if back {
 		return NoErrRecurse
 	}
 	if err == nil {
-		return logmore(r, c, diff.Deltas()[i].PatchString(), prompt.CursorPosition(), prompt.ScrollPosition())
+		o := &PromptOptions{
+			Cursor:   prompt.CursorPosition(),
+			Scroll:   prompt.ScrollPosition(),
+			Size:     opts.Size,
+			HideHelp: opts.HideHelp,
+		}
+		if err = popLess(r, c, diff.Deltas()[i].PatchString()); err == nil {
+			return statPrompt(r, c, o)
+		}
 	}
-	return screenbuf.Clear(os.Stdin)
+	return nil
 }
 
-func logmore(r *git.Repository, c *git.Commit, in string, pos, scroll int) error {
+func popLess(r *git.Repository, c *git.Commit, in string) error {
 	os.Setenv("LESS", "-RC")
 	cmd := exec.Command("less")
 	stdin, err := cmd.StdinPipe()
@@ -73,8 +72,23 @@ func logmore(r *git.Repository, c *git.Commit, in string, pos, scroll int) error
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	if err := cmd.Wait(); err == nil {
-		return gitStat(r, c, pos, scroll)
+	if err := cmd.Wait(); err != nil {
+		// return statPrompt(r, c, opts)
 	}
 	return nil
+}
+
+func statTemplate(c *git.Commit) *promptui.SelectTemplates {
+	templates := &promptui.SelectTemplates{
+		Label:    "{{ .Summary | yellow }}",
+		Active:   "* {{ .String | green}} ",
+		Inactive: "  {{ .String }}",
+		Extra:    "select: enter",
+		Details: "\n" +
+			"---------------- Commit Detail -----------------" + "\n" +
+			"{{ \"Hash:\"   | faint }}   " + "{{ \"" + c.Hash + "\" | yellow }}" + "\n" +
+			"{{ \"Author:\" | faint }} " + c.Author.String() + "\n" +
+			"{{ \"Date:\"   | faint }}   " + c.Date() + " (" + "{{ \"" + c.Since() + "\" | blue }}" + ")",
+	}
+	return templates
 }
