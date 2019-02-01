@@ -20,6 +20,7 @@ func StatusBuilder(r *git.Repository, opts *StatusOptions) error {
 	}
 	return statusPrompt(r, opts.PromptOps)
 }
+
 func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 	stop := false
 	if len(r.Status.Entries) <= 0 {
@@ -65,10 +66,14 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		prompt.RefreshList(r.Status.Entries, index)
 		return nil
 	}
-	kset['m'] = func(in interface{}, chb chan bool, index int) error {
+	kset['c'] = func(in interface{}, chb chan bool, index int) error {
+		if r.NumberOfIndexedEntries() <= 0 {
+			return nil
+		}
 		chb <- true
 		opt := &CommitOptions{
 			PromptOps: opts,
+			Message:   "commit message",
 		}
 		err := commitPrompt(r, opt)
 		if err != nil && err == NoErrRecurse {
@@ -76,7 +81,19 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		} else if err != NoErrRecurse {
 			os.Exit(0)
 		}
-		// prompt.RefreshList(r.Status.Entries, index)
+		return statusPrompt(r, opts)
+	}
+	kset['m'] = func(in interface{}, chb chan bool, index int) error {
+		if r.NumberOfIndexedEntries() <= 0 {
+			return nil
+		}
+		chb <- true
+		err := commitAmend(r)
+		if err != nil && err == NoErrRecurse {
+			stop = true
+		} else if err != NoErrRecurse {
+			os.Exit(0)
+		}
 		return statusPrompt(r, opts)
 	}
 
@@ -101,7 +118,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 			Size:     opts.Size,
 			HideHelp: opts.HideHelp,
 		}
-		if err := popMore(r.Status.Entries[i].Patch()); err == nil {
+		if err := popMore(r.Status.Entries[i].Patch()); err == NoErrRecurse {
 			return statusPrompt(r, o)
 		}
 	}
@@ -141,7 +158,7 @@ func statusTemplate(r *git.Repository) *promptui.SelectTemplates {
 		Active:   "* {{- if .Indexed }} {{ printf \"%.1s\" .StatusEntryString | green}}{{- else}} {{ printf \"%.1s\" .StatusEntryString | red}}{{- end}} {{ .String }}",
 		Inactive: "  {{- if .Indexed }}  {{ printf \"%.1s\" .StatusEntryString | green}}{{- else}}  {{ printf \"%.1s\" .StatusEntryString | red}}{{- end}} {{ .String }}",
 		Selected: "{{ .String }}",
-		Extra:    "add/reset: space commit: m",
+		Extra:    "add/reset: space commit: c amend: m",
 		Details: "\n" +
 			"---------------- Status -----------------" + "\n" +
 			"{{ \"On branch\" }} " + "{{ \"" + r.Branch.Name + "\" | yellow }}" + "\n" +

@@ -411,3 +411,31 @@ func (c *Commit) Decoration() string {
 	}
 	return decor
 }
+
+// LastCommitStat prints the stat of the last commit
+func (r *Repository) LastCommitStat() string {
+	head, err := r.repo.Head()
+	if err != nil {
+		return "error reading last commit"
+	}
+	commit, err := r.repo.LookupCommit(head.Target())
+	if err != nil {
+		return "error reading last commit"
+	}
+	hash := commit.AsObject().Id().String()
+	cmd := exec.Command("git", "show", "--stat", hash)
+	out, err := cmd.Output()
+	if err != nil {
+		return err.Error()
+	}
+	return string(out)
+}
+
+// LastCommitHash get the HEAD's target hash
+func (r *Repository) LastCommitHash() string {
+	head, err := r.repo.Head()
+	if err != nil {
+		return "error reading last commit"
+	}
+	return string(head.Target().String())
+}

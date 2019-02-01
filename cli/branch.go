@@ -29,6 +29,28 @@ func BranchBuilder(r *git.Repository, opts *BranchOptions) error {
 	if err := r.InitializeBranches(); err != nil {
 		return err
 	}
+	switch opts.Types {
+	case LocalBranches:
+		i := 0 // output index
+		for _, b := range r.Branches {
+			if !b.IsRemote() {
+				r.Branches[i] = b
+				i++
+			}
+		}
+		r.Branches = r.Branches[:i]
+	case RemoteBranches:
+		i := 0 // output index
+		for _, b := range r.Branches {
+			if b.IsRemote() {
+				r.Branches[i] = b
+				i++
+			}
+		}
+		r.Branches = r.Branches[:i]
+	case AllBranches:
+
+	}
 	return branchPrompt(r, opts.PromptOps)
 }
 

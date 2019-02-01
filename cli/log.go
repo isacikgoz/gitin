@@ -8,6 +8,7 @@ import (
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
+	"github.com/isacikgoz/promptui/screenbuf"
 )
 
 type LogOptions struct {
@@ -85,15 +86,43 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 
 		return strings.Contains(name, input)
 	}
-
+	var prompt promptui.Select
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
 		chb <- true
 		defer os.Exit(0)
 		return nil
 	}
+	kset['s'] = func(in interface{}, chb chan bool, index int) error {
+		screenbuf.Clear(os.Stdin)
+		if err := popCommitStat(commits[index].Hash); err != nil {
+			return err
+		}
+		chb <- true
+		o := &PromptOptions{
+			Cursor:   prompt.CursorPosition(),
+			Scroll:   prompt.ScrollPosition(),
+			Size:     opts.Size,
+			HideHelp: opts.HideHelp,
+		}
+		return logPrompt(r, o, commits)
+	}
+	kset['d'] = func(in interface{}, chb chan bool, index int) error {
+		screenbuf.Clear(os.Stdin)
+		if err := popCommitDiff(commits[index].Hash); err != nil {
+			return err
+		}
+		chb <- true
+		o := &PromptOptions{
+			Cursor:   prompt.CursorPosition(),
+			Scroll:   prompt.ScrollPosition(),
+			Size:     opts.Size,
+			HideHelp: opts.HideHelp,
+		}
+		return logPrompt(r, o, commits)
+	}
 
-	prompt := promptui.Select{
+	prompt = promptui.Select{
 		Label:       "Commits",
 		Items:       commits,
 		HideHelp:    opts.HideHelp,

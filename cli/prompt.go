@@ -44,5 +44,5 @@ func popMore(in string) error {
 	if err := cmd.Wait(); err != nil {
 		return err
 	}
-	return nil
+	return NoErrRecurse
 }

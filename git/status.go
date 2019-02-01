@@ -137,6 +137,7 @@ func (e *StatusEntry) String() string {
 	return e.diffDelta.OldFile.Path
 }
 
+// Patch return the diff of the entry
 func (e *StatusEntry) Patch() string {
 	cmd := exec.Command("git", "diff", (e.diffDelta.OldFile.Path))
 	out, err := cmd.Output()
@@ -146,6 +147,7 @@ func (e *StatusEntry) Patch() string {
 	return strings.Join(colorizeDiff(string(out)), "\n")
 }
 
+// StatusEntryString returns entry status in pretty format
 func (e *StatusEntry) StatusEntryString() string {
 	switch e.statusEntryType {
 	case StatusEntryTypeUnmodified:
@@ -175,6 +177,7 @@ func (e *StatusEntry) StatusEntryString() string {
 	}
 }
 
+// Indexed true if entry added to index
 func (e *StatusEntry) Indexed() bool {
 	if e.index == IndexTypeStaged {
 		return true
@@ -182,6 +185,7 @@ func (e *StatusEntry) Indexed() bool {
 	return false
 }
 
+// AddEntry is the wrapper of "git add /path/to/file" command
 func (r *Repository) AddEntry(e *StatusEntry) error {
 	cmd := exec.Command("git", "add", "--", (e.diffDelta.OldFile.Path))
 	if err := cmd.Run(); err != nil {
@@ -190,6 +194,7 @@ func (r *Repository) AddEntry(e *StatusEntry) error {
 	return r.loadStatus()
 }
 
+// ResetEntry is the wrapper of "git reset path/to/file" command
 func (r *Repository) ResetEntry(e *StatusEntry) error {
 	cmd := exec.Command("git", "reset", "HEAD", "--", (e.diffDelta.OldFile.Path))
 	if err := cmd.Run(); err != nil {
@@ -198,6 +203,7 @@ func (r *Repository) ResetEntry(e *StatusEntry) error {
 	return r.loadStatus()
 }
 
+// AddAll is the wrapper of "git add ." command
 func (r *Repository) AddAll() error {
 	cmd := exec.Command("git", "add", ".")
 	if err := cmd.Run(); err != nil {
@@ -206,10 +212,22 @@ func (r *Repository) AddAll() error {
 	return r.loadStatus()
 }
 
+// ResetAll is the wrapper of "git reset" command
 func (r *Repository) ResetAll() error {
 	cmd := exec.Command("git", "reset", "--mixed")
 	if err := cmd.Run(); err != nil {
 		return err
 	}
 	return r.loadStatus()
+}
+
+// NumberOfIndexedEntries returns the count of indexed files in the working dir
+func (r *Repository) NumberOfIndexedEntries() int {
+	count := 0
+	for _, e := range r.Status.Entries {
+		if e.Indexed() {
+			count++
+		}
+	}
+	return count
 }

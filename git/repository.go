@@ -1,8 +1,6 @@
 package git
 
 import (
-	"os/exec"
-
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
@@ -88,10 +86,4 @@ func (r *Repository) InitializeCommits(opts *CommitLoadOptions) error {
 	}
 	r.Commits = commits
 	return nil
-}
-
-func (r *Repository) DoCommit(message string) (string, error) {
-	cmd := exec.Command("git", "commit", "-m", message)
-	out, err := cmd.Output()
-	return string(out), err
 }
