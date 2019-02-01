@@ -31,7 +31,7 @@ var (
 	logMaxCount   = logCommand.Flag("max-count", "maximum number of commits to display").Int()
 	logTags       = logCommand.Flag("tags", "show tags alongside commits").Bool()
 	logSince      = logCommand.Flag("since", "show commits newer than given date (RFC3339)").String()
-	status        = pin.Command("status", "Show working-tree status.")
+	status        = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 )
 
 func main() {
