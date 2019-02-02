@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"os"
 	"os/exec"
 	"regexp"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/git"
-	"github.com/isacikgoz/promptui"
 )
 
 type CommitOptions struct {
@@ -26,36 +24,24 @@ func CommitBuilder(r *git.Repository, opts *CommitOptions) error {
 	return commitPrompt(r, opts)
 }
 func commitPrompt(r *git.Repository, opts *CommitOptions) error {
-	validate := func(input string) error {
-		if len(input) < 3 {
-			return errors.New("commits must have more than 3 characters")
-		}
-		return nil
-	}
-
-	prompt := promptui.Prompt{
-		Label:    "git commit -m",
-		Validate: validate,
-		Default:  opts.Message,
-	}
-
-	text, err := prompt.Run()
-
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("git", "commit", "--quiet", "-m", text)
+	cmd := exec.Command("git", "commit", "--edit", "--quiet")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	ok := false
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	if err := cmd.Wait(); err != nil {
-		return err
+	if err := cmd.Wait(); err == nil {
+		ok = true
 	}
 	if err := r.InitializeStatus(); err != nil {
 		return err
 	}
-	if err := popCommitStat(r.LastCommitHash()); err != nil {
-		return err
+	if ok {
+		if err := popCommitStat(r.LastCommitHash()); err != nil {
+			return err
+		}
 	}
 	return NoErrRecurse
 }
@@ -65,18 +51,20 @@ func commitAmend(r *git.Repository) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-
+	ok := false
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	if err := cmd.Wait(); err != nil {
-		return err
+	if err := cmd.Wait(); err == nil {
+		ok = true
 	}
 	if err := r.InitializeStatus(); err != nil {
 		return err
 	}
-	if err := popCommitStat(r.LastCommitHash()); err != nil {
-		return err
+	if ok {
+		if err := popCommitStat(r.LastCommitHash()); err != nil {
+			return err
+		}
 	}
 	return NoErrRecurse
 }
@@ -113,21 +101,6 @@ func popCommitDiff(hash string) error {
 		return err
 	}
 	return nil
-}
-
-func commitTemplate(r *git.Repository) *promptui.SelectTemplates {
-	templates := &promptui.SelectTemplates{
-		Label:    "{{ . |yellow}}:",
-		Active:   "* {{- if .Indexed }} {{ printf \"%.1s\" .StatusEntryString | green}}{{- else}} {{ printf \"%.1s\" .StatusEntryString | red}}{{- end}} {{ .String }}",
-		Inactive: "  {{- if .Indexed }}  {{ printf \"%.1s\" .StatusEntryString | green}}{{- else}}  {{ printf \"%.1s\" .StatusEntryString | red}}{{- end}} {{ .String }}",
-		Selected: "{{ .String }}",
-		Extra:    "add/reset: space commit: m",
-		Details: "\n" +
-			"---------------- Status -----------------" + "\n" +
-			"{{ \"On branch\" }} " + "{{ \"" + r.Branch.Name + "\" | yellow }}" + "\n" +
-			getAheadBehind(r.Branch),
-	}
-	return templates
 }
 
 func colorizeStat(input string) string {

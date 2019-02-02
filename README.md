@@ -1,18 +1,18 @@
 # gitin
 
-`gitin` is a prompt cli to `git`
+`gitin` is a commit/branch/status explorer for `git`
 
 <p align="center">
    <a href="https://asciinema.org/a/WjFsXKvMtvRhDu9SMLJ7brUa9">
   <img src="https://asciinema.org/a/WjFsXKvMtvRhDu9SMLJ7brUa9.svg" alt="asciicast">
-</a> 
+</a>
 </p>
 
 ## Installation
 - Works on Linux and macOS
 - Download latest release from [here](https://github.com/isacikgoz/gitin/releases)
 - Or, manually download it with `go get -d github.com/isacikgoz/gitin`
-- `cd` into `$GOPATH/src/github.com/isacikgoz/gitin` 
+- `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
 - build with `make install`
 
 ## Usage
