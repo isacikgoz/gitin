@@ -4,7 +4,7 @@ import (
 	"os/exec"
 	"strings"
 
-	git "gopkg.in/libgit2/git2go.v27"
+	log "github.com/sirupsen/logrus"
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
@@ -123,11 +123,11 @@ func (r *Repository) loadStatus() error {
 }
 
 func getIndex(s lib.Status) IndexType {
-	if s == git.StatusWtModified || s == git.StatusWtDeleted || s == git.StatusWtTypeChange || s == git.StatusWtRenamed {
+	if s == lib.StatusWtModified || s == lib.StatusWtDeleted || s == lib.StatusWtTypeChange || s == lib.StatusWtRenamed {
 		return IndexTypeUnstaged
-	} else if s == git.StatusWtNew {
+	} else if s == lib.StatusWtNew {
 		return IndexTypeUntracked
-	} else if s == git.StatusConflicted {
+	} else if s == lib.StatusConflicted {
 		return IndexTypeConflicted
 	}
 	return IndexTypeStaged
@@ -139,10 +139,15 @@ func (e *StatusEntry) String() string {
 
 // Patch return the diff of the entry
 func (e *StatusEntry) Patch() string {
-	cmd := exec.Command("git", "diff", (e.diffDelta.OldFile.Path))
-	out, err := cmd.Output()
+	var cmd *exec.Cmd
+	if e.statusEntryType == StatusEntryTypeUntracked {
+		cmd = exec.Command("git", "diff", "--no-index", "/dev/null", e.diffDelta.NewFile.Path)
+	} else {
+		cmd = exec.Command("git", "diff", e.diffDelta.OldFile.Path)
+	}
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return ""
+		log.Warn(err.Error())
 	}
 	return strings.Join(colorizeDiff(string(out)), "\n")
 }
@@ -187,7 +192,7 @@ func (e *StatusEntry) Indexed() bool {
 
 // AddEntry is the wrapper of "git add /path/to/file" command
 func (r *Repository) AddEntry(e *StatusEntry) error {
-	cmd := exec.Command("git", "add", "--", (e.diffDelta.OldFile.Path))
+	cmd := exec.Command("git", "add", "--", e.diffDelta.OldFile.Path)
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -196,7 +201,7 @@ func (r *Repository) AddEntry(e *StatusEntry) error {
 
 // ResetEntry is the wrapper of "git reset path/to/file" command
 func (r *Repository) ResetEntry(e *StatusEntry) error {
-	cmd := exec.Command("git", "reset", "HEAD", "--", (e.diffDelta.OldFile.Path))
+	cmd := exec.Command("git", "reset", "HEAD", "--", e.diffDelta.OldFile.Path)
 	if err := cmd.Run(); err != nil {
 		return err
 	}
