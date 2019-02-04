@@ -3,8 +3,8 @@
 `gitin` is a commit/branch/status explorer for `git`
 
 <p align="center">
-   <a href="https://asciinema.org/a/WjFsXKvMtvRhDu9SMLJ7brUa9">
-  <img src="https://asciinema.org/a/WjFsXKvMtvRhDu9SMLJ7brUa9.svg" alt="asciicast">
+   <a href="https://postimg.cc/kDnzPTBj">
+  <img src="https://i.postimg.cc/BZD0DysG/gitin-new-opt.gif)" alt="screencast">
 </a>
 </p>
 
