@@ -54,7 +54,7 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 }
 
 func popLess(r *git.Repository, c *git.Commit, in string) error {
-	os.Setenv("LESS", "-RC")
+	os.Setenv("LESS", "-RCS")
 	cmd := exec.Command("less")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

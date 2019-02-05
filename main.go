@@ -39,6 +39,7 @@ func main() {
 	pin.Version("gitin version 0.1.0")
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
+	pin.Parse()
 	err := env.Process("gitin", &cfg)
 	if err != nil {
 		log.Fatal(err.Error())
