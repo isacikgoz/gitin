@@ -23,7 +23,7 @@ var (
 )
 
 func popMore(in string) error {
-	os.Setenv("LESS", "-RC")
+	os.Setenv("LESS", "-RCS")
 	cmd := exec.Command("less")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

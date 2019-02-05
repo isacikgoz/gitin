@@ -17,7 +17,7 @@ GOBIN_DIR:=$(GOPATH_DIR)/bin
 GIT2GO_VERSION=27
 GIT2GO_DIR:=$(GOPATH_DIR)/src/gopkg.in/libgit2/git2go.v$(GIT2GO_VERSION)
 LIBGIT2_DIR=$(GIT2GO_DIR)/vendor/libgit2
-GIT2GO_PATCH=git2go.v$(GIT2GO_VERSION).patch
+GIT2GO_PATCH=patch/git2go.v$(GIT2GO_VERSION).patch
 
 all: $(BINARY)
 

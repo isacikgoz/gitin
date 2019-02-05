@@ -87,7 +87,7 @@ func popCommitStat(hash string) error {
 }
 
 func popCommitDiff(hash string) error {
-	os.Setenv("LESS", "-RC")
+	os.Setenv("LESS", "-RCS")
 
 	cmd := exec.Command("git", "diff", hash)
 	cmd.Stdout = os.Stdout
