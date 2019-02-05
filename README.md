@@ -15,6 +15,12 @@ gitin is a minimalist tool that lets you explore a git repository from command l
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
 - build with `make install`
 
+### Mac using brew 
+```
+brew tap jeroenknoops/tap
+brew install gitin
+```
+
 ## Usage
 ```bash
 usage: gitin [<flags>] <command> [<args> ...]
