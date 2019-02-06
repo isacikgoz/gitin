@@ -184,10 +184,7 @@ func (e *StatusEntry) StatusEntryString() string {
 
 // Indexed true if entry added to index
 func (e *StatusEntry) Indexed() bool {
-	if e.index == IndexTypeStaged {
-		return true
-	}
-	return false
+	return e.index == IndexTypeStaged
 }
 
 // AddEntry is the wrapper of "git add /path/to/file" command
