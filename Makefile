@@ -11,7 +11,7 @@ GITIN_BUILD_FLAGS=--tags static -ldflags "$(GITIN_LDFLAGS)"
 GITIN_STATIC_BUILD_FLAGS=--tags static -ldflags "$(GITIN_LDFLAGS) $(GITIN_STATIC_LDFLAGS)"
 
 GITIN_DIR:=$(dir $(realpath $(lastword $(MAKEFILE_LIST))))
-GOPATH_DIR:=$(shell go env GOPATH)
+GOPATH_DIR?=$(shell go env GOPATH | cut -d: -f1)
 GOBIN_DIR:=$(GOPATH_DIR)/bin
 
 GIT2GO_VERSION=27
