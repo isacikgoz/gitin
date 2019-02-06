@@ -1,15 +1,11 @@
 package cli
 
 import (
-	"io"
 	"os"
-	"os/exec"
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
 	"github.com/isacikgoz/promptui/screenbuf"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
@@ -18,7 +14,7 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 	if err != nil {
 		return err
 	}
-
+	deltas := diff.Deltas()
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
@@ -29,7 +25,7 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 
 	prompt := promptui.Select{
 		Label:       c,
-		Items:       diff.Deltas(),
+		Items:       deltas,
 		HideHelp:    opts.HideHelp,
 		Size:        opts.Size,
 		Templates:   statTemplate(c),
@@ -46,34 +42,9 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 			Size:     opts.Size,
 			HideHelp: opts.HideHelp,
 		}
-		if err = popLess(r, c, diff.Deltas()[i].PatchString()); err == nil {
+		if err = popGitCmd(r, deltas[i].FileStatArgs(c)); err == NoErrRecurse {
 			return statPrompt(r, c, o)
 		}
-	}
-	return nil
-}
-
-func popLess(r *git.Repository, c *git.Commit, in string) error {
-	os.Setenv("LESS", "-RCS")
-	cmd := exec.Command("less")
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	defer func() {
-		cmd.Stdin = os.Stdin
-	}()
-	go func() {
-		defer stdin.Close()
-		io.WriteString(stdin, in)
-	}()
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	if err := cmd.Wait(); err != nil {
-		// return statPrompt(r, c, opts)
 	}
 	return nil
 }

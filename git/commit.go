@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/justincampbell/timeago"
+	log "github.com/sirupsen/logrus"
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
@@ -134,6 +135,7 @@ func (r *Repository) failOverShallow(opts *CommitLoadOptions) ([]*Commit, error)
 	}
 	defer file.Close()
 	cmd := exec.Command("git", "rev-list", "--all")
+	cmd.Dir = r.AbsPath
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -213,7 +215,6 @@ func (r *Repository) Diff(c *Commit) (*Diff, error) {
 		return nil, err
 	}
 	defer cTree.Free()
-
 	var pTree *lib.Tree
 	if c.commit.ParentCount() > 0 {
 		if pTree, err = c.commit.Parent(0).Tree(); err != nil {
@@ -311,6 +312,7 @@ func (r *Repository) revlist(from, to *lib.Oid) ([]*Commit, error) {
 	commits := make([]*Commit, 0)
 
 	cmd := exec.Command("git", "rev-list", from.String()+".."+to.String())
+	cmd.Dir = r.AbsPath
 	out, err := cmd.Output()
 	if err != nil {
 		return commits, err
@@ -424,6 +426,7 @@ func (r *Repository) LastCommitStat() string {
 	}
 	hash := commit.AsObject().Id().String()
 	cmd := exec.Command("git", "show", "--stat", hash)
+	cmd.Dir = r.AbsPath
 	out, err := cmd.Output()
 	if err != nil {
 		return err.Error()
@@ -431,11 +434,14 @@ func (r *Repository) LastCommitStat() string {
 	return string(out)
 }
 
-// LastCommitHash get the HEAD's target hash
-func (r *Repository) LastCommitHash() string {
+// LastCommitArgs returns the args for show stat
+func (r *Repository) LastCommitArgs() []string {
 	head, err := r.repo.Head()
 	if err != nil {
-		return "error reading last commit"
+		log.Error(err)
+		return nil
 	}
-	return string(head.Target().String())
+	hash := string(head.Target().String())
+	args := []string{"show", "--stat", hash}
+	return args
 }

@@ -95,7 +95,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	}
 	kset['s'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
-		if err := popCommitStat(commits[index].Hash); err != nil {
+		if err := popGitCmd(r, []string{"show", "--stat", commits[index].Hash}); err != nil {
 			return err
 		}
 		chb <- true
@@ -109,7 +109,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	}
 	kset['d'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
-		if err := popCommitDiff(commits[index].Hash); err != nil {
+		if err := popGitCmd(r, []string{"diff", commits[index].Hash}); err != nil {
 			return err
 		}
 		chb <- true

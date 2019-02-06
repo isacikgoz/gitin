@@ -118,7 +118,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 			Size:     opts.Size,
 			HideHelp: opts.HideHelp,
 		}
-		if err := popMore(r.Status.Entries[i].Patch()); err == NoErrRecurse {
+		if err := popGitCmd(r, r.Status.Entries[i].FileStatArgs()); err == NoErrRecurse {
 			return statusPrompt(r, o)
 		}
 	}

@@ -83,6 +83,7 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 			return nil
 		}
 		cmd := exec.Command("git", "branch", "-d", b.Name)
+		cmd.Dir = r.AbsPath
 		if err := cmd.Run(); err == nil {
 			log.Error(err)
 		}
@@ -108,6 +109,7 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 	if err == nil {
 		screenbuf.Clear(os.Stdin)
 		cmd := exec.Command("git", "checkout", r.Branches[i].Name)
+		cmd.Dir = r.AbsPath
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin

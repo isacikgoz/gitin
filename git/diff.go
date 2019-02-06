@@ -45,6 +45,21 @@ func (d *DiffDelta) String() string {
 	return s
 }
 
+// FileStatArgs returns git command args for getting diff
+func (d *DiffDelta) FileStatArgs(c *Commit) []string {
+	args := []string{"diff"}
+	if c.commit.Parent(0) == nil {
+		args = []string{"show", "--oneline", "--patch"}
+		args = append(args, c.Hash)
+	} else {
+		parent := c.commit.Parent(0).AsObject().Id().String()
+		args = append(args, parent+".."+c.Hash)
+	}
+	args = append(args, d.OldFile.Path)
+
+	return args
+}
+
 // colorize the plain diff text collected from system output
 // the style is near to original diff command
 func colorizeDiff(original string) (colorized []string) {
