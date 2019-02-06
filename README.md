@@ -17,7 +17,7 @@ gitin is a minimalist tool that lets you explore a git repository from command l
 
 ### Mac using brew 
 ```
-brew tap jeroenknoops/tap
+brew tap isacikgoz/gitin
 brew install gitin
 ```
 
