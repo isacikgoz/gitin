@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
@@ -60,6 +61,13 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 	fmt.Printf("\x1b[?7l")
 	// defer restoring line wrap
 	defer fmt.Printf("\x1b[?7h")
+	searcher := func(input string, index int) bool {
+		item := r.Branches[index]
+		name := strings.Replace(strings.ToLower(item.Name), " ", "", -1)
+		input = strings.Replace(strings.ToLower(input), " ", "", -1)
+
+		return strings.Contains(name, input)
+	}
 
 	var prompt promptui.Select
 	kset := make(map[rune]promptui.CustomFunc)
@@ -90,6 +98,7 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 		Label:       "Branches",
 		Items:       r.Branches,
 		HideHelp:    opts.HideHelp,
+		Searcher:    searcher,
 		Size:        opts.Size,
 		Templates:   branchTemplate(),
 		CustomFuncs: kset,
