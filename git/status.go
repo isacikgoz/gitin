@@ -138,18 +138,30 @@ func (e *StatusEntry) String() string {
 }
 
 // Patch return the diff of the entry
-func (e *StatusEntry) Patch() string {
+func (r *Repository) Patch(e *StatusEntry) string {
 	var cmd *exec.Cmd
 	if e.statusEntryType == StatusEntryTypeUntracked {
 		cmd = exec.Command("git", "diff", "--no-index", "/dev/null", e.diffDelta.NewFile.Path)
 	} else {
 		cmd = exec.Command("git", "diff", e.diffDelta.OldFile.Path)
 	}
+	cmd.Dir = r.AbsPath
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Warn(err.Error())
 	}
 	return strings.Join(colorizeDiff(string(out)), "\n")
+}
+
+// FileStatArgs returns git command args for getting diff
+func (e *StatusEntry) FileStatArgs() []string {
+	var args []string
+	if e.statusEntryType == StatusEntryTypeUntracked {
+		args = []string{"diff", "--no-index", "/dev/null", e.diffDelta.NewFile.Path}
+	} else {
+		args = []string{"diff", "--", e.diffDelta.OldFile.Path}
+	}
+	return args
 }
 
 // StatusEntryString returns entry status in pretty format
@@ -193,6 +205,7 @@ func (e *StatusEntry) Indexed() bool {
 // AddEntry is the wrapper of "git add /path/to/file" command
 func (r *Repository) AddEntry(e *StatusEntry) error {
 	cmd := exec.Command("git", "add", "--", e.diffDelta.OldFile.Path)
+	cmd.Dir = r.AbsPath
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -202,6 +215,7 @@ func (r *Repository) AddEntry(e *StatusEntry) error {
 // ResetEntry is the wrapper of "git reset path/to/file" command
 func (r *Repository) ResetEntry(e *StatusEntry) error {
 	cmd := exec.Command("git", "reset", "HEAD", "--", e.diffDelta.OldFile.Path)
+	cmd.Dir = r.AbsPath
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -211,6 +225,7 @@ func (r *Repository) ResetEntry(e *StatusEntry) error {
 // AddAll is the wrapper of "git add ." command
 func (r *Repository) AddAll() error {
 	cmd := exec.Command("git", "add", ".")
+	cmd.Dir = r.AbsPath
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -220,6 +235,7 @@ func (r *Repository) AddAll() error {
 // ResetAll is the wrapper of "git reset" command
 func (r *Repository) ResetAll() error {
 	cmd := exec.Command("git", "reset", "--mixed")
+	cmd.Dir = r.AbsPath
 	if err := cmd.Run(); err != nil {
 		return err
 	}

@@ -1,6 +1,9 @@
 package git
 
 import (
+	"errors"
+	"path/filepath"
+
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
@@ -29,14 +32,14 @@ type Remote struct {
 
 // Open the repository from given path and return Repository pointer
 func Open(path string) (*Repository, error) {
-	r, err := lib.OpenRepository(path)
+	r, absPath, err := initRepoFromPath(path)
 	if err != nil {
 		return nil, err
 	}
 	repo := &Repository{
 		RepoID:  "",
 		Name:    "",
-		AbsPath: path,
+		AbsPath: absPath,
 		repo:    r,
 	}
 	if err := repo.loadStatus(); err != nil {
@@ -86,4 +89,19 @@ func (r *Repository) InitializeCommits(opts *CommitLoadOptions) error {
 	}
 	r.Commits = commits
 	return nil
+}
+
+func initRepoFromPath(path string) (*lib.Repository, string, error) {
+	walk := path
+	for {
+		r, err := lib.OpenRepository(walk)
+		if err == nil {
+			return r, walk, err
+		}
+		walk = filepath.Dir(walk)
+		if walk == "/" {
+			break
+		}
+	}
+	return nil, walk, errors.New("cannot load a git repository from " + path)
 }

@@ -2,10 +2,10 @@ package cli
 
 import (
 	"errors"
-	"io"
 	"os"
 	"os/exec"
 
+	"github.com/isacikgoz/gitin/git"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,27 +22,20 @@ var (
 	NoErrRecurse error = errors.New("catch")
 )
 
-func popMore(in string) error {
+func popGitCmd(r *git.Repository, args []string) error {
 	os.Setenv("LESS", "-RCS")
-	cmd := exec.Command("less")
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = r.AbsPath
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	defer func() {
-		cmd.Stdin = os.Stdin
-	}()
-	go func() {
-		defer stdin.Close()
-		io.WriteString(stdin, in)
-	}()
+	cmd.Stdin = os.Stdin
+
 	if err := cmd.Start(); err != nil {
-		return err
+		log.Warn(err.Error())
 	}
 	if err := cmd.Wait(); err != nil {
-		return err
+		log.Warn(err.Error())
 	}
 	return NoErrRecurse
 }
