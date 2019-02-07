@@ -18,7 +18,11 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
-		chb <- true
+		if err := emuEnterKey(); err != nil {
+			chb <- true
+		} else {
+			chb <- false
+		}
 		back = true
 		return nil
 	}
@@ -36,12 +40,7 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 		return NoErrRecurse
 	}
 	if err == nil {
-		o := &PromptOptions{
-			Cursor:   prompt.CursorPosition(),
-			Scroll:   prompt.ScrollPosition(),
-			Size:     opts.Size,
-			HideHelp: opts.HideHelp,
-		}
+		o := currentOptions(&prompt, opts)
 		if err = popGitCmd(r, deltas[i].FileStatArgs(c)); err == NoErrRecurse {
 			return statPrompt(r, c, o)
 		}
