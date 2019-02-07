@@ -6,7 +6,6 @@ import (
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
 	"github.com/isacikgoz/promptui/screenbuf"
-	"github.com/micmonay/keybd_event"
 )
 
 func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
@@ -19,20 +18,11 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
-		chb <- false
-
-		kb, err := keybd_event.NewKeyBonding()
-		if err != nil {
-			panic(err)
+		if err := emuEnterKey(); err != nil {
+			chb <- true
+		} else {
+			chb <- false
 		}
-
-		//set keys
-		kb.SetKeys(keybd_event.VK_ENTER)
-		err = kb.Launching()
-		if err != nil {
-			panic(err)
-		}
-
 		back = true
 		return nil
 	}

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"runtime"
 
 	"github.com/isacikgoz/gitin/git"
+	"github.com/micmonay/keybd_event"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -38,4 +40,22 @@ func popGitCmd(r *git.Repository, args []string) error {
 		log.Warn(err.Error())
 	}
 	return NoErrRecurse
+}
+
+func emuEnterKey() error {
+	if runtime.GOOS == "linux" {
+		return errors.New("not supported on linux")
+	}
+	kb, err := keybd_event.NewKeyBonding()
+	if err != nil {
+		return err
+	}
+
+	//set keys
+	kb.SetKeys(keybd_event.VK_ENTER)
+	err = kb.Launching()
+	if err != nil {
+		return err
+	}
+	return nil
 }
