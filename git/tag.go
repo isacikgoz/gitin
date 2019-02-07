@@ -1,17 +1,14 @@
 package git
 
-import (
-	lib "gopkg.in/libgit2/git2go.v27"
-)
-
 // Tag is used to label and mark a specific commit in the history.
 // It is usually used to mark release points
 type Tag struct {
-	Hash    string
-	Target  *lib.Oid
-	Tagger  *Contributor
-	Name    string
-	Message string
+	Hash string
+	// Target    *lib.Oid
+	// Tagger    *Contributor
+	Shorthand string
+	Name      string
+	// Message   string
 }
 
 // loadTags loads tags from the refs
@@ -30,24 +27,15 @@ func (r *Repository) loadTags() ([]*Tag, error) {
 			break
 		}
 
-		if ref.IsTag() {
-			tag, err := r.repo.LookupTag(ref.Target())
-			if err != nil {
+		if !ref.IsRemote() && ref.IsTag() {
 
-			} else {
-				t := &Tag{
-					Hash:    tag.Id().String(),
-					Target:  tag.Target().Id(),
-					Name:    tag.Name(),
-					Message: tag.Message(),
-					Tagger: &Contributor{
-						Name:  tag.Tagger().Name,
-						Email: tag.Tagger().Email,
-						When:  tag.Tagger().When,
-					},
-				}
-				ts = append(ts, t)
+			t := &Tag{
+				Hash:      ref.Target().String(),
+				Name:      ref.Name(),
+				Shorthand: ref.Shorthand(),
 			}
+			ts = append(ts, t)
+
 		}
 	}
 	r.Tags = ts
@@ -58,7 +46,7 @@ func (r *Repository) loadTags() ([]*Tag, error) {
 // this is a performance killer implementation. FIXME
 func (r *Repository) findTag(hash string) *Tag {
 	for _, t := range r.Tags {
-		if t.Target.String()[:7] == hash[:7] {
+		if t.Hash[:7] == hash[:7] {
 			return t
 		}
 	}
