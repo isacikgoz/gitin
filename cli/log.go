@@ -79,6 +79,11 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	if len(commits) <= 0 {
 		return errors.New("there are no commits to log")
 	}
+	// make terminal not line wrap
+	fmt.Printf("\x1b[?7l")
+	// defer restoring line wrap
+	defer fmt.Printf("\x1b[?7h")
+	var recurse bool
 	searcher := func(input string, index int) bool {
 		item := commits[index]
 		name := strings.Replace(strings.ToLower(item.Message), " ", "", -1)
@@ -95,10 +100,15 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	}
 	kset['s'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
+		if err := emuEnterKey(); err != nil {
+			chb <- true
+		} else {
+			chb <- false
+		}
+		recurse = true
 		if err := popGitCmd(r, []string{"show", "--stat", commits[index].Hash}); err != nil {
 			return err
 		}
-		chb <- true
 		o := &PromptOptions{
 			Cursor:   prompt.CursorPosition(),
 			Scroll:   prompt.ScrollPosition(),
@@ -109,16 +119,16 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	}
 	kset['d'] = func(in interface{}, chb chan bool, index int) error {
 		screenbuf.Clear(os.Stdin)
+		if err := emuEnterKey(); err != nil {
+			chb <- true
+		} else {
+			chb <- false
+		}
+		recurse = true
 		if err := popGitCmd(r, []string{"diff", commits[index].Hash}); err != nil {
 			return err
 		}
-		chb <- true
-		o := &PromptOptions{
-			Cursor:   prompt.CursorPosition(),
-			Scroll:   prompt.ScrollPosition(),
-			Size:     opts.Size,
-			HideHelp: opts.HideHelp,
-		}
+		o := currentOptions(&prompt, opts)
 		return logPrompt(r, o, commits)
 	}
 
@@ -131,11 +141,11 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		Templates:   logTemplate(),
 		CustomFuncs: kset,
 	}
-	// make terminal not line wrap
-	fmt.Printf("\x1b[?7l")
-	// defer restoring line wrap
-	defer fmt.Printf("\x1b[?7h")
 	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
+	if recurse {
+		o := currentOptions(&prompt, opts)
+		return logPrompt(r, o, commits)
+	}
 
 	if err == nil {
 		o := &PromptOptions{

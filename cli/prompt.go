@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/isacikgoz/gitin/git"
+	"github.com/isacikgoz/promptui"
 	"github.com/micmonay/keybd_event"
 	log "github.com/sirupsen/logrus"
 )
@@ -40,6 +41,15 @@ func popGitCmd(r *git.Repository, args []string) error {
 		log.Warn(err.Error())
 	}
 	return NoErrRecurse
+}
+
+func currentOptions(prompt *promptui.Select, opts *PromptOptions) *PromptOptions {
+	return &PromptOptions{
+		Cursor:   prompt.CursorPosition(),
+		Scroll:   prompt.ScrollPosition(),
+		Size:     opts.Size,
+		HideHelp: opts.HideHelp,
+	}
 }
 
 func emuEnterKey() error {
