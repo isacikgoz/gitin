@@ -72,8 +72,7 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 	var prompt promptui.Select
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
-		chb <- true
-		defer os.Exit(0)
+		quitPrompt(r, chb)
 		return nil
 	}
 	kset['d'] = func(in interface{}, chb chan bool, index int) error {

@@ -48,6 +48,11 @@ func Open(path string) (*Repository, error) {
 	return repo, err
 }
 
+// Close the repository and do required cleanup
+func (r *Repository) Close() {
+	r.repo.Free()
+}
+
 // InitializeBranches loads the branches
 func (r *Repository) InitializeBranches() error {
 	if err := r.loadBranches(); err != nil {

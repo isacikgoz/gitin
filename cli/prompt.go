@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
@@ -68,4 +69,12 @@ func emuEnterKey() error {
 		return err
 	}
 	return nil
+}
+
+func quitPrompt(r *git.Repository, chb chan bool) {
+	r.Close()
+	chb <- true
+	// sorry to steal 100 ms, lets give it to readline to close itself
+	time.Sleep(100 * time.Millisecond)
+	os.Exit(0)
 }
