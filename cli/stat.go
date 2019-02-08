@@ -1,11 +1,8 @@
 package cli
 
 import (
-	"os"
-
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
-	"github.com/isacikgoz/promptui/screenbuf"
 )
 
 func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
@@ -17,7 +14,6 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 	deltas := diff.Deltas()
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
-		screenbuf.Clear(os.Stdin)
 		if err := emuEnterKey(); err != nil {
 			chb <- true
 		} else {

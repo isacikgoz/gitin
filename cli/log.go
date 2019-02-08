@@ -3,12 +3,10 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
-	"github.com/isacikgoz/promptui/screenbuf"
 )
 
 type LogOptions struct {
@@ -98,7 +96,6 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		return nil
 	}
 	kset['s'] = func(in interface{}, chb chan bool, index int) error {
-		screenbuf.Clear(os.Stdin)
 		if err := emuEnterKey(); err != nil {
 			chb <- true
 		} else {
@@ -117,7 +114,6 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		return logPrompt(r, o, commits)
 	}
 	kset['d'] = func(in interface{}, chb chan bool, index int) error {
-		screenbuf.Clear(os.Stdin)
 		if err := emuEnterKey(); err != nil {
 			chb <- true
 		} else {
