@@ -156,7 +156,9 @@ func (r *Repository) Patch(e *StatusEntry) string {
 // FileStatArgs returns git command args for getting diff
 func (e *StatusEntry) FileStatArgs() []string {
 	var args []string
-	if e.statusEntryType == StatusEntryTypeUntracked {
+	if e.index == IndexTypeStaged {
+		args = []string{"diff", "--cached", e.diffDelta.OldFile.Path}
+	} else if e.statusEntryType == StatusEntryTypeUntracked {
 		args = []string{"diff", "--no-index", "/dev/null", e.diffDelta.NewFile.Path}
 	} else {
 		args = []string{"diff", "--", e.diffDelta.OldFile.Path}
