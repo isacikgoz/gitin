@@ -72,9 +72,10 @@ func emuEnterKey() error {
 }
 
 func quitPrompt(r *git.Repository, chb chan bool) {
+	defer os.Exit(0)
 	r.Close()
+
 	chb <- true
-	// sorry to steal 100 ms, lets give it to readline to close itself
+	// lets give it to readline to close itself
 	time.Sleep(100 * time.Millisecond)
-	os.Exit(0)
 }
