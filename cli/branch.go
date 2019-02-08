@@ -8,7 +8,6 @@ import (
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
-	"github.com/isacikgoz/promptui/screenbuf"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -76,14 +75,26 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 		return nil
 	}
 	kset['d'] = func(in interface{}, chb chan bool, index int) error {
-		screenbuf.Clear(os.Stdin)
 		b := r.Branches[index]
 		if b == r.Branch {
 			return nil
 		}
-		cmd := exec.Command("git", "branch", "-d", b.Name)
-		cmd.Dir = r.AbsPath
-		if err := cmd.Run(); err == nil {
+		if err := deleteBranch(r, b, "d"); err != nil {
+			log.Error(err)
+		}
+		chb <- false
+		if err := r.InitializeBranches(); err != nil {
+			return err
+		}
+		prompt.RefreshList(r.Branches, index)
+		return nil
+	}
+	kset['D'] = func(in interface{}, chb chan bool, index int) error {
+		b := r.Branches[index]
+		if b == r.Branch {
+			return nil
+		}
+		if err := deleteBranch(r, b, "D"); err != nil {
 			log.Error(err)
 		}
 		chb <- false
@@ -106,7 +117,6 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
 
 	if err == nil {
-		screenbuf.Clear(os.Stdin)
 		cmd := exec.Command("git", "checkout", r.Branches[i].Name)
 		cmd.Dir = r.AbsPath
 		cmd.Stdout = os.Stdout
@@ -115,7 +125,7 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 		return cmd.Run()
 	}
 
-	return screenbuf.Clear(os.Stdin)
+	return nil
 }
 
 func branchTemplate() *promptui.SelectTemplates {
@@ -136,4 +146,13 @@ func branchTemplate() *promptui.SelectTemplates {
 			"{{ .Status }} {{- end }}",
 	}
 	return templates
+}
+
+func deleteBranch(r *git.Repository, b *git.Branch, mode string) error {
+	cmd := exec.Command("git", "branch", "-"+mode, b.Name)
+	cmd.Dir = r.AbsPath
+	if err := cmd.Run(); err == nil {
+		return err
+	}
+	return nil
 }

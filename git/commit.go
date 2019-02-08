@@ -409,7 +409,7 @@ func signaturefilter(opts *CommitLoadOptions) bool {
 func (c *Commit) Decoration() string {
 	var decor string
 	if c.Tag != nil {
-		decor = "(tag: " + c.Tag.Name + ")"
+		decor = "(tag: " + c.Tag.Shorthand + ")"
 	}
 	return decor
 }
