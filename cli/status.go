@@ -2,14 +2,23 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"sort"
 	"strconv"
+	"unicode"
 
 	"github.com/fatih/color"
+	"github.com/isacikgoz/diffparser"
+	"github.com/isacikgoz/gitin/editor"
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
+
+	log "github.com/sirupsen/logrus"
 )
 
+// StatusOptions
 type StatusOptions struct {
 	PromptOps *PromptOptions
 }
@@ -22,8 +31,12 @@ func StatusBuilder(r *git.Repository, opts *StatusOptions) error {
 }
 
 func statusPrompt(r *git.Repository, opts *PromptOptions) error {
+	files, err := generateFileList(r)
+	if err != nil {
+		return err
+	}
 	stop := false
-	if len(r.Status.Entries) <= 0 {
+	if files == nil || len(files) <= 0 {
 
 		yellow := color.New(color.FgYellow)
 		fmt.Println("On branch " + yellow.Sprint(r.Branch.Name))
@@ -43,30 +56,74 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		return nil
 	}
 	kset[' '] = func(in interface{}, chb chan bool, index int) error {
-		e := r.Status.Entries[index]
+		e := files[index].Entry()
 		if e.Indexed() {
 			r.ResetEntry(e)
 		} else {
 			r.AddEntry(e)
 		}
 		chb <- false
-		prompt.RefreshList(r.Status.Entries, index)
+		var err error
+		files, err = generateFileList(r)
+		if err != nil {
+			return err
+		}
+		prompt.RefreshList(files, index)
 		return nil
 	}
 	kset['a'] = func(in interface{}, chb chan bool, index int) error {
 		r.AddAll()
+		var err error
+		files, err = generateFileList(r)
+		if err != nil {
+			return err
+		}
 		chb <- false
-		prompt.RefreshList(r.Status.Entries, index)
+		prompt.RefreshList(files, index)
 		return nil
+	}
+	kset['p'] = func(in interface{}, chb chan bool, index int) error {
+		stop = true
+		if err := emuEnterKey(); err != nil {
+			log.Warn(err.Error())
+		}
+		chb <- true
+		file, err := generateDiffFile(r, files[index].entry)
+		if err == nil {
+			editor, _ := editor.NewEditor(file)
+			patches, err := editor.Run()
+			if err != nil {
+				log.Error(err)
+			}
+			for _, patch := range patches {
+				if err := applyPatch(r, patch); err != nil {
+					return err
+				}
+			}
+		} else {
+			log.Warn(err.Error())
+		}
+		o := &PromptOptions{
+			Cursor:   prompt.CursorPosition(),
+			Scroll:   prompt.ScrollPosition(),
+			Size:     opts.Size,
+			HideHelp: opts.HideHelp,
+		}
+		return statusPrompt(r, o)
 	}
 	kset['r'] = func(in interface{}, chb chan bool, index int) error {
 		r.ResetAll()
+		var err error
+		files, err = generateFileList(r)
+		if err != nil {
+			return err
+		}
 		chb <- false
-		prompt.RefreshList(r.Status.Entries, index)
+		prompt.RefreshList(files, index)
 		return nil
 	}
 	kset['c'] = func(in interface{}, chb chan bool, index int) error {
-		if r.NumberOfIndexedEntries() <= 0 {
+		if len(r.Status.Entities[git.IndexTypeStaged]) <= 0 {
 			return nil
 		}
 		chb <- true
@@ -83,7 +140,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		return statusPrompt(r, opts)
 	}
 	kset['m'] = func(in interface{}, chb chan bool, index int) error {
-		if r.NumberOfIndexedEntries() <= 0 {
+		if len(r.Status.Entities[git.IndexTypeStaged]) <= 0 {
 			return nil
 		}
 		chb <- true
@@ -98,7 +155,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 
 	prompt = promptui.Select{
 		Label:       "Files",
-		Items:       r.Status.Entries,
+		Items:       files,
 		HideHelp:    opts.HideHelp,
 		Size:        opts.Size,
 		Templates:   statusTemplate(r),
@@ -117,7 +174,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 			Size:     opts.Size,
 			HideHelp: opts.HideHelp,
 		}
-		if err := popGitCmd(r, r.Status.Entries[i].FileStatArgs()); err == NoErrRecurse {
+		if err := popGitCmd(r, files[i].entry.FileStatArgs()); err == NoErrRecurse {
 			return statusPrompt(r, o)
 		}
 	}
@@ -154,9 +211,9 @@ func getAheadBehind(b *git.Branch) string {
 func statusTemplate(r *git.Repository) *promptui.SelectTemplates {
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . |yellow}}:",
-		Active:   "* {{- if .Indexed }} {{ printf \"%.1s\" .StatusEntryString | green}}{{- else}} {{ printf \"%.1s\" .StatusEntryString | red}}{{- end}} {{ .String }}",
-		Inactive: "  {{- if .Indexed }}  {{ printf \"%.1s\" .StatusEntryString | green}}{{- else}}  {{ printf \"%.1s\" .StatusEntryString | red}}{{- end}} {{ .String }}",
-		Selected: "{{ .String }}",
+		Active:   "* {{- if .Indexed }} {{ printf \"%.1s\" .Entry.StatusEntryString | green}}{{- else}} {{ printf \"%.1s\" .Entry.StatusEntryString | red}}{{- end}} {{ .Entry.String }}",
+		Inactive: "  {{- if .Indexed }}  {{ printf \"%.1s\" .Entry.StatusEntryString | green}}{{- else}}  {{ printf \"%.1s\" .Entry.StatusEntryString | red}}{{- end}} {{ .Entry.String }}",
+		Selected: "{{ .Entry.String }}",
 		Extra:    "add/reset: space commit: c amend: m",
 		Details: "\n" +
 			"---------------- Status -----------------" + "\n" +
@@ -164,4 +221,117 @@ func statusTemplate(r *git.Repository) *promptui.SelectTemplates {
 			getAheadBehind(r.Branch),
 	}
 	return templates
+}
+
+func generateDiffFile(r *git.Repository, entry *git.StatusEntry) (*diffparser.DiffFile, error) {
+	args := entry.FileStatArgs()
+	cmd := exec.Command("git", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	diff, err := diffparser.Parse(string(out))
+	if err != nil {
+		return nil, err
+	}
+	return diff.Files[0], nil
+}
+
+func applyPatch(r *git.Repository, patch string) error {
+	cmd := exec.Command("git", "apply", "--cached")
+	cmd.Dir = r.AbsPath
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, patch+"\n")
+	}()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Println(string(out))
+		log.Error(err.Error())
+	}
+	return nil
+}
+
+// File is wrapper of the git.StatusEntry
+type File struct {
+	index bool
+	entry *git.StatusEntry
+}
+
+func generateFileList(r *git.Repository) ([]*File, error) {
+	if err := r.InitializeBranches(); err != nil {
+		return nil, err
+	}
+	if err := r.InitializeStatus(); err != nil {
+		return nil, err
+	}
+	files := make([]*File, 0)
+	for indexType, entries := range r.Status.Entities {
+		if indexType == git.IndexTypeStaged {
+			for _, entry := range entries {
+				files = append(files, &File{
+					index: true,
+					entry: entry,
+				})
+			}
+		} else {
+			for _, entry := range entries {
+				files = append(files, &File{
+					entry: entry,
+				})
+			}
+		}
+	}
+	sort.Sort(FilesAlphabetical(files))
+	return files, nil
+}
+
+func (f *File) Indexed() bool {
+	return f.index
+}
+
+func (f *File) Entry() *git.StatusEntry {
+	return f.entry
+}
+
+// FilesAlphabetical slice is the re-ordered *File slice that sorted according
+// to alphabetical order (A-Z)
+type FilesAlphabetical []*File
+
+// Len is the interface implementation for Alphabetical sorting function
+func (s FilesAlphabetical) Len() int { return len(s) }
+
+// Swap is the interface implementation for Alphabetical sorting function
+func (s FilesAlphabetical) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// Less is the interface implementation for Alphabetical sorting function
+func (s FilesAlphabetical) Less(i, j int) bool {
+	iRunes := []rune(s[i].entry.String())
+	jRunes := []rune(s[j].entry.String())
+
+	max := len(iRunes)
+	if max > len(jRunes) {
+		max = len(jRunes)
+	}
+
+	for idx := 0; idx < max; idx++ {
+		ir := iRunes[idx]
+		jr := jRunes[idx]
+
+		lir := unicode.ToLower(ir)
+		ljr := unicode.ToLower(jr)
+
+		if lir != ljr {
+			return lir < ljr
+		}
+
+		// the lowercase runes are the same, so compare the original
+		if ir != jr {
+			return ir < jr
+		}
+	}
+	return false
 }
