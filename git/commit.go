@@ -204,7 +204,7 @@ func (c *Contributor) String() string {
 	return c.Name + " " + "<" + c.Email + ">"
 }
 
-// Diff is the equivelant of "git diff <commit>", but it is restricted to commits
+// Diff is the equivalent of "git diff <commit>", but it is restricted to commits
 func (r *Repository) Diff(c *Commit) (*Diff, error) {
 	// if c.commit.ParentCount() > 1 {
 	// 	return nil, errors.New("commit has multiple parents")
