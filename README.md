@@ -15,7 +15,7 @@ gitin is a minimalist tool that lets you explore a git repository from command l
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
 - build with `make install` (`cmake` and `pkg-config` are required)
 
-### Mac using brew 
+### Mac using brew
 ```
 brew tap isacikgoz/gitin
 brew install gitin
@@ -59,8 +59,13 @@ Commands:
 - After these you can download it with `go get github.com/isacikgoz/gitin`
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin` and start hacking
 
-## Disclaimer
-This project is at very early stage of the development and there may be a few bugs. Consider reporting them by raising an issue.
+## Contribution
+- Contributions are welcome, if you like to please refer to [Contribution Guidelines]()
+- Bug reports should include descriptive steps to reproduce
+- Feature requests are welcome, ask for anything seems appropriate
+
+## Credits
+- See the [credits page](https://github.com/isacikgoz/gitin/wiki/Credits)
 
 ## License
-[MIT](/LICENSE)
+[GPL-3.0](/LICENSE)
