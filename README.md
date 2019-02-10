@@ -49,9 +49,9 @@ Commands:
 - To hide help `export GITIN_HIDEHELP=true`
 
 ## Development Requirements
-- Requires gitlib2 v27 and `git2go`. See the project homepages for build instructions.
+- Requires gitlib2 v27 and `git2go`. See the project homepages for more information of build instructions. For gitin you can simply;
   1. download git2go; `go get -d gopkg.in/libgit2/git2go.v27`
-  2. make sure you have `cmake`, `pkg-confid` and `libssl-dev` installed
+  2. make sure you have `cmake`, `pkg-config` and `libssl-dev` installed
   3. `cd` into `$GOPATH/src/gopkg.in/libgit2/git2go.v27`
   4. initialize submodules by running `git submodule update --init`
   5. change the libigt2 version to your version (in this case its 0.27) in the install script (`script/install-libgit2.sh`)
