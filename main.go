@@ -18,20 +18,21 @@ type Config struct {
 }
 
 var (
-	cfg           Config
-	branchCommand = pin.Command("branch", "Checkout, list, or delete branches.")
-	branchAll     = branchCommand.Flag("all", "list both remote and local branches").Bool()
-	branchRemotes = branchCommand.Flag("remote", "list only remote branches").Bool()
-	logCommand    = pin.Command("log", "Show commit logs.")
-	logAhead      = logCommand.Flag("ahead", "show commits that not pushed to upstream").Bool()
-	logAuthor     = logCommand.Flag("author", "limit commits to those by given author").String()
-	logBefore     = logCommand.Flag("before", "show commits older than given date (RFC3339)").String()
-	logBehind     = logCommand.Flag("behind", "show commits that not merged from upstream").Bool()
-	logCommitter  = logCommand.Flag("committer", "limit commits to those by given committer").String()
-	logMaxCount   = logCommand.Flag("max-count", "maximum number of commits to display").Int()
-	logTags       = logCommand.Flag("tags", "show tags alongside commits").Bool()
-	logSince      = logCommand.Flag("since", "show commits newer than given date (RFC3339)").String()
-	status        = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
+	cfg             Config
+	branchCommand   = pin.Command("branch", "Checkout, list, or delete branches.")
+	branchAll       = branchCommand.Flag("all", "list both remote and local branches").Bool()
+	branchRemotes   = branchCommand.Flag("remote", "list only remote branches").Bool()
+	branchOrderDate = branchCommand.Flag("date-order", "order branches by date").Bool()
+	logCommand      = pin.Command("log", "Show commit logs.")
+	logAhead        = logCommand.Flag("ahead", "show commits that not pushed to upstream").Bool()
+	logAuthor       = logCommand.Flag("author", "limit commits to those by given author").String()
+	logBefore       = logCommand.Flag("before", "show commits older than given date (RFC3339)").String()
+	logBehind       = logCommand.Flag("behind", "show commits that not merged from upstream").Bool()
+	logCommitter    = logCommand.Flag("committer", "limit commits to those by given committer").String()
+	logMaxCount     = logCommand.Flag("max-count", "maximum number of commits to display").Int()
+	logTags         = logCommand.Flag("tags", "show tags alongside commits").Bool()
+	logSince        = logCommand.Flag("since", "show commits newer than given date (RFC3339)").String()
+	status          = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 )
 
 func main() {
@@ -66,6 +67,10 @@ func run(path string) error {
 	}
 	switch pin.Parse() {
 	case "branch":
+		orderType := cli.BranchSortDefault
+		if *branchOrderDate {
+			orderType = cli.BranchSortDate
+		}
 		types := cli.LocalBranches
 		if *branchAll {
 			types = cli.AllBranches
@@ -75,6 +80,7 @@ func run(path string) error {
 		opts := &cli.BranchOptions{
 			Types:     types,
 			PromptOps: promptOps,
+			Sort:      orderType,
 		}
 		return cli.BranchBuilder(r, opts)
 	case "log":

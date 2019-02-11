@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/isacikgoz/gitin/git"
@@ -14,6 +15,7 @@ import (
 
 type BranchOptions struct {
 	Types     BranchTypes
+	Sort      BranchSortTypes
 	PromptOps *PromptOptions
 }
 
@@ -23,6 +25,13 @@ const (
 	LocalBranches BranchTypes = iota
 	RemoteBranches
 	AllBranches
+)
+
+type BranchSortTypes uint8
+
+const (
+	BranchSortDefault BranchSortTypes = iota
+	BranchSortDate
 )
 
 func BranchBuilder(r *git.Repository, opts *BranchOptions) error {
@@ -49,6 +58,13 @@ func BranchBuilder(r *git.Repository, opts *BranchOptions) error {
 		}
 		r.Branches = r.Branches[:i]
 	case AllBranches:
+
+	}
+
+	switch opts.Sort {
+	case BranchSortDate:
+		sort.Sort(BranchesByDate(r.Branches))
+	default:
 
 	}
 	return branchPrompt(r, opts.PromptOps)
@@ -155,4 +171,19 @@ func deleteBranch(r *git.Repository, b *git.Branch, mode string) error {
 		return err
 	}
 	return nil
+}
+
+// BranchesByDate slice is the re-ordered *git.Branch slice that sorted according
+// to modification date
+type BranchesByDate []*git.Branch
+
+// Len is the interface implementation for BranchesByDate sorting function
+func (s BranchesByDate) Len() int { return len(s) }
+
+// Swap is the interface implementation for BranchesByDate sorting function
+func (s BranchesByDate) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// Less is the interface implementation for BranchesByDate sorting function
+func (s BranchesByDate) Less(i, j int) bool {
+	return s[i].Date().Unix() > s[j].Date().Unix()
 }

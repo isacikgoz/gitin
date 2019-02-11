@@ -3,6 +3,7 @@ package git
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	lib "gopkg.in/libgit2/git2go.v27"
@@ -188,4 +189,12 @@ func (b *Branch) LastCommitAuthor() string {
 // IsRemote is true if the ref is a remote ref
 func (b *Branch) IsRemote() bool {
 	return b.isRemote
+}
+
+// LastCommitDate returns the date of the targeted commit by this branch
+func (b *Branch) Date() time.Time {
+	if b.lastCommit != nil {
+		return b.lastCommit.Author.When
+	}
+	return time.Now()
 }
