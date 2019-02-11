@@ -57,7 +57,7 @@ Commands:
     2. make sure you have `cmake`, `pkg-config` and `libssl-dev` installed
     3. `cd` into `$GOPATH/src/gopkg.in/libgit2/git2go.v27`
     4. initialize submodules by running `git submodule update --init`
-    5. change the libigt2 version to your version (in this case its 0.27) in the install script (`script/install-libgit2.sh`)
+    5. change the libigt2 version to your version (in this case its 0.27) in the install script (e.g. `nano script/install-libgit2.sh` or `vim script/install-libgit2.sh`) and change `LG2VER` to 0.27.0
     6. run the script `./script/install-libgit2.sh`
 - After these you can download it with `go get github.com/isacikgoz/gitin`
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin` and start hacking
