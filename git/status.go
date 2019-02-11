@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	git "gopkg.in/libgit2/git2go.v27"
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
@@ -41,16 +42,12 @@ type StatusEntryType int
 
 // The set of supported StatusEntryTypes
 const (
-	StatusEntryTypeUnmodified StatusEntryType = iota
-	StatusEntryTypeAdded
-	StatusEntryTypeDeleted
+	StatusEntryTypeNew StatusEntryType = iota
 	StatusEntryTypeModified
+	StatusEntryTypeDeleted
 	StatusEntryTypeRenamed
-	StatusEntryTypeCopied
-	StatusEntryTypeIgnored
 	StatusEntryTypeUntracked
 	StatusEntryTypeTypeChange
-	StatusEntryTypeUnreadable
 	StatusEntryTypeConflicted
 )
 
@@ -63,8 +60,8 @@ type StatusEntry struct {
 
 // Status contains all git status data
 type Status struct {
-	State   State
-	Entries []*StatusEntry
+	State    State
+	Entities []*StatusEntry
 }
 
 func (r *Repository) loadStatus() error {
@@ -82,7 +79,11 @@ func (r *Repository) loadStatus() error {
 	if err != nil {
 		return err
 	}
-	entries := make([]*StatusEntry, 0)
+	entities := make([]*StatusEntry, 0)
+	s := &Status{
+		State:    State(r.repo.State()),
+		Entities: entities,
+	}
 	for i := 0; i < count; i++ {
 		statusEntry, err := statusList.ByIndex(i)
 		if err != nil {
@@ -91,49 +92,67 @@ func (r *Repository) loadStatus() error {
 		if statusEntry.Status <= 0 {
 			continue
 		}
-		index := getIndex(statusEntry.Status)
-		var dd lib.DiffDelta
-		if index == IndexTypeStaged {
-			dd = statusEntry.HeadToIndex
-		} else {
-			dd = statusEntry.IndexToWorkdir
-		}
-		d := &DiffDelta{
-			Status: int(dd.Status),
-			NewFile: &DiffFile{
-				Path: dd.NewFile.Path,
-			},
-			OldFile: &DiffFile{
-				Path: dd.OldFile.Path,
-			},
-		}
-		e := &StatusEntry{
-			index:           index,
-			statusEntryType: StatusEntryType(dd.Status),
-			diffDelta:       d,
-		}
-		entries = append(entries, e)
-	}
-	s := &Status{
-		State:   State(r.repo.State()),
-		Entries: entries,
+		s.addToStatus(statusEntry)
 	}
 	r.Status = s
 	return nil
 }
 
-func getIndex(s lib.Status) IndexType {
-	if s == lib.StatusWtModified || s == lib.StatusWtDeleted || s == lib.StatusWtTypeChange || s == lib.StatusWtRenamed {
-		return IndexTypeUnstaged
-	} else if s == lib.StatusWtNew {
-		return IndexTypeUntracked
-	} else if s == lib.StatusConflicted {
-		return IndexTypeConflicted
+var indexTypeMap = map[lib.Status]IndexType{
+	lib.StatusIndexNew | lib.StatusIndexModified | lib.StatusIndexDeleted | lib.StatusIndexRenamed | lib.StatusIndexTypeChange: IndexTypeStaged,
+	lib.StatusWtModified | lib.StatusWtDeleted | lib.StatusWtTypeChange | lib.StatusWtRenamed:                                  IndexTypeUnstaged,
+	lib.StatusWtNew:      IndexTypeUntracked,
+	lib.StatusConflicted: IndexTypeConflicted,
+}
+
+var statusEntryTypeMap = map[lib.Status]StatusEntryType{
+	lib.StatusIndexNew:        StatusEntryTypeNew,
+	lib.StatusIndexModified:   StatusEntryTypeModified,
+	lib.StatusWtModified:      StatusEntryTypeModified,
+	lib.StatusIndexDeleted:    StatusEntryTypeDeleted,
+	lib.StatusWtDeleted:       StatusEntryTypeDeleted,
+	lib.StatusIndexRenamed:    StatusEntryTypeRenamed,
+	lib.StatusWtRenamed:       StatusEntryTypeRenamed,
+	lib.StatusIndexTypeChange: StatusEntryTypeTypeChange,
+	lib.StatusWtTypeChange:    StatusEntryTypeTypeChange,
+	lib.StatusWtNew:           StatusEntryTypeUntracked,
+	lib.StatusConflicted:      StatusEntryTypeConflicted,
+}
+
+func (s *Status) addToStatus(raw git.StatusEntry) {
+	for rawStatus, indexType := range indexTypeMap {
+		set := raw.Status & rawStatus
+
+		if set > 0 {
+			var dd lib.DiffDelta
+			if indexType == IndexTypeStaged {
+				dd = raw.HeadToIndex
+			} else {
+				dd = raw.IndexToWorkdir
+			}
+			d := &DiffDelta{
+				Status: int(dd.Status),
+				NewFile: &DiffFile{
+					Path: dd.NewFile.Path,
+				},
+				OldFile: &DiffFile{
+					Path: dd.OldFile.Path,
+				},
+			}
+			e := &StatusEntry{
+				index:           indexType,
+				statusEntryType: statusEntryTypeMap[set],
+				diffDelta:       d,
+			}
+			s.Entities = append(s.Entities, e)
+		}
 	}
-	return IndexTypeStaged
 }
 
 func (e *StatusEntry) String() string {
+	if len(e.diffDelta.OldFile.Path) <= 0 {
+		return e.diffDelta.NewFile.Path
+	}
 	return e.diffDelta.OldFile.Path
 }
 
@@ -156,7 +175,9 @@ func (r *Repository) Patch(e *StatusEntry) string {
 // FileStatArgs returns git command args for getting diff
 func (e *StatusEntry) FileStatArgs() []string {
 	var args []string
-	if e.statusEntryType == StatusEntryTypeUntracked {
+	if e.index == IndexTypeStaged {
+		args = []string{"diff", "--cached", e.diffDelta.OldFile.Path}
+	} else if e.statusEntryType == StatusEntryTypeUntracked {
 		args = []string{"diff", "--no-index", "/dev/null", e.diffDelta.NewFile.Path}
 	} else {
 		args = []string{"diff", "--", e.diffDelta.OldFile.Path}
@@ -167,9 +188,7 @@ func (e *StatusEntry) FileStatArgs() []string {
 // StatusEntryString returns entry status in pretty format
 func (e *StatusEntry) StatusEntryString() string {
 	switch e.statusEntryType {
-	case StatusEntryTypeUnmodified:
-		return ""
-	case StatusEntryTypeAdded:
+	case StatusEntryTypeNew:
 		return "Added"
 	case StatusEntryTypeDeleted:
 		return "Deleted"
@@ -177,16 +196,10 @@ func (e *StatusEntry) StatusEntryString() string {
 		return "Modified"
 	case StatusEntryTypeRenamed:
 		return "Renamed"
-	case StatusEntryTypeCopied:
-		return "Copied"
-	case StatusEntryTypeIgnored:
-		return "Ignored"
 	case StatusEntryTypeUntracked:
 		return "Untracked"
 	case StatusEntryTypeTypeChange:
 		return "Type change"
-	case StatusEntryTypeUnreadable:
-		return "Unreadable"
 	case StatusEntryTypeConflicted:
 		return "Conflicted"
 	default:
@@ -237,15 +250,4 @@ func (r *Repository) ResetAll() error {
 		return err
 	}
 	return r.loadStatus()
-}
-
-// NumberOfIndexedEntries returns the count of indexed files in the working dir
-func (r *Repository) NumberOfIndexedEntries() int {
-	count := 0
-	for _, e := range r.Status.Entries {
-		if e.Indexed() {
-			count++
-		}
-	}
-	return count
 }
