@@ -88,7 +88,8 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 			log.Warn(err.Error())
 		}
 		chb <- true
-		file, err := generateDiffFile(r, files[index].entry)
+		entry := files[index].entry
+		file, err := generateDiffFile(r, entry)
 		if err == nil {
 			editor, _ := editor.NewEditor(file)
 			patches, err := editor.Run()
@@ -96,7 +97,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 				log.Error(err)
 			}
 			for _, patch := range patches {
-				if err := applyPatch(r, patch); err != nil {
+				if err := applyPatch(r, entry, patch); err != nil {
 					return err
 				}
 			}
@@ -237,8 +238,12 @@ func generateDiffFile(r *git.Repository, entry *git.StatusEntry) (*diffparser.Di
 	return diff.Files[0], nil
 }
 
-func applyPatch(r *git.Repository, patch string) error {
-	cmd := exec.Command("git", "apply", "--cached")
+func applyPatch(r *git.Repository, entry *git.StatusEntry, patch string) error {
+	mode := []string{"apply", "--cached"}
+	if entry.Indexed() {
+		mode = []string{"apply", "--reverse"}
+	}
+	cmd := exec.Command("git", mode...)
 	cmd.Dir = r.AbsPath
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
