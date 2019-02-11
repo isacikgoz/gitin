@@ -148,10 +148,10 @@ func (b *Branch) Status() string {
 	str := "This branch and " + b.Upstream.Name + " have diverged,"
 	str = str + "\n" + "and have " + strconv.Itoa(ps) + " and " + strconv.Itoa(pl) + " different commits each, respectively."
 	str = str + "\n" + "(\"pull\" to merge the remote branch into this branch)"
-	if pl > 0 {
+	if ps == 0 && pl > 0 {
 		str = "This branch is behind " + b.Upstream.Name + " by " + strconv.Itoa(pl) + " commit(s)."
 		str = str + "\n" + "(\"pull\" to update this local branch)"
-	} else if ps > 0 {
+	} else if pl == 0 && ps > 0 {
 		str = "This branch is ahead of " + b.Upstream.Name + " by " + strconv.Itoa(ps) + " commit(s)."
 		str = str + "\n" + "(\"push\" to publish this local commits)"
 	}
