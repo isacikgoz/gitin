@@ -6,6 +6,7 @@ import (
 	"github.com/jroimartin/gocui"
 )
 
+// View is a name-header pair for creating *gocui.View structs
 type View struct {
 	name   string
 	header string
@@ -18,6 +19,7 @@ var (
 	views    = []*View{main, controls}
 )
 
+// create initial layout that will be called when a resize event occurs
 func (e *Editor) layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
 	if v, err := g.SetView(main.name, -1, -1, maxX-1, maxY-1); err != nil {

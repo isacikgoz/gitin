@@ -109,9 +109,9 @@ func (e *Editor) generateKeybindings() error {
 }
 
 // set the guis by iterating over a slice of the gui's keybindings struct
-func (e *Editor) keybindings(g *gocui.Gui) error {
+func (e *Editor) keybindings() error {
 	for pair, bind := range e.KeyBindings {
-		if err := g.SetKeybinding(pair.view.name, pair.key, bind.Modifier, bind.Handler); err != nil {
+		if err := e.g.SetKeybinding(pair.view.name, pair.key, bind.Modifier, bind.Handler); err != nil {
 			return err
 		}
 	}
@@ -119,11 +119,11 @@ func (e *Editor) keybindings(g *gocui.Gui) error {
 }
 
 func (e *Editor) keyBindingWidth() int {
-	width := 10
+	width := 10 // set minimum width
 	for _, bind := range e.KeyBindings {
 		if len(bind.Display)+len(bind.Description) > width {
 			width = len(bind.Display) + len(bind.Description)
 		}
 	}
-	return width + 4
+	return width + 4 // add some lines for clearance
 }

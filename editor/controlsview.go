@@ -7,6 +7,7 @@ import (
 	"github.com/jroimartin/gocui"
 )
 
+// render controls
 func (e *Editor) createControlsView(g *gocui.Gui, v *gocui.View) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
@@ -24,7 +25,7 @@ func (e *Editor) createControlsView(g *gocui.Gui, v *gocui.View) error {
 	binds := e.generateControls()
 	sx, _ := v.Size()
 	for _, vw := range views {
-		fmt.Fprintf(v, "%s view\n", bold.Sprint(vw.name))
+		fmt.Fprintf(v, "%s view\n", bold.Sprint(vw.header))
 		fmt.Fprintf(v, "%s\n", strings.Repeat("-", sx))
 		for bind, view := range binds {
 			if vw == view {
@@ -37,6 +38,7 @@ func (e *Editor) createControlsView(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// head back to diffhunk editor
 func (e *Editor) closeControlsView(g *gocui.Gui, v *gocui.View) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
@@ -53,6 +55,7 @@ func (e *Editor) closeControlsView(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// genreate controls-view map
 func (e *Editor) generateControls() map[*KeyBinding]*View {
 	controlmap := make(map[*KeyBinding]*View)
 	for pair, bind := range e.KeyBindings {

@@ -12,10 +12,14 @@ import (
 )
 
 const (
+	// diff header length, usually it is 4
 	headerLength = 4
+	// considering color escape sequence
+	tabToWhiteSpace = 3 + 4
 )
 
 var (
+	// define colors
 	green   = color.New(color.FgGreen)
 	yellow  = color.New(color.FgYellow)
 	blue    = color.New(color.FgBlue)
@@ -27,25 +31,29 @@ var (
 	black   = color.New(color.FgBlack)
 )
 
+// Editor is the hunk editor UI
 type Editor struct {
 	g           *gocui.Gui
 	KeyBindings map[*keyViewPair]*KeyBinding
-	State       *EditorState
+	State       *editorState
 	mutex       *sync.Mutex
 }
 
-type EditorState struct {
+// editorState holds the data depending on the editor's state
+type editorState struct {
 	File        *diffparser.DiffFile
 	Patches     []string
 	editorHunks []*editorHunk
 }
 
+// editorHunk wraps the hunk with its state
 type editorHunk struct {
 	selected bool
 	staged   bool
 	hunk     *diffparser.DiffHunk
 }
 
+// NewEditor initializes the editor, pre-checks made here
 func NewEditor(file *diffparser.DiffFile) (*Editor, error) {
 	eHunks := make([]*editorHunk, 0)
 	for _, hunk := range file.Hunks {
@@ -59,7 +67,7 @@ func NewEditor(file *diffparser.DiffFile) (*Editor, error) {
 		return nil, errors.New("there is no diff hunks for this file")
 	}
 	eHunks[0].selected = true
-	initialState := &EditorState{
+	initialState := &editorState{
 		File:        file,
 		editorHunks: eHunks,
 	}
@@ -74,6 +82,7 @@ func NewEditor(file *diffparser.DiffFile) (*Editor, error) {
 	return e, nil
 }
 
+// Run starts the editor
 func (e *Editor) Run() ([]string, error) {
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
@@ -86,7 +95,7 @@ func (e *Editor) Run() ([]string, error) {
 
 	g.SetManagerFunc(e.layout)
 
-	if err := e.keybindings(g); err != nil {
+	if err := e.keybindings(); err != nil {
 		return nil, err
 	}
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
@@ -101,10 +110,12 @@ func (e *Editor) Run() ([]string, error) {
 	return patches, nil
 }
 
+// quit from gui
 func (e *Editor) quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
 }
 
+// redraw editor's main view
 func (e *Editor) updateView(index int) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
@@ -133,10 +144,13 @@ func (e *Editor) updateView(index int) error {
 	return nil
 }
 
+// if there are tabs "\t" in the strings they are squeezed from fmt.Fprintf
+// to handle this, "\t"'s are converted to whitespaces plus color code length
 func tabsToWhitespace(input string) string {
-	return strings.Replace(input, "\t", strings.Repeat(" ", 7), -1)
+	return strings.Replace(input, "\t", strings.Repeat(" ", tabToWhiteSpace), -1)
 }
 
+// generate printable string array from diffhunk
 func hunkLines(hunk *diffparser.DiffHunk) []string {
 	lines := make([]string, 0)
 	lines = append(lines, cyan.Sprint(fmt.Sprintf("@@ -%d,%d +%d,%d @@ ", hunk.OrigRange.Start, hunk.OrigRange.Length, hunk.NewRange.Start, hunk.NewRange.Length))+
@@ -154,6 +168,7 @@ func hunkLines(hunk *diffparser.DiffHunk) []string {
 	return lines
 }
 
+// generate patchable string array from diffhunk
 func hunkString(hunk *diffparser.DiffHunk) string {
 	out := fmt.Sprintf("@@ -%d,%d +%d,%d @@ ", hunk.OrigRange.Start, hunk.OrigRange.Length, hunk.NewRange.Start, hunk.NewRange.Length) +
 		hunk.HunkHeader
@@ -171,6 +186,7 @@ func hunkString(hunk *diffparser.DiffHunk) string {
 	return out
 }
 
+// stage/unstage diffhunk
 func (e *Editor) stageHunk(g *gocui.Gui, v *gocui.View) error {
 	hunks := e.State.editorHunks
 	for _, hunk := range hunks {
@@ -182,12 +198,14 @@ func (e *Editor) stageHunk(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// genereate patch string that will be piped into "git apply" command
 func generatePatch(file *diffparser.DiffFile, hunk *editorHunk) string {
 	patch := file.DiffHeader
 	patch = patch + "\n" + hunkString(hunk.hunk)
 	return patch
 }
 
+// set active hunk for current line
 func (e *Editor) setHunk(line int) error {
 	currentTotal := 0
 	for _, h := range e.State.editorHunks {
@@ -209,6 +227,7 @@ func (e *Editor) setActiveHunk(hunk *editorHunk) {
 	hunk.selected = true
 }
 
+// move cursor down 1 line
 func (e *Editor) cursorDown(g *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		cx, cy := v.Cursor()
@@ -232,6 +251,7 @@ func (e *Editor) cursorDown(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// move cursor up 1 line
 func (e *Editor) cursorUp(g *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		ox, oy := v.Origin()
@@ -248,6 +268,8 @@ func (e *Editor) cursorUp(g *gocui.Gui, v *gocui.View) error {
 	e.updateView(0)
 	return nil
 }
+
+// move cursor down number of current diffhunk lines
 func (e *Editor) nextHunk(g *gocui.Gui, v *gocui.View) error {
 	currentTotal := headerLength
 	for _, h := range e.State.editorHunks {
@@ -286,6 +308,7 @@ func (e *Editor) nextHunk(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// move cursor up number of current diffhunk lines
 func (e *Editor) prevHunk(g *gocui.Gui, v *gocui.View) error {
 	_, ucy := v.Cursor()
 	_, uoy := v.Origin()
@@ -318,6 +341,7 @@ func (e *Editor) prevHunk(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// go to top
 func (e *Editor) goTop(g *gocui.Gui, v *gocui.View) error {
 	cx, _ := v.Cursor()
 	if err := v.SetCursor(cx, 0); err == nil {
@@ -333,6 +357,7 @@ func (e *Editor) goTop(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// go to bottom
 func (e *Editor) goBottom(g *gocui.Gui, v *gocui.View) error {
 	bot := e.totalDiffLines()
 	_, sy := v.Size()
@@ -361,6 +386,7 @@ func (e *Editor) goBottom(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// add padding chars '~'
 func (e *Editor) padMainView(cur int) error {
 	view, err := e.g.View("main")
 	if err != nil {
@@ -371,6 +397,7 @@ func (e *Editor) padMainView(cur int) error {
 	return nil
 }
 
+// total lines, since we use padding, the actual viewBufferLines is this value
 func (e *Editor) totalDiffLines() int {
 	totalLines := headerLength
 	for _, eh := range e.State.editorHunks {
@@ -379,6 +406,7 @@ func (e *Editor) totalDiffLines() int {
 	return totalLines
 }
 
+// try to create a "less" look and feel
 func (e *Editor) hitBottom() bool {
 	p, err := e.g.View("prompt")
 	if err != nil {
