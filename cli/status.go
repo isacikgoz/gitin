@@ -10,10 +10,10 @@ import (
 	"unicode"
 
 	"github.com/fatih/color"
-	"github.com/isacikgoz/diffparser"
 	"github.com/isacikgoz/gitin/editor"
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
+	"github.com/waigani/diffparser"
 
 	log "github.com/sirupsen/logrus"
 )

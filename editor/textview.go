@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/isacikgoz/diffparser"
 	"github.com/jroimartin/gocui"
+	"github.com/waigani/diffparser"
 )
 
 const (
