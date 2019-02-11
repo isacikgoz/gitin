@@ -241,7 +241,7 @@ func generateDiffFile(r *git.Repository, entry *git.StatusEntry) (*diffparser.Di
 func applyPatch(r *git.Repository, entry *git.StatusEntry, patch string) error {
 	mode := []string{"apply", "--cached"}
 	if entry.Indexed() {
-		mode = []string{"apply", "--reverse"}
+		mode = []string{"apply", "--cached", "--reverse"}
 	}
 	cmd := exec.Command("git", mode...)
 	cmd.Dir = r.AbsPath

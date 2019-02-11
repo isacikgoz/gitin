@@ -19,6 +19,8 @@ var (
 	cyan    = color.New(color.FgCyan)
 	hiWhite = color.New(color.FgHiWhite)
 	bold    = color.New(color.Bold)
+	whitebg = color.New(color.BgWhite)
+	black   = color.New(color.FgBlack)
 )
 
 type Editor struct {
@@ -106,7 +108,16 @@ func (e *Editor) layout(g *gocui.Gui) error {
 		e.updateView(0)
 		v.SetCursor(0, headerLength)
 	}
+	if v, err := g.SetView("prompt", -1, maxY-2, maxX-1, maxY); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
+		}
+		v.Frame = false
+		v.Wrap = false
+		fmt.Fprintf(v, ":")
+	}
 	g.SetCurrentView("main")
+	e.updateView(0)
 	return nil
 }
 
@@ -132,49 +143,9 @@ func (e *Editor) updateView(index int) error {
 			fmt.Fprintf(view, "%s %s\n", block, ln)
 		}
 	}
-
-	return nil
-}
-
-func (e *Editor) cursorDown(g *gocui.Gui, v *gocui.View) error {
-	// _, old, err := e.nextHunk()
-	// if err != nil {
-	// 	return nil
-	// }
-	if v != nil {
-		cx, cy := v.Cursor()
-		if err := v.SetCursor(cx, cy+1); err != nil {
-			ox, oy := v.Origin()
-			if err := v.SetOrigin(ox, oy+1); err != nil {
-				return err
-			}
-		}
-	}
-	_, ucy := v.Cursor()
-	_, uoy := v.Origin()
-	e.setHunk(ucy + uoy)
-	e.updateView(0)
-	return nil
-}
-
-func (e *Editor) cursorUp(g *gocui.Gui, v *gocui.View) error {
-	// new, _, err := e.prevHunk()
-	// if err != nil {
-	// 	return nil
-	// }
-	if v != nil {
-		ox, oy := v.Origin()
-		cx, cy := v.Cursor()
-		if err := v.SetCursor(cx, cy-1); err != nil && oy > 0 {
-			if err := v.SetOrigin(ox, oy-1); err != nil {
-				return err
-			}
-		}
-	}
-	_, ucy := v.Cursor()
-	_, uoy := v.Origin()
-	e.setHunk(ucy + uoy)
-	e.updateView(0)
+	_, cy := view.Cursor()
+	e.padMainView(cy)
+	e.hitBottom()
 	return nil
 }
 
@@ -254,6 +225,45 @@ func (e *Editor) setActiveHunk(hunk *editorHunk) {
 	hunk.selected = true
 }
 
+func (e *Editor) cursorDown(g *gocui.Gui, v *gocui.View) error {
+	if v != nil {
+		cx, cy := v.Cursor()
+		ox, oy := v.Origin()
+		// magic number? (header and ?)
+		if cy+oy > e.totalDiffLines()-2 {
+
+		} else {
+			if err := v.SetCursor(cx, cy+1); err != nil {
+
+				if err := v.SetOrigin(ox, oy+1); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	_, ucy := v.Cursor()
+	_, uoy := v.Origin()
+	e.setHunk(ucy + uoy)
+	e.updateView(0)
+	return nil
+}
+
+func (e *Editor) cursorUp(g *gocui.Gui, v *gocui.View) error {
+	if v != nil {
+		ox, oy := v.Origin()
+		cx, cy := v.Cursor()
+		if err := v.SetCursor(cx, cy-1); err != nil && oy > 0 {
+			if err := v.SetOrigin(ox, oy-1); err != nil {
+				return err
+			}
+		}
+	}
+	_, ucy := v.Cursor()
+	_, uoy := v.Origin()
+	e.setHunk(ucy + uoy)
+	e.updateView(0)
+	return nil
+}
 func (e *Editor) nextHunk(g *gocui.Gui, v *gocui.View) error {
 	currentTotal := headerLength
 	for _, h := range e.State.editorHunks {
@@ -262,10 +272,26 @@ func (e *Editor) nextHunk(g *gocui.Gui, v *gocui.View) error {
 			break
 		}
 	}
+	_, sy := v.Size()
+	total := e.totalDiffLines()
+	var anchor int
+	var newcy int
+	if currentTotal < sy {
+		newcy = currentTotal
+		anchor = 0
+	} else if currentTotal < total {
+		anchor = currentTotal
+		newcy = 0
+	} else {
+		return nil
+	}
 	cx, _ := v.Cursor()
-	if err := v.SetCursor(cx, 0); err == nil {
+	if newcy > total-1 {
+		return nil
+	}
+	if err := v.SetCursor(cx, newcy); err == nil {
 		ox, _ := v.Origin()
-		if err := v.SetOrigin(ox, currentTotal); err != nil {
+		if err := v.SetOrigin(ox, anchor); err != nil {
 			return err
 		}
 	}
@@ -279,23 +305,25 @@ func (e *Editor) nextHunk(g *gocui.Gui, v *gocui.View) error {
 func (e *Editor) prevHunk(g *gocui.Gui, v *gocui.View) error {
 	_, ucy := v.Cursor()
 	_, uoy := v.Origin()
-
+	var newcy, anchor int
 	currentTotal := headerLength
 	for idx, h := range e.State.editorHunks {
 		currentTotal += h.hunk.Length()
 		if h.selected {
 			if idx == 0 {
-				currentTotal = headerLength
+				newcy = headerLength
+				anchor = 0
 				break
 			}
 			currentTotal = currentTotal - h.hunk.Length() - e.State.editorHunks[idx-1].hunk.Length()
+			anchor = currentTotal
 			break
 		}
 	}
 	cx, _ := v.Cursor()
-	if err := v.SetCursor(cx, 0); err == nil {
+	if err := v.SetCursor(cx, newcy); err == nil {
 		ox, _ := v.Origin()
-		if err := v.SetOrigin(ox, currentTotal); err != nil {
+		if err := v.SetOrigin(ox, anchor); err != nil {
 			return err
 		}
 	}
@@ -322,17 +350,69 @@ func (e *Editor) goTop(g *gocui.Gui, v *gocui.View) error {
 }
 
 func (e *Editor) goBottom(g *gocui.Gui, v *gocui.View) error {
-	bot := len(v.ViewBufferLines())
+	bot := e.totalDiffLines()
+	_, sy := v.Size()
 	cx, _ := v.Cursor()
-	if err := v.SetCursor(cx, 0); err == nil {
-		ox, _ := v.Origin()
-		if err := v.SetOrigin(ox, bot); err != nil {
-			return err
+	if bot < sy {
+		if err := v.SetCursor(cx, bot-1); err == nil {
+			ox, _ := v.Origin()
+			if err := v.SetOrigin(ox, 0); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := v.SetCursor(cx, sy-1); err == nil {
+			ox, _ := v.Origin()
+			if err := v.SetOrigin(ox, bot-sy); err != nil {
+				return err
+			}
 		}
 	}
+
 	_, ucy := v.Cursor()
 	_, uoy := v.Origin()
 	e.setHunk(ucy + uoy)
 	e.updateView(0)
+
 	return nil
+}
+
+func (e *Editor) padMainView(cur int) error {
+	view, err := e.g.View("main")
+	if err != nil {
+		return err
+	}
+	_, sy := view.Size()
+	fmt.Fprintf(view, strings.Repeat(bold.Sprint("~\n"), sy-cur))
+	return nil
+}
+
+func (e *Editor) totalDiffLines() int {
+	totalLines := headerLength
+	for _, eh := range e.State.editorHunks {
+		totalLines += eh.hunk.Length()
+	}
+	return totalLines
+}
+
+func (e *Editor) hitBottom() bool {
+	p, err := e.g.View("prompt")
+	if err != nil {
+		return false
+	}
+	p.Clear()
+	fmt.Fprintf(p, ":")
+	tdl := e.totalDiffLines()
+	v, err := e.g.View("main")
+	if err != nil {
+		return false
+	}
+	_, sy := v.Size()
+	_, oy := v.Origin()
+	if oy+sy >= tdl {
+		p.Clear()
+		fmt.Fprintf(p, black.Sprint(whitebg.Sprint("(END)")))
+		return true
+	}
+	return false
 }
