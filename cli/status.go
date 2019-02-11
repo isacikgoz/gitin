@@ -123,7 +123,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		return nil
 	}
 	kset['c'] = func(in interface{}, chb chan bool, index int) error {
-		if len(r.Status.Entities[git.IndexTypeStaged]) <= 0 {
+		if len(getIndexedEntries(r)) <= 0 {
 			return nil
 		}
 		chb <- true
@@ -140,7 +140,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		return statusPrompt(r, opts)
 	}
 	kset['m'] = func(in interface{}, chb chan bool, index int) error {
-		if len(r.Status.Entities[git.IndexTypeStaged]) <= 0 {
+		if len(getIndexedEntries(r)) <= 0 {
 			return nil
 		}
 		chb <- true
@@ -269,20 +269,20 @@ func generateFileList(r *git.Repository) ([]*File, error) {
 		return nil, err
 	}
 	files := make([]*File, 0)
-	for indexType, entries := range r.Status.Entities {
-		if indexType == git.IndexTypeStaged {
-			for _, entry := range entries {
-				files = append(files, &File{
-					index: true,
-					entry: entry,
-				})
-			}
+	for _, e := range r.Status.Entities {
+		if e.Indexed() {
+
+			files = append(files, &File{
+				index: true,
+				entry: e,
+			})
+
 		} else {
-			for _, entry := range entries {
-				files = append(files, &File{
-					entry: entry,
-				})
-			}
+
+			files = append(files, &File{
+				entry: e,
+			})
+
 		}
 	}
 	sort.Sort(FilesAlphabetical(files))
@@ -334,4 +334,14 @@ func (s FilesAlphabetical) Less(i, j int) bool {
 		}
 	}
 	return false
+}
+
+func getIndexedEntries(r *git.Repository) []*git.StatusEntry {
+	files := make([]*git.StatusEntry, 0)
+	for _, e := range r.Status.Entities {
+		if e.Indexed() {
+			files = append(files, e)
+		}
+	}
+	return files
 }

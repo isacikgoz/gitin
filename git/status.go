@@ -61,7 +61,7 @@ type StatusEntry struct {
 // Status contains all git status data
 type Status struct {
 	State    State
-	Entities map[IndexType][]*StatusEntry
+	Entities []*StatusEntry
 }
 
 func (r *Repository) loadStatus() error {
@@ -79,7 +79,7 @@ func (r *Repository) loadStatus() error {
 	if err != nil {
 		return err
 	}
-	entities := make(map[IndexType][]*StatusEntry)
+	entities := make([]*StatusEntry, 0)
 	s := &Status{
 		State:    State(r.repo.State()),
 		Entities: entities,
@@ -121,44 +121,32 @@ var statusEntryTypeMap = map[lib.Status]StatusEntryType{
 
 func (s *Status) addToStatus(raw git.StatusEntry) {
 	for rawStatus, indexType := range indexTypeMap {
-		processedRawStatus := raw.Status & rawStatus
+		set := raw.Status & rawStatus
 
-		if processedRawStatus > 0 {
-			if _, ok := s.Entities[indexType]; !ok {
-				statusEntries := make([]*StatusEntry, 0)
-				s.Entities[indexType] = statusEntries
+		if set > 0 {
+			var dd lib.DiffDelta
+			if indexType == IndexTypeStaged {
+				dd = raw.HeadToIndex
+			} else {
+				dd = raw.IndexToWorkdir
 			}
-			e, err := newEntry(raw, indexType, processedRawStatus)
-			if err != nil {
-				continue
+			d := &DiffDelta{
+				Status: int(dd.Status),
+				NewFile: &DiffFile{
+					Path: dd.NewFile.Path,
+				},
+				OldFile: &DiffFile{
+					Path: dd.OldFile.Path,
+				},
 			}
-			s.Entities[indexType] = append(s.Entities[indexType], e)
+			e := &StatusEntry{
+				index:           indexType,
+				statusEntryType: statusEntryTypeMap[set],
+				diffDelta:       d,
+			}
+			s.Entities = append(s.Entities, e)
 		}
 	}
-}
-
-func newEntry(raw git.StatusEntry, index IndexType, set lib.Status) (*StatusEntry, error) {
-	var dd lib.DiffDelta
-	if index == IndexTypeStaged {
-		dd = raw.HeadToIndex
-	} else {
-		dd = raw.IndexToWorkdir
-	}
-	d := &DiffDelta{
-		Status: int(dd.Status),
-		NewFile: &DiffFile{
-			Path: dd.NewFile.Path,
-		},
-		OldFile: &DiffFile{
-			Path: dd.OldFile.Path,
-		},
-	}
-	e := &StatusEntry{
-		index:           index,
-		statusEntryType: statusEntryTypeMap[set],
-		diffDelta:       d,
-	}
-	return e, nil
 }
 
 func (e *StatusEntry) String() string {
