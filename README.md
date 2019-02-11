@@ -71,4 +71,4 @@ Commands:
 - See the [credits page](https://github.com/isacikgoz/gitin/wiki/Credits)
 
 ## License
-[GPL-3.0](/LICENSE)
+[BSD-3-Clause](/LICENSE)
