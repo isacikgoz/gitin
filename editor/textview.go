@@ -1,8 +1,10 @@
 package editor
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/fatih/color"
 	"github.com/jroimartin/gocui"
@@ -15,6 +17,8 @@ const (
 
 var (
 	green   = color.New(color.FgGreen)
+	yellow  = color.New(color.FgYellow)
+	blue    = color.New(color.FgBlue)
 	red     = color.New(color.FgRed)
 	cyan    = color.New(color.FgCyan)
 	hiWhite = color.New(color.FgHiWhite)
@@ -25,8 +29,9 @@ var (
 
 type Editor struct {
 	g           *gocui.Gui
-	KeyBindings []*KeyBinding
+	KeyBindings map[*keyViewPair]*KeyBinding
 	State       *EditorState
+	mutex       *sync.Mutex
 }
 
 type EditorState struct {
@@ -50,6 +55,9 @@ func NewEditor(file *diffparser.DiffFile) (*Editor, error) {
 			hunk:     hunk,
 		})
 	}
+	if len(eHunks) <= 0 {
+		return nil, errors.New("there is no diff hunks for this file")
+	}
 	eHunks[0].selected = true
 	initialState := &EditorState{
 		File:        file,
@@ -58,6 +66,8 @@ func NewEditor(file *diffparser.DiffFile) (*Editor, error) {
 	e := &Editor{
 		State: initialState,
 	}
+	var mx sync.Mutex
+	e.mutex = &mx
 	if err := e.generateKeybindings(); err != nil {
 		return nil, err
 	}
@@ -79,7 +89,6 @@ func (e *Editor) Run() ([]string, error) {
 	if err := e.keybindings(g); err != nil {
 		return nil, err
 	}
-
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		return nil, err
 	}
@@ -96,32 +105,9 @@ func (e *Editor) quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
 }
 
-func (e *Editor) layout(g *gocui.Gui) error {
-	maxX, maxY := g.Size()
-	if v, err := g.SetView("main", -1, -1, maxX-1, maxY-1); err != nil {
-		if err != gocui.ErrUnknownView {
-			return err
-		}
-		v.Frame = false
-		v.Title = "Editor"
-		v.Wrap = false
-		e.updateView(0)
-		v.SetCursor(0, headerLength)
-	}
-	if v, err := g.SetView("prompt", -1, maxY-2, maxX-1, maxY); err != nil {
-		if err != gocui.ErrUnknownView {
-			return err
-		}
-		v.Frame = false
-		v.Wrap = false
-		fmt.Fprintf(v, ":")
-	}
-	g.SetCurrentView("main")
-	e.updateView(0)
-	return nil
-}
-
 func (e *Editor) updateView(index int) error {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
 	view, err := e.g.View("main")
 	if err != nil {
 		return err
@@ -130,14 +116,12 @@ func (e *Editor) updateView(index int) error {
 	out := bold.Sprint(hiWhite.Sprint(e.State.File.DiffHeader))
 	fmt.Fprintln(view, out)
 	for _, ehunk := range e.State.editorHunks {
-		block := "█"
+		block := "▎" //"█"
 		if ehunk.selected {
-			block = "▚"
+			block = "█" //"▚"
 		}
 		if ehunk.staged {
 			block = green.Sprint(block)
-		} else {
-			block = red.Sprint(block)
 		}
 		for _, ln := range hunkLines(ehunk.hunk) {
 			fmt.Fprintf(view, "%s %s\n", block, ln)

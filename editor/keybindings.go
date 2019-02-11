@@ -14,111 +14,116 @@ type KeyBinding struct {
 	Vital       bool
 }
 
+type keyViewPair struct {
+	key  interface{}
+	view *View
+}
+
 // generate the editor controls a.k.a. keybindings
 func (e *Editor) generateKeybindings() error {
-	e.KeyBindings = make([]*KeyBinding, 0)
-	mainKeys := []*KeyBinding{
-		{
-			View:        "",
-			Key:         'q',
-			Modifier:    gocui.ModNone,
-			Handler:     e.quit,
-			Display:     "q",
-			Description: "Quit",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         gocui.KeyArrowUp,
-			Modifier:    gocui.ModNone,
-			Handler:     e.cursorUp,
-			Display:     "up",
-			Description: "Cursor Up",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         gocui.KeyArrowDown,
-			Modifier:    gocui.ModNone,
-			Handler:     e.cursorDown,
-			Display:     "down",
-			Description: "Cursor Down",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         'k',
-			Modifier:    gocui.ModNone,
-			Handler:     e.cursorUp,
-			Display:     "k",
-			Description: "Cursor Up",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         'j',
-			Modifier:    gocui.ModNone,
-			Handler:     e.cursorDown,
-			Display:     "j",
-			Description: "Cursor Down",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         gocui.KeySpace,
-			Modifier:    gocui.ModNone,
-			Handler:     e.stageHunk,
-			Display:     "space",
-			Description: "Stage/Unstage",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         'n',
-			Modifier:    gocui.ModNone,
-			Handler:     e.nextHunk,
-			Display:     "n",
-			Description: "Next hunk",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         'N',
-			Modifier:    gocui.ModNone,
-			Handler:     e.prevHunk,
-			Display:     "N",
-			Description: "Previous hunk",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         'g',
-			Modifier:    gocui.ModNone,
-			Handler:     e.goTop,
-			Display:     "g",
-			Description: "Go to top",
-			Vital:       false,
-		},
-		{
-			View:        "main",
-			Key:         'G',
-			Modifier:    gocui.ModNone,
-			Handler:     e.goBottom,
-			Display:     "G",
-			Description: "Go to bottom",
-			Vital:       false,
-		},
+	keymap := make(map[*keyViewPair]*KeyBinding)
+	quit := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.quit,
+		Display:     "q",
+		Description: "Quit",
+		Vital:       false,
 	}
-	e.KeyBindings = append(e.KeyBindings, mainKeys...)
+	keymap[&keyViewPair{'q', main}] = quit
+	cursorUp := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.cursorUp,
+		Display:     "↑, k",
+		Description: "Cursor up",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{gocui.KeyArrowUp, main}] = cursorUp
+	keymap[&keyViewPair{'k', main}] = cursorUp
+	cursorDown := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.cursorDown,
+		Display:     "↓, j",
+		Description: "Cursor down",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{gocui.KeyArrowDown, main}] = cursorDown
+	keymap[&keyViewPair{'j', main}] = cursorDown
+	add := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.stageHunk,
+		Display:     "space",
+		Description: "Stage/Unstage",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{gocui.KeySpace, main}] = add
+	nextHunk := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.nextHunk,
+		Display:     "n",
+		Description: "Next hunk",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{'n', main}] = nextHunk
+	prevHunk := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.prevHunk,
+		Display:     "N",
+		Description: "Previous hunk",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{'N', main}] = prevHunk
+	top := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.goTop,
+		Display:     "g",
+		Description: "Go to top",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{'g', main}] = top
+	bottom := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.goBottom,
+		Display:     "G",
+		Description: "Go to bottom",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{'G', main}] = bottom
+	openControls := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.createControlsView,
+		Display:     "c",
+		Description: "Open controls",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{'c', main}] = openControls
+	quitControls := &KeyBinding{
+		Modifier:    gocui.ModNone,
+		Handler:     e.closeControlsView,
+		Display:     "q",
+		Description: "Close controls",
+		Vital:       false,
+	}
+	keymap[&keyViewPair{'q', controls}] = quitControls
+	e.KeyBindings = keymap
 	return nil
 }
 
 // set the guis by iterating over a slice of the gui's keybindings struct
 func (e *Editor) keybindings(g *gocui.Gui) error {
-	for _, k := range e.KeyBindings {
-		if err := g.SetKeybinding(k.View, k.Key, k.Modifier, k.Handler); err != nil {
+	for pair, bind := range e.KeyBindings {
+		if err := g.SetKeybinding(pair.view.name, pair.key, bind.Modifier, bind.Handler); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (e *Editor) keyBindingWidth() int {
+	width := 10
+	for _, bind := range e.KeyBindings {
+		if len(bind.Display)+len(bind.Description) > width {
+			width = len(bind.Display) + len(bind.Description)
+		}
+	}
+	return width + 4
 }

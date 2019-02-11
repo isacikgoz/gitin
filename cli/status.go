@@ -91,7 +91,11 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		entry := files[index].entry
 		file, err := generateDiffFile(r, entry)
 		if err == nil {
-			editor, _ := editor.NewEditor(file)
+			editor, err := editor.NewEditor(file)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
 			patches, err := editor.Run()
 			if err != nil {
 				log.Error(err)
