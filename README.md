@@ -63,9 +63,9 @@ Commands:
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin` and start hacking
 
 ## Contribution
-- Contributions are welcome. If you like to please refer to [Contribution Guidelines]()
-- Bug reports should include descriptive steps to reproduce
-- Feature requests are welcome, ask for anything seems appropriate
+- Contributions are welcome. If you like to please refer to [Contribution Guidelines](/CONTRIBUTING.md)
+- Bug reports should include descriptive steps to reproduce so that maintainers can easily understand the actual problem
+- Feature requests are welcome, ask for anything that seems appropriate
 
 ## Credits
 - See the [credits page](https://github.com/isacikgoz/gitin/wiki/Credits)
