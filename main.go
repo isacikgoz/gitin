@@ -37,7 +37,7 @@ var (
 
 func main() {
 
-	pin.Version("gitin version 0.1.4")
+	pin.Version("gitin version 0.1.5")
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
 	pin.Parse()
