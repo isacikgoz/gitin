@@ -219,7 +219,7 @@ func statusTemplate(r *git.Repository) *promptui.SelectTemplates {
 		Active:   "* {{- if .Indexed }} {{ printf \"%.1s\" .Entry.StatusEntryString | green}}{{- else}} {{ printf \"%.1s\" .Entry.StatusEntryString | red}}{{- end}} {{ .Entry.String }}",
 		Inactive: "  {{- if .Indexed }}  {{ printf \"%.1s\" .Entry.StatusEntryString | green}}{{- else}}  {{ printf \"%.1s\" .Entry.StatusEntryString | red}}{{- end}} {{ .Entry.String }}",
 		Selected: "{{ .Entry.String }}",
-		Extra:    "add/reset: space commit: c amend: m",
+		Extra:    "add/reset: space commit: c amend: m patch: p",
 		Details: "\n" +
 			"---------------- Status -----------------" + "\n" +
 			"{{ \"On branch\" }} " + "{{ \"" + r.Branch.Name + "\" | yellow }}" + "\n" +
