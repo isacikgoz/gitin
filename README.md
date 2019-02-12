@@ -10,18 +10,18 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 
 ## Features
 - Various filters for commit history (e.g. `gitin log --author="..."`)
-- Interactive stage and see the diff of files (`gitin status` then press `space`)
+- Interactive stage and see the diff of files (`gitin status` then press `enter` to see diff or `space` to stage)
 - Explore branches with useful filter options (`gitin branch` press `enter` to checkout)
 - Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
 - See ahead/behind commits (e.g. `gitin log --ahead`)
 - Interactive hunk staging (`gitin status` then press `p`)
-- Minimalist design. Does not use the whole screen of your terminal
-- See more options by simply `gitin --help`, also you can get help for individual subcommands (e.g. `gitin log --help`)
+- Convenient UX and minimalist design
+- See more options by running `gitin --help`, also you can get help for individual subcommands (e.g. `gitin log --help`)
 
 ## Installation
-- Works on Linux and macOS
+- Linux and macOS are supported, haven't tried on Windows.
 - Download latest release from [here](https://github.com/isacikgoz/gitin/releases)
-- Or, manually download it with `go get -d github.com/isacikgoz/gitin`
+- **Or**, manually download it with `go get -d github.com/isacikgoz/gitin`
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
 - build with `make install` (`cmake` and `pkg-config` are required)
 
