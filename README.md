@@ -1,3 +1,5 @@
+![](https://img.shields.io/travis/com/isacikgoz/gitin.svg?style=flat) ![](https://img.shields.io/github/license/isacikgoz/gitin.svg?style=flat) ![](https://img.shields.io/github/downloads/isacikgoz/gitin/total.svg?style=flat) ![](https://img.shields.io/github/release-pre/isacikgoz/gitin.svg?style=flat)
+
 # gitin
 
 `gitin` is a commit/branch/status explorer for `git`
