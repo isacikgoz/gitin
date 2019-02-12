@@ -59,6 +59,7 @@ Commands:
 ## Configure
 - To set the line size `export GITIN_LINESIZE=5`
 - To hide help `export GITIN_HIDEHELP=true`
+- To set find method `GITIN_SEARCHMODE=<method>` (`fuzzy`, `basic` or `combined`)
 
 ## Development Requirements
 - Requires gitlib2 v27 and `git2go`. See the project homepages for more information about build instructions. For gitin you can simply;

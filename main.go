@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/isacikgoz/gitin/cli"
 	"github.com/isacikgoz/gitin/git"
@@ -13,8 +14,9 @@ import (
 )
 
 type Config struct {
-	LineSize int
-	HideHelp bool
+	LineSize   int
+	HideHelp   bool
+	SearchMode string
 }
 
 var (
@@ -64,6 +66,7 @@ func run(path string) error {
 		Scroll:   0,
 		Size:     cfg.LineSize,
 		HideHelp: cfg.HideHelp,
+		Finder:   strings.ToLower(cfg.SearchMode),
 	}
 	switch pin.Parse() {
 	case "branch":

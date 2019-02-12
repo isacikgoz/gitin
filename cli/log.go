@@ -97,12 +97,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		if err := popGitCmd(r, []string{"show", "--stat", commits[index].Hash}); err != nil {
 			return err
 		}
-		o := &PromptOptions{
-			Cursor:   prompt.CursorPosition(),
-			Scroll:   prompt.ScrollPosition(),
-			Size:     opts.Size,
-			HideHelp: opts.HideHelp,
-		}
+		o := currentOptions(&prompt, opts)
 		return logPrompt(r, o, commits)
 	}
 	kset['d'] = func(in interface{}, chb chan bool, index int) error {
@@ -126,7 +121,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		StartInSearchMode: opts.StartInSearch,
 		PreSearchString:   opts.InitSearchString,
 		Size:              opts.Size,
-		Searcher:          combinedSearch,
+		Searcher:          finderFunc(opts.Finder),
 		Templates:         logTemplate(),
 		CustomFuncs:       kset,
 	}
@@ -151,6 +146,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 				StartInSearch:    prompt.FinishInSearchMode,
 				InitSearchString: prompt.PreSearchString,
 				HideHelp:         opts.HideHelp,
+				Finder:           opts.Finder,
 			}
 			return logPrompt(r, o, commits)
 		}

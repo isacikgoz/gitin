@@ -117,7 +117,7 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 		Label:       "Branches",
 		Items:       r.Branches,
 		HideHelp:    opts.HideHelp,
-		Searcher:    combinedSearch,
+		Searcher:    finderFunc(opts.Finder),
 		Size:        opts.Size,
 		Templates:   branchTemplate(),
 		CustomFuncs: kset,

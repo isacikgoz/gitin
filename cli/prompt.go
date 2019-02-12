@@ -21,6 +21,7 @@ type PromptOptions struct {
 	HideHelp         bool
 	StartInSearch    bool
 	InitSearchString string
+	Finder           string
 }
 
 var (
@@ -51,6 +52,7 @@ func currentOptions(prompt *promptui.Select, opts *PromptOptions) *PromptOptions
 		Cursor:   prompt.CursorPosition(),
 		Scroll:   prompt.ScrollPosition(),
 		Size:     opts.Size,
+		Finder:   opts.Finder,
 		HideHelp: opts.HideHelp,
 	}
 }
