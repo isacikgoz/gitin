@@ -128,13 +128,15 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	}
 
 	prompt = promptui.Select{
-		Label:       "Commits",
-		Items:       commits,
-		HideHelp:    opts.HideHelp,
-		Size:        opts.Size,
-		Searcher:    searcher,
-		Templates:   logTemplate(),
-		CustomFuncs: kset,
+		Label:             "Commits",
+		Items:             commits,
+		HideHelp:          opts.HideHelp,
+		StartInSearchMode: opts.StartInSearch,
+		PreSearchString:   opts.InitSearchString,
+		Size:              opts.Size,
+		Searcher:          searcher,
+		Templates:         logTemplate(),
+		CustomFuncs:       kset,
 	}
 	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
 	if recurse {
@@ -151,10 +153,12 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		}
 		if err := statPrompt(r, commits[i], o); err != nil && err == NoErrRecurse {
 			o := &PromptOptions{
-				Cursor:   prompt.CursorPosition(),
-				Scroll:   prompt.ScrollPosition(),
-				Size:     opts.Size,
-				HideHelp: opts.HideHelp,
+				Cursor:           prompt.CursorPosition(),
+				Scroll:           prompt.ScrollPosition(),
+				Size:             opts.Size,
+				StartInSearch:    prompt.FinishInSearchMode,
+				InitSearchString: prompt.PreSearchString,
+				HideHelp:         opts.HideHelp,
 			}
 			return logPrompt(r, o, commits)
 		}

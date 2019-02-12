@@ -15,10 +15,12 @@ import (
 
 // PromptOptions is the common options for building a prompt
 type PromptOptions struct {
-	Cursor   int
-	Scroll   int
-	Size     int
-	HideHelp bool
+	Cursor           int
+	Scroll           int
+	Size             int
+	HideHelp         bool
+	StartInSearch    bool
+	InitSearchString string
 }
 
 var (
