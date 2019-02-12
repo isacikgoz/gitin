@@ -2,11 +2,21 @@
 
 `gitin` is a commit/branch/status explorer for `git`
 
-gitin is a minimalist tool that lets you explore a git repository from the command line. You can search from commits, inspect individual files and changes in the commits, see ahead/behind commits etc. It is an alternative and interactive way to explore the commit history. Also, you can explore your current state by investigating diffs, stage your changes and commit them.
+gitin is a minimalist tool that lets you explore a git repository from the command line. You can search from commits, inspect individual files and changes in the commits. It is an alternative and interactive way to explore the commit history. Also, you can explore your current state by investigating diffs, stage your changes and commit them.
 
 <p align="center">
    <img src="https://github.com/isacikgoz/gitin/blob/master/img/screencast.gif" alt="screencast"/>
 </p>
+
+## Features
+- Various filters for commit history (e.g. `gitin log --author="..."`)
+- Interactive stage and see the diff of files (`gitin status` then press `space`)
+- Explore branches with useful filter options (`gitin branch` press `enter` to checkout)
+- Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
+- See ahead/behind commits (e.g. `gitin log --ahead`)
+- Interactive hunk staging (`gitin status` then press `p`)
+- Minimalist design. Does not use the whole screen of your terminal
+- See more options by simply `gitin --help`, also you can get help for individual subcommands (e.g. `gitin log --help`)
 
 ## Installation
 - Works on Linux and macOS
