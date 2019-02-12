@@ -12,11 +12,11 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 
 ## Features
 - Various filters for commit history (e.g. `gitin log --author="..."`)
-- Interactive stage and see the diff of files (`gitin status` then press `enter` to see diff or `space` to stage)
-- Explore branches with useful filter options (`gitin branch` press `enter` to checkout)
-- Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
 - See ahead/behind commits (e.g. `gitin log --ahead`)
+- Interactive stage and see the diff of files (`gitin status` then press `enter` to see diff or `space` to stage)
+- Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
 - Interactive hunk staging (`gitin status` then press `p`)
+- Explore branches with useful filter options (e.g. `gitin branch` press `enter` to checkout)
 - Convenient UX and minimalist design
 - See more options by running `gitin --help`, also you can get help for individual subcommands (e.g. `gitin log --help`)
 
@@ -80,7 +80,7 @@ Commands:
 - Feature requests are welcome, ask for anything that seems appropriate
 
 ## Credits
-- See the [credits page](https://github.com/isacikgoz/gitin/wiki/Credits)
+See the [credits page](https://github.com/isacikgoz/gitin/wiki/Credits)
 
 ## License
 [BSD-3-Clause](/LICENSE)

@@ -71,7 +71,7 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		prompt.RefreshList(files, index)
 		return nil
 	}
-	kset['d'] = func(in interface{}, chb chan bool, index int) error {
+	kset['!'] = func(in interface{}, chb chan bool, index int) error {
 		e := files[index].Entry()
 		args := []string{"checkout", "--", e.String()}
 		if err := popGitCmd(r, args); err != nil {

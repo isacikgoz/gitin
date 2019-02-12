@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui"
@@ -82,13 +81,6 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	// defer restoring line wrap
 	defer fmt.Printf("\x1b[?7h")
 	var recurse bool
-	searcher := func(input string, index int) bool {
-		item := commits[index]
-		name := strings.Replace(strings.ToLower(item.Message), " ", "", -1)
-		input = strings.Replace(strings.ToLower(input), " ", "", -1)
-
-		return strings.Contains(name, input)
-	}
 	var prompt promptui.Select
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
@@ -134,7 +126,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		StartInSearchMode: opts.StartInSearch,
 		PreSearchString:   opts.InitSearchString,
 		Size:              opts.Size,
-		Searcher:          searcher,
+		Searcher:          combinedSearch,
 		Templates:         logTemplate(),
 		CustomFuncs:       kset,
 	}
