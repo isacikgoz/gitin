@@ -96,6 +96,19 @@ func (r *Repository) InitializeCommits(opts *CommitLoadOptions) error {
 	return nil
 }
 
+// ChanneledCommits loads all commits from current HEAD asynchrously
+func (r *Repository) ChanneledCommits(opts *CommitLoadOptions) (<-chan *Commit, error) {
+	if shallow, err := r.repo.IsShallow(); shallow || err != nil {
+		return nil, errors.New("shallow repositories are not supported yet")
+	}
+	head, err := r.repo.Head()
+	if err != nil {
+		return nil, err
+	}
+
+	return r.channeledCommitLoader(head.Target(), nil, opts)
+}
+
 func initRepoFromPath(path string) (*lib.Repository, string, error) {
 	walk := path
 	for {

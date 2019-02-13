@@ -15,10 +15,13 @@ import (
 
 // PromptOptions is the common options for building a prompt
 type PromptOptions struct {
-	Cursor   int
-	Scroll   int
-	Size     int
-	HideHelp bool
+	Cursor           int
+	Scroll           int
+	Size             int
+	HideHelp         bool
+	StartInSearch    bool
+	InitSearchString string
+	Finder           string
 }
 
 var (
@@ -49,6 +52,7 @@ func currentOptions(prompt *promptui.Select, opts *PromptOptions) *PromptOptions
 		Cursor:   prompt.CursorPosition(),
 		Scroll:   prompt.ScrollPosition(),
 		Size:     opts.Size,
+		Finder:   opts.Finder,
 		HideHelp: opts.HideHelp,
 	}
 }

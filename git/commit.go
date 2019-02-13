@@ -71,28 +71,10 @@ func (r *Repository) loadCommits(from, to *lib.Oid, opts *CommitLoadOptions) ([]
 	counter := 0
 	limit := datefilter(opts) || signaturefilter(opts)
 	err = walk.Iterate(func(commit *lib.Commit) bool {
-		oid := commit.AsObject().Id()
-		if to != nil && to.Equal(oid) {
+		if to != nil && to.Equal(commit.AsObject().Id()) {
 			return false
 		}
-
-		hash := oid.String()
-		author := &Contributor{
-			Name:  commit.Author().Name,
-			Email: commit.Author().Email,
-			When:  commit.Author().When,
-		}
-		sum := commit.Summary()
-		msg := commit.Message()
-
-		c := &Commit{
-			commit:  commit,
-			Hash:    hash,
-			Author:  author,
-			Message: msg,
-			Summary: sum,
-		}
-
+		c := unpackRawCommit(commit)
 		if tag := r.findTag(c.Hash); tag != nil {
 			c.Tag = tag
 		}
@@ -114,6 +96,74 @@ func (r *Repository) loadCommits(from, to *lib.Oid, opts *CommitLoadOptions) ([]
 	})
 	r.Commits = cs
 	return cs, nil
+}
+
+func unpackRawCommit(raw *lib.Commit) *Commit {
+	oid := raw.AsObject().Id()
+
+	hash := oid.String()
+	author := &Contributor{
+		Name:  raw.Author().Name,
+		Email: raw.Author().Email,
+		When:  raw.Author().When,
+	}
+	sum := raw.Summary()
+	msg := raw.Message()
+
+	c := &Commit{
+		commit:  raw,
+		Hash:    hash,
+		Author:  author,
+		Message: msg,
+		Summary: sum,
+	}
+	return c
+}
+
+func (r *Repository) channeledCommitLoader(from, to *lib.Oid, opts *CommitLoadOptions) (<-chan *Commit, error) {
+	channel := make(chan *Commit, 100)
+
+	walk, err := r.repo.Walk()
+	if err != nil {
+		return nil, err
+	}
+	if err := walk.Push(from); err != nil {
+		return nil, err
+	}
+
+	go func() {
+		defer close(channel)
+		defer walk.Free()
+
+		counter := 0
+		limit := datefilter(opts) || signaturefilter(opts)
+		err = walk.Iterate(func(commit *lib.Commit) bool {
+			if to != nil && to.Equal(commit.AsObject().Id()) {
+				return false
+			}
+			c := unpackRawCommit(commit)
+			if tag := r.findTag(c.Hash); tag != nil {
+				c.Tag = tag
+			}
+
+			if limit {
+				if ok, _ := limitCommit(commit, opts); ok {
+					counter++
+					channel <- c
+				}
+			} else {
+				counter++
+				channel <- c
+			}
+
+			if opts.MaxCount != 0 && counter >= opts.MaxCount {
+				return false
+			}
+			return true
+		})
+
+	}()
+	return channel, nil
 }
 
 // failOverShallow is a backdoor to load commits. Since gitlib.v27 cannot load
@@ -187,7 +237,7 @@ func (r *Repository) failOverShallow(opts *CommitLoadOptions) ([]*Commit, error)
 	return commits, nil
 }
 func (c *Commit) String() string {
-	return c.Hash
+	return c.Message
 }
 
 // Date returns the commits's creation date as string

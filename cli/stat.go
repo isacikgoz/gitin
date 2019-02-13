@@ -11,6 +11,8 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 	if err != nil {
 		return err
 	}
+	var recurse bool
+	var prompt promptui.Select
 	deltas := diff.Deltas()
 	kset := make(map[rune]promptui.CustomFunc)
 	kset['q'] = func(in interface{}, chb chan bool, index int) error {
@@ -22,8 +24,20 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 		back = true
 		return nil
 	}
+	kset['s'] = func(in interface{}, chb chan bool, index int) error {
+		if err := emuEnterKey(); err != nil {
+			chb <- true
+		} else {
+			chb <- false
+		}
+		recurse = true
+		if err = popGitCmd(r, []string{"show", "--stat", c.Hash}); err == NoErrRecurse {
+			return nil
+		}
+		return nil
+	}
 
-	prompt := promptui.Select{
+	prompt = promptui.Select{
 		Label:       c,
 		Items:       deltas,
 		HideHelp:    opts.HideHelp,
@@ -32,6 +46,10 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 		CustomFuncs: kset,
 	}
 	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
+	if recurse {
+		o := currentOptions(&prompt, opts)
+		return statPrompt(r, c, o)
+	}
 	if back {
 		return NoErrRecurse
 	}
@@ -49,7 +67,7 @@ func statTemplate(c *git.Commit) *promptui.SelectTemplates {
 		Label:    "{{ .Summary | yellow }}",
 		Active:   "* {{ .String | green}} ",
 		Inactive: "  {{ .String }}",
-		Extra:    "select: enter",
+		Extra:    "stat: s select: enter",
 		Details: "\n" +
 			"---------------- Commit Detail -----------------" + "\n" +
 			"{{ \"Hash:\"   | faint }}   " + "{{ \"" + c.Hash + "\" | yellow }}" + "\n" +

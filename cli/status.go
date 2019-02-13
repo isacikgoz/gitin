@@ -71,6 +71,26 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		prompt.RefreshList(files, index)
 		return nil
 	}
+	kset['!'] = func(in interface{}, chb chan bool, index int) error {
+		e := files[index].Entry()
+		args := []string{"checkout", "--", e.String()}
+		if err := popGitCmd(r, args); err != nil {
+			log.Warn(err)
+		}
+		files, err = generateFileList(r)
+		if files == nil || len(files) <= 0 {
+			chb <- true
+			stop = true
+			return statusPrompt(r, opts)
+		}
+		chb <- false
+		var err error
+		if err != nil {
+			return err
+		}
+		prompt.RefreshList(files, index)
+		return nil
+	}
 	kset['a'] = func(in interface{}, chb chan bool, index int) error {
 		r.AddAll()
 		var err error
@@ -219,7 +239,7 @@ func statusTemplate(r *git.Repository) *promptui.SelectTemplates {
 		Active:   "* {{- if .Indexed }} {{ printf \"%.1s\" .Entry.StatusEntryString | green}}{{- else}} {{ printf \"%.1s\" .Entry.StatusEntryString | red}}{{- end}} {{ .Entry.String }}",
 		Inactive: "  {{- if .Indexed }}  {{ printf \"%.1s\" .Entry.StatusEntryString | green}}{{- else}}  {{ printf \"%.1s\" .Entry.StatusEntryString | red}}{{- end}} {{ .Entry.String }}",
 		Selected: "{{ .Entry.String }}",
-		Extra:    "add/reset: space commit: c amend: m",
+		Extra:    "add/reset: space commit: c amend: m patch: p",
 		Details: "\n" +
 			"---------------- Status -----------------" + "\n" +
 			"{{ \"On branch\" }} " + "{{ \"" + r.Branch.Name + "\" | yellow }}" + "\n" +
