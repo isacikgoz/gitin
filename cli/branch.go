@@ -114,13 +114,14 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 	}
 
 	prompt = promptui.Select{
-		Label:       "Branches",
-		Items:       r.Branches,
-		HideHelp:    opts.HideHelp,
-		Searcher:    finderFunc(opts.Finder),
-		Size:        opts.Size,
-		Templates:   branchTemplate(),
-		CustomFuncs: kset,
+		Label:             "Branches",
+		Items:             r.Branches,
+		HideHelp:          opts.HideHelp,
+		StartInSearchMode: opts.StartInSearch,
+		Searcher:          finderFunc(opts.Finder),
+		Size:              opts.Size,
+		Templates:         branchTemplate(),
+		CustomFuncs:       kset,
 	}
 	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
 

@@ -22,6 +22,7 @@ type Config struct {
 var (
 	cfg             Config
 	branchCommand   = pin.Command("branch", "Checkout, list, or delete branches.")
+	startSearch     = pin.Flag("search", "start in search mode").Short('s').Bool()
 	branchAll       = branchCommand.Flag("all", "list both remote and local branches").Bool()
 	branchRemotes   = branchCommand.Flag("remote", "list only remote branches").Bool()
 	branchOrderDate = branchCommand.Flag("date-order", "order branches by date").Bool()
@@ -62,11 +63,12 @@ func run(path string) error {
 		return err
 	}
 	promptOps := &cli.PromptOptions{
-		Cursor:   0,
-		Scroll:   0,
-		Size:     cfg.LineSize,
-		HideHelp: cfg.HideHelp,
-		Finder:   strings.ToLower(cfg.SearchMode),
+		Cursor:        0,
+		Scroll:        0,
+		Size:          cfg.LineSize,
+		HideHelp:      cfg.HideHelp,
+		StartInSearch: *startSearch,
+		Finder:        strings.ToLower(cfg.SearchMode),
 	}
 	switch pin.Parse() {
 	case "branch":
