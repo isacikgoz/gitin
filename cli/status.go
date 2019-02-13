@@ -77,9 +77,14 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 		if err := popGitCmd(r, args); err != nil {
 			log.Warn(err)
 		}
+		files, err = generateFileList(r)
+		if files == nil || len(files) <= 0 {
+			chb <- true
+			stop = true
+			return statusPrompt(r, opts)
+		}
 		chb <- false
 		var err error
-		files, err = generateFileList(r)
 		if err != nil {
 			return err
 		}
