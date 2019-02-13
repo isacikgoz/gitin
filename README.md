@@ -11,6 +11,7 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 </p>
 
 ## Features
+- Fuzzy search (type `/` to start a search after running `gitin <command>`)
 - Various filters for commit history (e.g. `gitin log --author="..."`)
 - See ahead/behind commits (e.g. `gitin log --ahead`)
 - Interactive stage and see the diff of files (`gitin status` then press `enter` to see diff or `space` to stage)

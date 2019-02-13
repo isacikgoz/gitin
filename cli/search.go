@@ -5,11 +5,18 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/isacikgoz/fuzzy"
 	"github.com/isacikgoz/promptui/list"
+	"github.com/sahilm/fuzzy"
 )
 
-func combinedSearch(scope []*interface{}, term string) []*interface{} {
+type interfaceSource []*interface{}
+
+func (is interfaceSource) String(i int) string { return fmt.Sprint(*is[i]) }
+
+func (is interfaceSource) Len() int { return len(is) }
+
+func combinedSearch(in []*interface{}, term string) []*interface{} {
+	scope := interfaceSource(in)
 	var wg sync.WaitGroup
 	filter := strings.ToLower(term)
 	if filter == "" {
@@ -36,10 +43,7 @@ func combinedSearch(scope []*interface{}, term string) []*interface{} {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		matches := fuzzy.FindInterface(filter, scope)
-		for _, m := range matches {
-			fMatches = append(fMatches, m.Val)
-		}
+		fMatches = fuzzySearch(in, term)
 		eMatches = append(eMatches, fMatches...)
 	}()
 
@@ -47,7 +51,8 @@ func combinedSearch(scope []*interface{}, term string) []*interface{} {
 	return removeDuplicates(eMatches)
 }
 
-func fuzzySearch(scope []*interface{}, term string) []*interface{} {
+func fuzzySearch(in []*interface{}, term string) []*interface{} {
+	scope := interfaceSource(in)
 	var wg sync.WaitGroup
 	filter := strings.ToLower(term)
 	if filter == "" {
@@ -57,9 +62,9 @@ func fuzzySearch(scope []*interface{}, term string) []*interface{} {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		matches := fuzzy.FindInterface(filter, scope)
+		matches := fuzzy.FindFrom(filter, scope)
 		for _, m := range matches {
-			fMatches = append(fMatches, m.Val)
+			fMatches = append(fMatches, in[m.Index])
 		}
 	}()
 
