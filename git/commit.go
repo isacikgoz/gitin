@@ -87,9 +87,6 @@ func (r *Repository) loadCommits(from, to *lib.Oid, opts *CommitLoadOptions) ([]
 		}
 		c := unpackRawCommit(commit)
 		c.owner = r
-		if tag := r.findTag(c.Hash); tag != nil {
-			c.Tag = tag
-		}
 
 		if limit {
 			if ok, _ := limitCommit(commit, opts); ok {
@@ -154,9 +151,6 @@ func (r *Repository) channeledCommitLoader(from, to *lib.Oid, opts *CommitLoadOp
 				return false
 			}
 			c := unpackRawCommit(commit)
-			if tag := r.findTag(c.Hash); tag != nil {
-				c.Tag = tag
-			}
 
 			if limit {
 				if ok, _ := limitCommit(commit, opts); ok {

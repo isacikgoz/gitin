@@ -51,17 +51,6 @@ func (r *Repository) loadTags() ([]*Tag, error) {
 	return ts, nil
 }
 
-// findTag looks up for the hash is targeted bu a tag
-// this is a performance killer implementation. FIXME
-func (r *Repository) findTag(hash string) *Tag {
-	for _, t := range r.Tags {
-		if t.Hash[:7] == hash[:7] {
-			return t
-		}
-	}
-	return nil
-}
-
 func (t *Tag) Type() RefType {
 	return t.refType
 }
