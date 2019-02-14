@@ -17,10 +17,12 @@ type Config struct {
 	LineSize   int
 	HideHelp   bool
 	SearchMode string
+	ShowDetail bool
 }
 
 var (
 	cfg             Config
+	fuzz            = pin.Command("fuzz", "Search anything from the repository.")
 	branchCommand   = pin.Command("branch", "Checkout, list, or delete branches.")
 	startSearch     = pin.Flag("search", "start in search mode").Short('s').Bool()
 	branchAll       = branchCommand.Flag("all", "list both remote and local branches").Bool()
@@ -67,10 +69,14 @@ func run(path string) error {
 		Scroll:        0,
 		Size:          cfg.LineSize,
 		HideHelp:      cfg.HideHelp,
+		ShowDetail:    cfg.ShowDetail,
 		StartInSearch: *startSearch,
+		SearchLabel:   "Search :",
 		Finder:        strings.ToLower(cfg.SearchMode),
 	}
 	switch pin.Parse() {
+	case "fuzz":
+		return cli.FuzzBuilder(r, promptOps)
 	case "branch":
 		orderType := cli.BranchSortDefault
 		if *branchOrderDate {

@@ -77,46 +77,50 @@ func branchPrompt(r *git.Repository, opts *PromptOptions) error {
 	defer fmt.Printf("\x1b[?7h")
 
 	var prompt promptui.Select
-	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = func(in interface{}, chb chan bool, index int) error {
-		quitPrompt(r, chb)
-		return nil
-	}
-	kset['d'] = func(in interface{}, chb chan bool, index int) error {
-		b := r.Branches[index]
-		if b == r.Branch {
+	kset := make(map[promptui.CustomKey]promptui.CustomFunc)
+	kset[promptui.CustomKey{Key: 'q', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			quitPrompt(r, chb)
 			return nil
 		}
-		if err := deleteBranch(r, b, "d"); err != nil {
-			log.Error(err)
-		}
-		chb <- false
-		if err := r.InitializeBranches(); err != nil {
-			return err
-		}
-		prompt.RefreshList(r.Branches, index)
-		return nil
-	}
-	kset['D'] = func(in interface{}, chb chan bool, index int) error {
-		b := r.Branches[index]
-		if b == r.Branch {
+	kset[promptui.CustomKey{Key: 'd', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			b := r.Branches[index]
+			if b == r.Branch {
+				return nil
+			}
+			if err := deleteBranch(r, b, "d"); err != nil {
+				log.Error(err)
+			}
+			chb <- false
+			if err := r.InitializeBranches(); err != nil {
+				return err
+			}
+			prompt.RefreshList(r.Branches, index)
 			return nil
 		}
-		if err := deleteBranch(r, b, "D"); err != nil {
-			log.Error(err)
+	kset[promptui.CustomKey{Key: 'D', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			b := r.Branches[index]
+			if b == r.Branch {
+				return nil
+			}
+			if err := deleteBranch(r, b, "D"); err != nil {
+				log.Error(err)
+			}
+			chb <- false
+			if err := r.InitializeBranches(); err != nil {
+				return err
+			}
+			prompt.RefreshList(r.Branches, index)
+			return nil
 		}
-		chb <- false
-		if err := r.InitializeBranches(); err != nil {
-			return err
-		}
-		prompt.RefreshList(r.Branches, index)
-		return nil
-	}
 
 	prompt = promptui.Select{
 		Label:             "Branches",
 		Items:             r.Branches,
 		HideHelp:          opts.HideHelp,
+		SearchLabel:       opts.SearchLabel,
 		StartInSearchMode: opts.StartInSearch,
 		Searcher:          finderFunc(opts.Finder),
 		Size:              opts.Size,

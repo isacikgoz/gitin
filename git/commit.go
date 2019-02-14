@@ -15,6 +15,7 @@ import (
 
 // Commit is the wrapper of actual lib.Commit object
 type Commit struct {
+	owner   *Repository
 	commit  *lib.Commit
 	Hash    string
 	Author  *Contributor
@@ -23,6 +24,16 @@ type Commit struct {
 	Type    CommitType
 	Tag     *Tag
 	Heads   []*Branch
+}
+
+type CommitRefDisplay struct {
+	Heads    []string
+	Tags     []string
+	Branches []string
+}
+
+func newRefDisplay(r *Ref) *CommitRefDisplay {
+	return &CommitRefDisplay{}
 }
 
 // CommitType is the Type of the commit; it can be local or remote (upstream diff)
@@ -75,6 +86,7 @@ func (r *Repository) loadCommits(from, to *lib.Oid, opts *CommitLoadOptions) ([]
 			return false
 		}
 		c := unpackRawCommit(commit)
+		c.owner = r
 		if tag := r.findTag(c.Hash); tag != nil {
 			c.Tag = tag
 		}
@@ -464,6 +476,29 @@ func (c *Commit) Decoration() string {
 	return decor
 }
 
+func (c *Commit) CommitRefs() string {
+	r := c.owner
+	var decor string
+	if refs, ok := r.RefMap[c.Hash]; ok {
+		if len(refs) <= 0 {
+			return decor
+		}
+		decor = "("
+		for _, ref := range refs {
+			switch ref.Type() {
+			case RefTypeHEAD:
+				decor += "HEAD -> " + ref.Display() + ", "
+			case RefTypeBranch:
+				decor += ref.Display() + ", "
+			case RefTypeTag:
+				decor += "tag: " + ref.Display() + ", "
+			}
+		}
+		decor = decor[:len(decor)-2] + ")"
+	}
+	return decor
+}
+
 // LastCommitStat prints the stat of the last commit
 func (r *Repository) LastCommitStat() string {
 	head, err := r.repo.Head()
@@ -494,4 +529,16 @@ func (r *Repository) LastCommitArgs() []string {
 	hash := string(head.Target().String())
 	args := []string{"show", "--stat", hash}
 	return args
+}
+
+func (c *Commit) Display() string {
+	return c.Summary
+}
+
+func (c *Commit) ShortType() rune {
+	return 'c'
+}
+
+func (c *Commit) Oid() string {
+	return c.Hash
 }

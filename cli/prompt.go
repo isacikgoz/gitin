@@ -19,7 +19,9 @@ type PromptOptions struct {
 	Scroll           int
 	Size             int
 	HideHelp         bool
+	ShowDetail       bool
 	StartInSearch    bool
+	SearchLabel      string
 	InitSearchString string
 	Finder           string
 }

@@ -37,35 +37,17 @@ func LogBuilder(r *git.Repository, opts *LogOptions) error {
 		Since:     opts.Since,
 		Before:    opts.Before,
 	}
-	if opts.Tags {
-		if err := r.InitializeTags(); err != nil {
-			return err
-		}
+	if err := r.LoadAll(loadOpts); err != nil {
+		return err
 	}
-
 	switch opts.Mode {
 	case LogNormal:
-		if err := r.InitializeCommits(loadOpts); err != nil {
-			return err
-		}
 		commits = r.Commits
 	case LogAhead:
-		if err := r.InitializeBranches(); err != nil {
-			return err
-		}
 		commits = r.Branch.Ahead
 	case LogBehind:
-		if err := r.InitializeBranches(); err != nil {
-			return err
-		}
 		commits = r.Branch.Behind
 	case LogMixed:
-		if err := r.InitializeBranches(); err != nil {
-			return err
-		}
-		if err := r.InitializeCommits(loadOpts); err != nil {
-			return err
-		}
 		commits = r.Branch.Ahead
 		commits = append(commits, r.Commits...)
 	}
@@ -82,37 +64,40 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	defer fmt.Printf("\x1b[?7h")
 	var recurse bool
 	var prompt promptui.Select
-	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = func(in interface{}, chb chan bool, index int) error {
-		quitPrompt(r, chb)
-		return nil
-	}
-	kset['s'] = func(in interface{}, chb chan bool, index int) error {
-		if err := emuEnterKey(); err != nil {
-			chb <- true
-		} else {
-			chb <- false
+	kset := make(map[promptui.CustomKey]promptui.CustomFunc)
+	kset[promptui.CustomKey{Key: 'q', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			quitPrompt(r, chb)
+			return nil
 		}
-		recurse = true
-		if err := popGitCmd(r, []string{"show", "--stat", commits[index].Hash}); err != nil {
-			return err
+	kset[promptui.CustomKey{Key: 's', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			if err := emuEnterKey(); err != nil {
+				chb <- true
+			} else {
+				chb <- false
+			}
+			recurse = true
+			if err := popGitCmd(r, []string{"show", "--stat", commits[index].Hash}); err != nil {
+				return err
+			}
+			o := currentOptions(&prompt, opts)
+			return logPrompt(r, o, commits)
 		}
-		o := currentOptions(&prompt, opts)
-		return logPrompt(r, o, commits)
-	}
-	kset['d'] = func(in interface{}, chb chan bool, index int) error {
-		if err := emuEnterKey(); err != nil {
-			chb <- true
-		} else {
-			chb <- false
+	kset[promptui.CustomKey{Key: 'd', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			if err := emuEnterKey(); err != nil {
+				chb <- true
+			} else {
+				chb <- false
+			}
+			recurse = true
+			if err := popGitCmd(r, []string{"diff", commits[index].Hash}); err != nil {
+				return err
+			}
+			o := currentOptions(&prompt, opts)
+			return logPrompt(r, o, commits)
 		}
-		recurse = true
-		if err := popGitCmd(r, []string{"diff", commits[index].Hash}); err != nil {
-			return err
-		}
-		o := currentOptions(&prompt, opts)
-		return logPrompt(r, o, commits)
-	}
 
 	prompt = promptui.Select{
 		Label:             "Commits",
@@ -121,8 +106,9 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 		StartInSearchMode: opts.StartInSearch,
 		PreSearchString:   opts.InitSearchString,
 		Size:              opts.Size,
+		SearchLabel:       opts.SearchLabel,
 		Searcher:          finderFunc(opts.Finder),
-		Templates:         logTemplate(),
+		Templates:         logTemplate(opts.ShowDetail),
 		CustomFuncs:       kset,
 	}
 	i, _, err := prompt.RunCursorAt(opts.Cursor, opts.Scroll)
@@ -154,18 +140,21 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 	return nil
 }
 
-func logTemplate() *promptui.SelectTemplates {
+func logTemplate(detail bool) *promptui.SelectTemplates {
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . |yellow}}:",
 		Active:   "* {{ printf \"%.7s\" .Hash | cyan}} {{ .Summary | green}}",
 		Inactive: "  {{ printf \"%.7s\" .Hash | cyan}} {{ .Summary}}",
 		Selected: "{{ .Summary }}",
 		Extra:    "select: enter",
-		Details: `
+	}
+	if detail {
+		templates.Details = `
 ---------------- Commit Detail -----------------
-{{ "Hash:"  | faint }}   {{ .Hash | yellow }} {{ .Decoration }}
+{{ "Hash:"  | faint }}   {{ .Hash | yellow }}
 {{ "Author:"| faint }} {{ .Author }}
-{{ "Date:"  | faint }}   {{ .Date }} ({{ .Since | blue }})`,
+{{ "Date:"  | faint }}   {{ .Date }} ({{ .Since | blue }})
+{{ .CommitRefs }}`
 	}
 	return templates
 }

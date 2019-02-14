@@ -12,6 +12,7 @@ import (
 // Branch is simply a lightweight movable pointer to one of repositories' commits
 type Branch struct {
 	Name       string
+	refType    RefType
 	FullName   string
 	Hash       string
 	Upstream   *Branch
@@ -80,6 +81,7 @@ func (r *Repository) loadBranches() error {
 		}
 		b := &Branch{
 			Name:     name,
+			refType:  RefTypeBranch,
 			FullName: fullname,
 			Hash:     hash,
 			isRemote: isRemote,
@@ -114,6 +116,12 @@ func (r *Repository) loadBranches() error {
 				}
 			}
 		}
+		if _, ok := r.RefMap[b.Hash]; !ok {
+			r.RefMap[b.Hash] = make([]Ref, 0)
+		}
+		refs := r.RefMap[b.Hash]
+		refs = append(refs, b)
+		r.RefMap[b.Hash] = refs
 		bs = append(bs, b)
 		return nil
 	})
@@ -127,6 +135,7 @@ func (r *Repository) loadBranches() error {
 			continue
 		}
 		if head.Target().String() == b.Hash {
+			b.refType = RefTypeHEAD
 			r.Branch = b
 		}
 	}
@@ -197,4 +206,24 @@ func (b *Branch) Date() time.Time {
 		return b.lastCommit.Author.When
 	}
 	return time.Now()
+}
+
+func (b *Branch) Type() RefType {
+	return b.refType
+}
+
+func (b *Branch) Target() string {
+	return b.Hash
+}
+
+func (b *Branch) Display() string {
+	return b.Name
+}
+
+func (b *Branch) Oid() string {
+	return b.Hash
+}
+
+func (b *Branch) ShortType() rune {
+	return 'b'
 }
