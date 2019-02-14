@@ -17,7 +17,7 @@ type Config struct {
 	LineSize   int
 	HideHelp   bool
 	SearchMode string
-	ShowDetail bool
+	HideDetail bool
 }
 
 var (
@@ -69,7 +69,7 @@ func run(path string) error {
 		Scroll:        0,
 		Size:          cfg.LineSize,
 		HideHelp:      cfg.HideHelp,
-		ShowDetail:    cfg.ShowDetail,
+		ShowDetail:    !cfg.HideDetail,
 		StartInSearch: *startSearch,
 		SearchLabel:   "Search :",
 		Finder:        strings.ToLower(cfg.SearchMode),
