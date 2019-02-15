@@ -22,7 +22,6 @@ type Commit struct {
 	Message string
 	Summary string
 	Type    CommitType
-	Tag     *Tag
 	Heads   []*Branch
 }
 
@@ -61,7 +60,6 @@ type CommitLoadOptions struct {
 	Before    string
 	Committer string
 	MaxCount  int
-	Tags      bool
 	Since     string
 }
 
@@ -459,15 +457,6 @@ func signaturefilter(opts *CommitLoadOptions) bool {
 		return true
 	}
 	return false
-}
-
-// Decoration returns the string if the commit has tag or reference
-func (c *Commit) Decoration() string {
-	var decor string
-	if c.Tag != nil {
-		decor = "(tag: " + c.Tag.Shorthand + ")"
-	}
-	return decor
 }
 
 func (c *Commit) CommitRefs() string {

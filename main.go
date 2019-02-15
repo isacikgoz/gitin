@@ -35,7 +35,6 @@ var (
 	logBehind       = logCommand.Flag("behind", "show commits that not merged from upstream").Bool()
 	logCommitter    = logCommand.Flag("committer", "limit commits to those by given committer").String()
 	logMaxCount     = logCommand.Flag("max-count", "maximum number of commits to display").Int()
-	logTags         = logCommand.Flag("tags", "show tags alongside commits").Bool()
 	logSince        = logCommand.Flag("since", "show commits newer than given date (RFC3339)").String()
 	status          = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 )
@@ -99,7 +98,6 @@ func run(path string) error {
 			Author:    *logAuthor,
 			Before:    *logBefore,
 			Committer: *logCommitter,
-			Tags:      *logTags,
 			MaxCount:  *logMaxCount,
 			Since:     *logSince,
 			PromptOps: promptOps,

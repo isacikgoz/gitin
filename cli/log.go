@@ -14,7 +14,6 @@ type LogOptions struct {
 	Before    string
 	Committer string
 	MaxCount  int
-	Tags      bool
 	Since     string
 
 	PromptOps *PromptOptions
