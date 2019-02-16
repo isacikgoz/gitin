@@ -5,9 +5,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/isacikgoz/fuzzy"
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui/list"
+	"github.com/sahilm/fuzzy"
 )
 
 type interfaceSource []*interface{}

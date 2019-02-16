@@ -130,6 +130,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 				Size:             opts.Size,
 				StartInSearch:    prompt.FinishInSearchMode,
 				InitSearchString: prompt.PreSearchString,
+				ShowDetail:       opts.ShowDetail,
 				HideHelp:         opts.HideHelp,
 				Finder:           opts.Finder,
 			}

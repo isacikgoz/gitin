@@ -22,7 +22,6 @@ type Config struct {
 
 var (
 	cfg             Config
-	fuzz            = pin.Command("fuzz", "Search anything from the repository.")
 	branchCommand   = pin.Command("branch", "Checkout, list, or delete branches.")
 	startSearch     = pin.Flag("search", "start in search mode").Short('s').Bool()
 	branchAll       = branchCommand.Flag("all", "list both remote and local branches").Bool()
@@ -41,7 +40,7 @@ var (
 
 func main() {
 
-	pin.Version("gitin version 0.1.5")
+	pin.Version("gitin version 0.1.6")
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
 	pin.Parse()
@@ -74,8 +73,6 @@ func run(path string) error {
 		Finder:        strings.ToLower(cfg.SearchMode),
 	}
 	switch pin.Parse() {
-	case "fuzz":
-		return cli.FuzzBuilder(r, promptOps)
 	case "branch":
 		orderType := cli.BranchSortDefault
 		if *branchOrderDate {
