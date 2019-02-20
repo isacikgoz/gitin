@@ -14,28 +14,31 @@ func statPrompt(r *git.Repository, c *git.Commit, opts *PromptOptions) error {
 	var recurse bool
 	var prompt promptui.Select
 	deltas := diff.Deltas()
-	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = func(in interface{}, chb chan bool, index int) error {
-		if err := emuEnterKey(); err != nil {
-			chb <- true
-		} else {
-			chb <- false
-		}
-		back = true
-		return nil
-	}
-	kset['s'] = func(in interface{}, chb chan bool, index int) error {
-		if err := emuEnterKey(); err != nil {
-			chb <- true
-		} else {
-			chb <- false
-		}
-		recurse = true
-		if err = popGitCmd(r, []string{"show", "--stat", c.Hash}); err == NoErrRecurse {
+	kset := make(map[promptui.CustomKey]promptui.CustomFunc)
+	kset[promptui.CustomKey{Key: 'q', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			if err := emuEnterKey(); err != nil {
+				chb <- true
+			} else {
+				chb <- false
+			}
+			recurse = false
+			back = true
 			return nil
 		}
-		return nil
-	}
+	kset[promptui.CustomKey{Key: 's', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			if err := emuEnterKey(); err != nil {
+				chb <- true
+			} else {
+				chb <- false
+			}
+			recurse = true
+			if err = popGitCmd(r, []string{"show", "--stat", c.Hash}); err == NoErrRecurse {
+				return nil
+			}
+			return nil
+		}
 
 	prompt = promptui.Select{
 		Label:       c,

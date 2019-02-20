@@ -50,133 +50,141 @@ func statusPrompt(r *git.Repository, opts *PromptOptions) error {
 	defer fmt.Printf("\x1b[?7h")
 
 	var prompt promptui.Select
-	kset := make(map[rune]promptui.CustomFunc)
-	kset['q'] = func(in interface{}, chb chan bool, index int) error {
-		quitPrompt(r, chb)
-		return nil
-	}
-	kset[' '] = func(in interface{}, chb chan bool, index int) error {
-		e := files[index].Entry()
-		if e.Indexed() {
-			r.ResetEntry(e)
-		} else {
-			r.AddEntry(e)
+	kset := make(map[promptui.CustomKey]promptui.CustomFunc)
+	kset[promptui.CustomKey{Key: 'q', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			quitPrompt(r, chb)
+			return nil
 		}
-		chb <- false
-		var err error
-		files, err = generateFileList(r)
-		if err != nil {
-			return err
-		}
-		prompt.RefreshList(files, index)
-		return nil
-	}
-	kset['!'] = func(in interface{}, chb chan bool, index int) error {
-		e := files[index].Entry()
-		args := []string{"checkout", "--", e.String()}
-		if err := popGitCmd(r, args); err != nil {
-			log.Warn(err)
-		}
-		files, err = generateFileList(r)
-		if files == nil || len(files) <= 0 {
-			chb <- true
-			stop = true
-			return statusPrompt(r, opts)
-		}
-		chb <- false
-		var err error
-		if err != nil {
-			return err
-		}
-		prompt.RefreshList(files, index)
-		return nil
-	}
-	kset['a'] = func(in interface{}, chb chan bool, index int) error {
-		r.AddAll()
-		var err error
-		files, err = generateFileList(r)
-		if err != nil {
-			return err
-		}
-		chb <- false
-		prompt.RefreshList(files, index)
-		return nil
-	}
-	kset['p'] = func(in interface{}, chb chan bool, index int) error {
-		stop = true
-		if err := emuEnterKey(); err != nil {
-			log.Warn(err.Error())
-		}
-		chb <- true
-		entry := files[index].entry
-		file, err := generateDiffFile(r, entry)
-		if err == nil {
-			editor, err := editor.NewEditor(file)
+	kset[promptui.CustomKey{Key: ' ', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			e := files[index].Entry()
+			if e.Indexed() {
+				r.ResetEntry(e)
+			} else {
+				r.AddEntry(e)
+			}
+			chb <- false
+			var err error
+			files, err = generateFileList(r)
 			if err != nil {
-				log.Error(err)
 				return err
 			}
-			patches, err := editor.Run()
-			if err != nil {
-				log.Error(err)
+			prompt.RefreshList(files, index)
+			return nil
+		}
+	kset[promptui.CustomKey{Key: '!', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			e := files[index].Entry()
+			args := []string{"checkout", "--", e.String()}
+			if err := popGitCmd(r, args); err != nil {
+				log.Warn(err)
 			}
-			for _, patch := range patches {
-				if err := applyPatch(r, entry, patch); err != nil {
+			files, err = generateFileList(r)
+			if files == nil || len(files) <= 0 {
+				chb <- true
+				stop = true
+				return statusPrompt(r, opts)
+			}
+			chb <- false
+			var err error
+			if err != nil {
+				return err
+			}
+			prompt.RefreshList(files, index)
+			return nil
+		}
+	kset[promptui.CustomKey{Key: 'a', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			r.AddAll()
+			var err error
+			files, err = generateFileList(r)
+			if err != nil {
+				return err
+			}
+			chb <- false
+			prompt.RefreshList(files, index)
+			return nil
+		}
+	kset[promptui.CustomKey{Key: 'p', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			stop = true
+			if err := emuEnterKey(); err != nil {
+				log.Warn(err.Error())
+			}
+			chb <- true
+			entry := files[index].entry
+			file, err := generateDiffFile(r, entry)
+			if err == nil {
+				editor, err := editor.NewEditor(file)
+				if err != nil {
+					log.Error(err)
 					return err
 				}
+				patches, err := editor.Run()
+				if err != nil {
+					log.Error(err)
+				}
+				for _, patch := range patches {
+					if err := applyPatch(r, entry, patch); err != nil {
+						return err
+					}
+				}
+			} else {
+				log.Warn(err.Error())
 			}
-		} else {
-			log.Warn(err.Error())
+			o := &PromptOptions{
+				Cursor:   prompt.CursorPosition(),
+				Scroll:   prompt.ScrollPosition(),
+				Size:     opts.Size,
+				HideHelp: opts.HideHelp,
+			}
+			return statusPrompt(r, o)
 		}
-		o := &PromptOptions{
-			Cursor:   prompt.CursorPosition(),
-			Scroll:   prompt.ScrollPosition(),
-			Size:     opts.Size,
-			HideHelp: opts.HideHelp,
-		}
-		return statusPrompt(r, o)
-	}
-	kset['r'] = func(in interface{}, chb chan bool, index int) error {
-		r.ResetAll()
-		var err error
-		files, err = generateFileList(r)
-		if err != nil {
-			return err
-		}
-		chb <- false
-		prompt.RefreshList(files, index)
-		return nil
-	}
-	kset['c'] = func(in interface{}, chb chan bool, index int) error {
-		if len(getIndexedEntries(r)) <= 0 {
+	kset[promptui.CustomKey{Key: 'r', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			r.ResetAll()
+			var err error
+			files, err = generateFileList(r)
+			if err != nil {
+				return err
+			}
+			chb <- false
+			prompt.RefreshList(files, index)
 			return nil
 		}
-		chb <- true
-		opt := &CommitOptions{
-			PromptOps: opts,
-			Message:   "commit message",
+	kset[promptui.CustomKey{Key: 'c', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			if len(getIndexedEntries(r)) <= 0 {
+				return nil
+			}
+			chb <- true
+			opt := &CommitOptions{
+				PromptOps: opts,
+				Message:   "commit message",
+			}
+			err := commitPrompt(r, opt)
+			if err != nil && err == NoErrRecurse {
+				stop = true
+			} else if err != NoErrRecurse {
+				os.Exit(0)
+			}
+			return statusPrompt(r, opts)
 		}
-		err := commitPrompt(r, opt)
-		if err != nil && err == NoErrRecurse {
-			stop = true
-		} else if err != NoErrRecurse {
-			os.Exit(0)
+	kset[promptui.CustomKey{Key: 'm', Always: false}] =
+		func(in interface{}, chb chan bool, index int) error {
+			if len(getIndexedEntries(r)) <= 0 {
+				return nil
+			}
+			chb <- true
+			err := commitAmend(r)
+			if err != nil && err == NoErrRecurse {
+				stop = true
+			} else if err != NoErrRecurse {
+				os.Exit(0)
+			}
+			return statusPrompt(r, opts)
 		}
-		return statusPrompt(r, opts)
-	}
-	kset['m'] = func(in interface{}, chb chan bool, index int) error {
-		if len(getIndexedEntries(r)) <= 0 {
-			return nil
-		}
-		chb <- true
-		err := commitAmend(r)
-		if err != nil && err == NoErrRecurse {
-			stop = true
-		} else if err != NoErrRecurse {
-			os.Exit(0)
-		}
-		return statusPrompt(r, opts)
-	}
 
 	prompt = promptui.Select{
 		Label:       "Files",

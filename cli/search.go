@@ -5,8 +5,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/isacikgoz/fuzzy"
+	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/promptui/list"
+	"github.com/sahilm/fuzzy"
 )
 
 type interfaceSource []*interface{}
@@ -111,5 +112,47 @@ func finderFunc(option string) list.Searcher {
 		return basicSearch
 	default:
 		return fuzzySearch
+	}
+}
+
+func specialSearch(in []*interface{}, term string) []*interface{} {
+	var narrowed []*interface{}
+	if len(term) >= 3 && term[:3] == "c: " {
+		for _, item := range in {
+			if typeSwitch(*item) == "c" {
+				narrowed = append(narrowed, item)
+			}
+		}
+		term = term[3:]
+	} else if len(term) >= 3 && term[:3] == "b: " {
+		for _, item := range in {
+			if typeSwitch(*item) == "b" {
+				narrowed = append(narrowed, item)
+			}
+		}
+		term = term[3:]
+	} else if len(term) >= 3 && term[:3] == "t: " {
+		for _, item := range in {
+			if typeSwitch(*item) == "t" {
+				narrowed = append(narrowed, item)
+			}
+		}
+		term = term[3:]
+	} else {
+		narrowed = in
+	}
+	return fuzzySearch(narrowed, term)
+}
+
+func typeSwitch(tst interface{}) string {
+	switch tst.(type) {
+	case *git.Commit:
+		return "c"
+	case *git.Tag:
+		return "t"
+	case *git.Branch:
+		return "b"
+	default:
+		return " "
 	}
 }

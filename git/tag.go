@@ -8,6 +8,8 @@ type Tag struct {
 	// Tagger    *Contributor
 	Shorthand string
 	Name      string
+	refType   RefType
+	target    string
 	// Message   string
 }
 
@@ -31,9 +33,16 @@ func (r *Repository) loadTags() ([]*Tag, error) {
 
 			t := &Tag{
 				Hash:      ref.Target().String(),
+				refType:   RefTypeTag,
 				Name:      ref.Name(),
 				Shorthand: ref.Shorthand(),
 			}
+			if _, ok := r.RefMap[t.Hash]; !ok {
+				r.RefMap[t.Hash] = make([]Ref, 0)
+			}
+			refs := r.RefMap[t.Hash]
+			refs = append(refs, t)
+			r.RefMap[t.Hash] = refs
 			ts = append(ts, t)
 
 		}
@@ -42,13 +51,22 @@ func (r *Repository) loadTags() ([]*Tag, error) {
 	return ts, nil
 }
 
-// findTag looks up for the hash is targeted bu a tag
-// this is a performance killer implementation. FIXME
-func (r *Repository) findTag(hash string) *Tag {
-	for _, t := range r.Tags {
-		if t.Hash[:7] == hash[:7] {
-			return t
-		}
-	}
-	return nil
+func (t *Tag) Type() RefType {
+	return t.refType
+}
+
+func (t *Tag) Target() string {
+	return t.target
+}
+
+func (t *Tag) Display() string {
+	return t.Shorthand
+}
+
+func (t *Tag) Oid() string {
+	return t.Hash
+}
+
+func (t *Tag) ShortType() rune {
+	return 't'
 }

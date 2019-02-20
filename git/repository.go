@@ -18,6 +18,7 @@ type Repository struct {
 	Branches []*Branch
 	Commits  []*Commit
 	Remotes  []*Remote
+	RefMap   map[string][]Ref
 	Tags     []*Tag
 	Ahead    int
 	Behind   int
@@ -28,6 +29,28 @@ type Repository struct {
 type Remote struct {
 	Name string
 	URL  []string
+}
+
+type RefType uint8
+
+const (
+	RefTypeTag RefType = iota
+	RefTypeBranch
+	RefTypeHEAD
+)
+
+// Ref is the wrapper of lib.Ref
+type Ref interface {
+	Type() RefType
+	Oid() string
+	Target() string
+	Display() string
+}
+
+type FuzzItem interface {
+	Display() string
+	ShortType() rune
+	Oid() string
 }
 
 // Open the repository from given path and return Repository pointer
@@ -42,6 +65,7 @@ func Open(path string) (*Repository, error) {
 		AbsPath: absPath,
 		repo:    r,
 	}
+	repo.RefMap = make(map[string][]Ref)
 	if err := repo.loadStatus(); err != nil {
 		return nil, err
 	}
@@ -122,4 +146,15 @@ func initRepoFromPath(path string) (*lib.Repository, string, error) {
 		}
 	}
 	return nil, walk, errors.New("cannot load a git repository from " + path)
+}
+
+// LoadAll load all belongings of the repository
+func (r *Repository) LoadAll(opts *CommitLoadOptions) error {
+	if err := r.InitializeTags(); err != nil {
+		return err
+	}
+	if err := r.InitializeBranches(); err != nil {
+		return err
+	}
+	return r.InitializeCommits(opts)
 }

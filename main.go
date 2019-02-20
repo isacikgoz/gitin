@@ -17,6 +17,7 @@ type Config struct {
 	LineSize   int
 	HideHelp   bool
 	SearchMode string
+	HideDetail bool
 }
 
 var (
@@ -33,14 +34,13 @@ var (
 	logBehind       = logCommand.Flag("behind", "show commits that not merged from upstream").Bool()
 	logCommitter    = logCommand.Flag("committer", "limit commits to those by given committer").String()
 	logMaxCount     = logCommand.Flag("max-count", "maximum number of commits to display").Int()
-	logTags         = logCommand.Flag("tags", "show tags alongside commits").Bool()
 	logSince        = logCommand.Flag("since", "show commits newer than given date (RFC3339)").String()
 	status          = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 )
 
 func main() {
 
-	pin.Version("gitin version 0.1.5")
+	pin.Version("gitin version 0.1.6")
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
 	pin.Parse()
@@ -67,7 +67,9 @@ func run(path string) error {
 		Scroll:        0,
 		Size:          cfg.LineSize,
 		HideHelp:      cfg.HideHelp,
+		ShowDetail:    !cfg.HideDetail,
 		StartInSearch: *startSearch,
+		SearchLabel:   "Search :",
 		Finder:        strings.ToLower(cfg.SearchMode),
 	}
 	switch pin.Parse() {
@@ -93,7 +95,6 @@ func run(path string) error {
 			Author:    *logAuthor,
 			Before:    *logBefore,
 			Committer: *logCommitter,
-			Tags:      *logTags,
 			MaxCount:  *logMaxCount,
 			Since:     *logSince,
 			PromptOps: promptOps,

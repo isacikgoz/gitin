@@ -15,14 +15,24 @@ import (
 
 // Commit is the wrapper of actual lib.Commit object
 type Commit struct {
+	owner   *Repository
 	commit  *lib.Commit
 	Hash    string
 	Author  *Contributor
 	Message string
 	Summary string
 	Type    CommitType
-	Tag     *Tag
 	Heads   []*Branch
+}
+
+type CommitRefDisplay struct {
+	Heads    []string
+	Tags     []string
+	Branches []string
+}
+
+func newRefDisplay(r *Ref) *CommitRefDisplay {
+	return &CommitRefDisplay{}
 }
 
 // CommitType is the Type of the commit; it can be local or remote (upstream diff)
@@ -50,7 +60,6 @@ type CommitLoadOptions struct {
 	Before    string
 	Committer string
 	MaxCount  int
-	Tags      bool
 	Since     string
 }
 
@@ -75,9 +84,7 @@ func (r *Repository) loadCommits(from, to *lib.Oid, opts *CommitLoadOptions) ([]
 			return false
 		}
 		c := unpackRawCommit(commit)
-		if tag := r.findTag(c.Hash); tag != nil {
-			c.Tag = tag
-		}
+		c.owner = r
 
 		if limit {
 			if ok, _ := limitCommit(commit, opts); ok {
@@ -142,9 +149,6 @@ func (r *Repository) channeledCommitLoader(from, to *lib.Oid, opts *CommitLoadOp
 				return false
 			}
 			c := unpackRawCommit(commit)
-			if tag := r.findTag(c.Hash); tag != nil {
-				c.Tag = tag
-			}
 
 			if limit {
 				if ok, _ := limitCommit(commit, opts); ok {
@@ -455,11 +459,25 @@ func signaturefilter(opts *CommitLoadOptions) bool {
 	return false
 }
 
-// Decoration returns the string if the commit has tag or reference
-func (c *Commit) Decoration() string {
+func (c *Commit) CommitRefs() string {
+	r := c.owner
 	var decor string
-	if c.Tag != nil {
-		decor = "(tag: " + c.Tag.Shorthand + ")"
+	if refs, ok := r.RefMap[c.Hash]; ok {
+		if len(refs) <= 0 {
+			return decor
+		}
+		decor = "("
+		for _, ref := range refs {
+			switch ref.Type() {
+			case RefTypeHEAD:
+				decor += "HEAD -> " + ref.Display() + ", "
+			case RefTypeBranch:
+				decor += ref.Display() + ", "
+			case RefTypeTag:
+				decor += "tag: " + ref.Display() + ", "
+			}
+		}
+		decor = decor[:len(decor)-2] + ")"
 	}
 	return decor
 }
@@ -494,4 +512,16 @@ func (r *Repository) LastCommitArgs() []string {
 	hash := string(head.Target().String())
 	args := []string{"show", "--stat", hash}
 	return args
+}
+
+func (c *Commit) Display() string {
+	return c.Summary
+}
+
+func (c *Commit) ShortType() rune {
+	return 'c'
+}
+
+func (c *Commit) Oid() string {
+	return c.Hash
 }
