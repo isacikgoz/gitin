@@ -25,6 +25,7 @@ const (
 type Status struct {
 	Repo *git.Repository
 
+	Items       []git.FuzzItem
 	list        *list.List
 	reader      *reader.RuneReader
 	writeBuffer *screenbuf.ScreenBuf
@@ -33,8 +34,7 @@ type Status struct {
 
 // Start draws the screen with its list, initializing the cursor to the given position.
 func (s *Status) Start(cursorPos, scroll int) error {
-	items := make([]git.FuzzItem, 0)
-	l, err := list.New(items, lines)
+	l, err := list.New(s.Items, lines)
 	if err != nil {
 		log.Fatal(err)
 
@@ -57,23 +57,6 @@ func (s *Status) Start(cursorPos, scroll int) error {
 	return s.innerRun(cursorPos, scroll)
 }
 
-// ScrollPosition returns the current scroll position.
-func (s *Status) ScrollPosition() int {
-	return s.list.Start()
-}
-
-// CursorPosition returns the current scroll position.
-func (s *Status) CursorPosition() int {
-	return s.list.Index()
-}
-
-// AppendToMainList appends item to the main list
-func (s *Status) AppendToMainList(in []git.FuzzItem) {
-	s.list.Append(in)
-	s.list.SetSize(lines)
-	s.render()
-}
-
 // this is the main loop for reading input
 func (s *Status) innerRun(cursorPos, scroll int) error {
 	var err error
@@ -86,8 +69,22 @@ func (s *Status) innerRun(cursorPos, scroll int) error {
 	s.reader.Terminal.Out.Write([]byte(hideCursor))
 	defer s.reader.Terminal.Out.Write([]byte(showCursor))
 
+	// start with first render
+	s.render()
+
 	// start waiting for input
 	for {
+		items, _ := s.list.Items()
+		if len(items) <= 0 && s.Repo.Head != nil {
+			defer func() {
+				for _, line := range branchClean(s.Repo.Head) {
+					s.writeBuffer.Write([]byte(line))
+				}
+				s.writeBuffer.Flush()
+			}()
+			err = nil
+			break
+		}
 		r, _, err := s.reader.ReadRune()
 		if err != nil {
 			return err
@@ -158,6 +155,14 @@ func (s *Status) render() {
 	defer s.mx.Unlock()
 
 	items, idx := s.list.Items()
+
+	if len(items) <= 0 && s.Repo.Head != nil {
+		for _, line := range branchClean(s.Repo.Head) {
+			s.writeBuffer.Write([]byte(line))
+		}
+		s.writeBuffer.Flush()
+		return
+	}
 	s.writeBuffer.Write([]byte(faint.Sprint("Files:")))
 
 	// print each entry in the list
@@ -173,7 +178,7 @@ func (s *Status) render() {
 
 	// print repository status
 	s.writeBuffer.Write([]byte(""))
-	for _, line := range getAheadBehind(s.Repo.Head) {
+	for _, line := range branchInfo(s.Repo.Head) {
 		s.writeBuffer.Write([]byte(line))
 	}
 

@@ -44,40 +44,39 @@ func run(path string) error {
 		return err
 	}
 
-	screen, err := configureScreen(r)
+	prompt, err := configurePrompt(r)
 	if err != nil {
 		return err
 	}
 	var mx sync.Mutex
 	done := make(chan bool)
-
+	items := make([]git.FuzzItem, 0)
 	adder := func(incoming []git.FuzzItem) {
 		mx.Lock()
 		defer mx.Unlock()
-		screen.AppendToMainList(incoming)
+		items = append(items, incoming...)
 	}
 
 	go r.LoadStatusEntries(adder, done)
 
-	go func() {
-		if <-done {
-			log.Debug("loading finished")
-		}
-	}()
-	err = screen.Start(0, 0)
+	if <-done {
+		log.Debug("loading finished")
+	}
+	prompt.Items = items
+	err = prompt.Start(0, 0)
 	return err
 }
 
-func configureScreen(r *git.Repository) (*prompt.Status, error) {
+func configurePrompt(r *git.Repository) (*prompt.Status, error) {
 	err := env.Process("sig", &cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	screen := prompt.Status{
+	prompt := prompt.Status{
 		Repo: r,
 	}
-	return &screen, nil
+	return &prompt, nil
 }
 
 func envVarHelp() string {

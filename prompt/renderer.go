@@ -53,7 +53,7 @@ func renderLine(item git.FuzzItem, opts *PrintOptions) string {
 	return line
 }
 
-func getAheadBehind(b *git.Branch) []string {
+func branchInfo(b *git.Branch) []string {
 	if b == nil {
 		return []string{faint.Sprint("Unable to load branch info")}
 	}
@@ -79,5 +79,12 @@ func getAheadBehind(b *git.Branch) []string {
 			str = append(str, faint.Sprint("(\"push\" to publish your local commits)"))
 		}
 	}
+	return str
+}
+
+func branchClean(b *git.Branch) []string {
+	str := []string{faint.Sprint("On branch ") + yellow.Sprint(b.Name)}
+	str = append(str, branchInfo(b)...)
+	str = append(str, faint.Sprint("Nothing to commit, working tree clean"))
 	return str
 }
