@@ -241,7 +241,7 @@ func (r *Repository) failOverShallow(opts *CommitLoadOptions) ([]*Commit, error)
 	return commits, nil
 }
 func (c *Commit) String() string {
-	return c.Message
+	return c.Message + " " + c.Hash[:7]
 }
 
 // Date returns the commits's creation date as string
