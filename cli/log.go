@@ -91,7 +91,7 @@ func logPrompt(r *git.Repository, opts *PromptOptions, commits []*git.Commit) er
 				chb <- false
 			}
 			recurse = true
-			if err := popGitCmd(r, []string{"diff", commits[index].Hash}); err != nil {
+			if err := popGitCmd(r, []string{"show", commits[index].Hash}); err != nil {
 				return err
 			}
 			o := currentOptions(&prompt, opts)

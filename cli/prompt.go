@@ -51,11 +51,12 @@ func popGitCmd(r *git.Repository, args []string) error {
 
 func currentOptions(prompt *promptui.Select, opts *PromptOptions) *PromptOptions {
 	return &PromptOptions{
-		Cursor:   prompt.CursorPosition(),
-		Scroll:   prompt.ScrollPosition(),
-		Size:     opts.Size,
-		Finder:   opts.Finder,
-		HideHelp: opts.HideHelp,
+		Cursor:     prompt.CursorPosition(),
+		Scroll:     prompt.ScrollPosition(),
+		Size:       opts.Size,
+		Finder:     opts.Finder,
+		ShowDetail: opts.ShowDetail,
+		HideHelp:   opts.HideHelp,
 	}
 }
 

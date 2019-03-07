@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	git "gopkg.in/libgit2/git2go.v27"
 	lib "gopkg.in/libgit2/git2go.v27"
 )
 
@@ -119,7 +118,7 @@ var statusEntryTypeMap = map[lib.Status]StatusEntryType{
 	lib.StatusConflicted:      StatusEntryTypeConflicted,
 }
 
-func (s *Status) addToStatus(raw git.StatusEntry) {
+func (s *Status) addToStatus(raw lib.StatusEntry) {
 	for rawStatus, indexType := range indexTypeMap {
 		set := raw.Status & rawStatus
 
