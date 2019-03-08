@@ -44,7 +44,7 @@ func run(path string) error {
 		return err
 	}
 
-	prompt, err := configurePrompt(r)
+	status, err := configurePrompt(r)
 	if err != nil {
 		return err
 	}
@@ -62,8 +62,14 @@ func run(path string) error {
 	if <-done {
 		log.Debug("loading finished")
 	}
-	prompt.Items = items
-	err = prompt.Start(0, 0)
+	status.Items = items
+	opts := &prompt.Options{
+		Cursor:      0,
+		Scroll:      0,
+		Size:        5,
+		SearchLabel: "Files: ",
+	}
+	err = status.Start(opts)
 	return err
 }
 

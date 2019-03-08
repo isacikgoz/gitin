@@ -1,91 +1,57 @@
 package prompt
 
 import (
-	"os"
-	"sync"
-
 	"github.com/isacikgoz/fig/git"
-
-	"github.com/isacikgoz/fig/prompt/list"
-	"github.com/isacikgoz/fig/prompt/screenbuf"
 
 	"github.com/isacikgoz/gia/editor"
 
 	"github.com/isacikgoz/sig/keys"
-	"github.com/isacikgoz/sig/reader"
-
-	log "github.com/sirupsen/logrus"
-)
-
-const (
-	lines = 5
+	"github.com/isacikgoz/sig/writer"
 )
 
 // Status holds a list of items used to fill the terminal screen.
 type Status struct {
-	Repo *git.Repository
+	Repo  *git.Repository
+	Items []git.FuzzItem
 
-	Items       []git.FuzzItem
-	list        *list.List
-	reader      *reader.RuneReader
-	writeBuffer *screenbuf.ScreenBuf
-	mx          *sync.RWMutex
+	prompt *prompt
 }
 
 // Start draws the screen with its list, initializing the cursor to the given position.
-func (s *Status) Start(cursorPos, scroll int) error {
-	l, err := list.New(s.Items, lines)
+func (s *Status) Start(opts *Options) error {
+	l, err := NewList(s.Items, opts.Size)
 	if err != nil {
-		log.Fatal(err)
-
 		return err
 	}
-	s.list = l
-	var mx sync.RWMutex
-	s.mx = &mx
-
-	term := reader.Terminal{
-		In:  os.Stdin,
-		Out: os.Stdout,
+	s.prompt = &prompt{
+		list: l,
+		opts: opts,
 	}
-	s.reader = reader.NewRuneReader(term)
-	s.writeBuffer = screenbuf.New(term.Out)
 
-	s.list.SetCursor(cursorPos)
-	s.list.SetStart(scroll)
-
-	return s.innerRun(cursorPos, scroll)
+	return s.prompt.start(s.innerRun)
 }
 
 // this is the main loop for reading input
-func (s *Status) innerRun(cursorPos, scroll int) error {
+func (s *Status) innerRun() error {
 	var err error
 
-	// disable echo
-	s.reader.SetTermMode()
-	defer s.reader.RestoreTermMode()
-
-	// disable linewrap
-	s.reader.Terminal.Out.Write([]byte(hideCursor))
-	defer s.reader.Terminal.Out.Write([]byte(showCursor))
-
 	// start with first render
-	s.render()
+	s.prompt.render(s.Repo)
 
 	// start waiting for input
 	for {
-		items, _ := s.list.Items()
+		items, _ := s.prompt.list.Items()
 		if len(items) <= 0 && s.Repo.Head != nil {
 			defer func() {
 				for _, line := range branchClean(s.Repo.Head) {
-					s.writeBuffer.Write([]byte(line))
+					s.prompt.writer.Write([]byte(line))
 				}
-				s.writeBuffer.Flush()
+				s.prompt.writer.Flush()
 			}()
 			err = nil
 			break
 		}
-		r, _, err := s.reader.ReadRune()
+		r, _, err := s.prompt.reader.ReadRune()
 		if err != nil {
 			return err
 		}
@@ -98,10 +64,11 @@ func (s *Status) innerRun(cursorPos, scroll int) error {
 		if br := s.assignKey(r); br {
 			break
 		}
+		s.prompt.render(s.Repo)
 	}
 	// reset cursor position and remove buffer
-	s.writeBuffer.Reset()
-	s.writeBuffer.ClearScreen()
+	s.prompt.writer.Reset()
+	s.prompt.writer.ClearScreen()
 	return err
 }
 
@@ -112,9 +79,9 @@ func (s *Status) assignKey(key rune) bool {
 	case keys.Enter, '\n':
 		s.showDiff()
 	case keys.ArrowUp:
-		s.list.Prev()
+		s.prompt.previous()
 	case keys.ArrowDown:
-		s.list.Next()
+		s.prompt.next()
 	case keys.Space:
 		reqReload = true
 		s.addReset()
@@ -129,10 +96,10 @@ func (s *Status) assignKey(key rune) bool {
 		s.doCommitAmend()
 	case 'a':
 		reqReload = true
-		s.addAll()
+		s.Repo.AddAll()
 	case 'r':
 		reqReload = true
-		s.resetAll()
+		s.Repo.ResetAll()
 	case 'q':
 		return true
 	default:
@@ -140,68 +107,25 @@ func (s *Status) assignKey(key rune) bool {
 	if reqReload {
 		s.reloadStatus()
 	}
-	s.render()
 	return false
-}
-
-// render function draws screen's list to terminal
-func (s *Status) render() {
-	// make terminal not line wrap
-	s.reader.Terminal.Out.Write([]byte(lineWrapOff))
-	defer s.reader.Terminal.Out.Write([]byte(lineWrapOn))
-
-	// lock screen mutex
-	s.mx.Lock()
-	defer s.mx.Unlock()
-
-	items, idx := s.list.Items()
-
-	if len(items) <= 0 && s.Repo.Head != nil {
-		for _, line := range branchClean(s.Repo.Head) {
-			s.writeBuffer.Write([]byte(line))
-		}
-		s.writeBuffer.Flush()
-		return
-	}
-	s.writeBuffer.Write([]byte(faint.Sprint("Files:")))
-
-	// print each entry in the list
-	var output []byte
-	for i := range items {
-		if i == idx {
-			output = []byte(cyan.Sprint(">") + renderLine(items[i], nil))
-		} else {
-			output = []byte(" " + renderLine(items[i], nil))
-		}
-		s.writeBuffer.Write(output)
-	}
-
-	// print repository status
-	s.writeBuffer.Write([]byte(""))
-	for _, line := range branchInfo(s.Repo.Head) {
-		s.writeBuffer.Write([]byte(line))
-	}
-
-	// finally, discharge to terminal
-	s.writeBuffer.Flush()
 }
 
 // reloads the list
 func (s *Status) reloadStatus() error {
-	_, idx := s.list.Items()
+	_, idx := s.prompt.list.Items()
 	items, err := s.Repo.ReloadStatusEntries()
 	if err != nil {
 		return err
 	}
-	s.list, err = list.New(items, s.list.Size())
-	s.list.SetCursor(idx)
+	s.prompt.list, err = NewList(items, s.prompt.list.Size())
+	s.prompt.list.SetCursor(idx)
 	return err
 }
 
 // add or reset selected entry
 func (s *Status) addReset() error {
-	defer s.render()
-	items, idx := s.list.Items()
+	defer s.prompt.render(s.Repo)
+	items, idx := s.prompt.list.Items()
 	item := items[idx].(*git.StatusEntry)
 	if item.Indexed() {
 		return s.Repo.ResetEntry(item)
@@ -211,19 +135,18 @@ func (s *Status) addReset() error {
 
 // open hunk stagin ui
 func (s *Status) hunkStage() error {
-	defer s.reader.Terminal.Out.Write([]byte(hideCursor))
-	items, idx := s.list.Items()
+	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
+	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
 	file, err := git.GenerateDiffFile(s.Repo, entry)
 	if err == nil {
 		editor, err := editor.NewEditor(file)
 		if err != nil {
-			log.Error(err)
 			return err
 		}
 		patches, err := editor.Run()
 		if err != nil {
-			log.Error(err)
+			return err
 		}
 		for _, patch := range patches {
 			if err := git.ApplyPatchCmd(s.Repo, entry, patch); err != nil {
@@ -231,21 +154,21 @@ func (s *Status) hunkStage() error {
 			}
 		}
 	} else {
-		log.Warn(err.Error())
+
 	}
 	return nil
 }
 
 // pop git diff
 func (s *Status) showDiff() error {
-	items, idx := s.list.Items()
+	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
 	return git.PopGenericCmd(s.Repo, entry.FileStatArgs())
 }
 
 func (s *Status) doCommit() error {
-	defer s.reader.Terminal.Out.Write([]byte(hideCursor))
-
+	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
+	defer s.Repo.Reload()
 	args := []string{"commit", "--edit", "--quiet"}
 	err := git.PopGenericCmd(s.Repo, args)
 	if err != nil {
@@ -258,8 +181,8 @@ func (s *Status) doCommit() error {
 }
 
 func (s *Status) doCommitAmend() error {
-	defer s.reader.Terminal.Out.Write([]byte(hideCursor))
-
+	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
+	defer s.Repo.Reload()
 	args := []string{"commit", "--amend", "--quiet"}
 	err := git.PopGenericCmd(s.Repo, args)
 	if err != nil {
@@ -269,12 +192,4 @@ func (s *Status) doCommitAmend() error {
 		return err
 	}
 	return nil
-}
-
-func (s *Status) addAll() error {
-	return s.Repo.AddAll()
-}
-
-func (s *Status) resetAll() error {
-	return s.Repo.ResetAll()
 }

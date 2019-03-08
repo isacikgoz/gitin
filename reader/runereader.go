@@ -114,7 +114,6 @@ func (rr *RuneReader) ReadRune() (rune, int, error) {
 			rr.state.reader.Discard(1)
 			return keys.IgnoreKey, 1, nil
 		}
-		return r, size, fmt.Errorf("Unknown Escape Sequence: %q", []rune{'\033', '[', r})
 	}
 	return r, size, err
 }
