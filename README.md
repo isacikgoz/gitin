@@ -28,9 +28,10 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
 - build with `make install` (`cmake` and `pkg-config` are required)
 
-### Mac using brew
+### Mac/Linux using brew
+The tap is recently moved to new repo, so if you added the older one (isacikgoz/gitin), consider removing it and adding the new one.
 ```
-brew tap isacikgoz/gitin
+brew tap isacikgoz/taps
 brew install gitin
 ```
 
