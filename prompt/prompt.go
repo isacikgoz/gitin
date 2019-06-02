@@ -23,7 +23,6 @@ const (
 	stash
 )
 
-type runner func() error
 type onKey func(rune) bool
 type onSelect func() bool
 
@@ -173,14 +172,6 @@ func (p *prompt) render() {
 
 	// finally, discharge to terminal
 	p.writer.Flush()
-}
-
-func (p *prompt) next() {
-	p.list.Next()
-}
-
-func (p *prompt) previous() {
-	p.list.Prev()
 }
 
 func (p *prompt) assignKey(key rune) bool {
