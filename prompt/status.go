@@ -24,64 +24,27 @@ func (s *Status) Start(opts *Options) error {
 		return err
 	}
 	s.prompt = &prompt{
-		list: l,
-		opts: opts,
+		repo:      s.Repo,
+		list:      l,
+		opts:      opts,
+		layout:    status,
+		keys:      s.onKey,
+		selection: s.onSelect,
 	}
 
-	return s.prompt.start(s.innerRun)
+	return s.prompt.start()
 }
 
-// this is the main loop for reading input
-func (s *Status) innerRun() error {
-	var err error
-
-	// start with first render
-	s.prompt.render(s.Repo)
-
-	// start waiting for input
-	for {
-		items, _ := s.prompt.list.Items()
-		if len(items) <= 0 && s.Repo.Head != nil {
-			defer func() {
-				for _, line := range branchClean(s.Repo.Head) {
-					s.prompt.writer.Write([]byte(line))
-				}
-				s.prompt.writer.Flush()
-			}()
-			err = nil
-			break
-		}
-		r, _, err := s.prompt.reader.ReadRune()
-		if err != nil {
-			return err
-		}
-		if r == keys.Interrupt {
-			break
-		}
-		if r == keys.EndTransmission {
-			break
-		}
-		if br := s.assignKey(r); br {
-			break
-		}
-		s.prompt.render(s.Repo)
-	}
-	// reset cursor position and remove buffer
-	s.prompt.writer.Reset()
-	s.prompt.writer.ClearScreen()
-	return err
+// return true to terminate
+func (s *Status) onSelect() bool {
+	s.showDiff()
+	return false
 }
 
-// assignKey is called on every keypress.
-func (s *Status) assignKey(key rune) bool {
+func (s *Status) onKey(key rune) bool {
 	var reqReload bool
+
 	switch key {
-	case keys.Enter, '\n':
-		s.showDiff()
-	case keys.ArrowUp:
-		s.prompt.previous()
-	case keys.ArrowDown:
-		s.prompt.next()
 	case keys.Space:
 		reqReload = true
 		s.addReset()
@@ -124,7 +87,7 @@ func (s *Status) reloadStatus() error {
 
 // add or reset selected entry
 func (s *Status) addReset() error {
-	defer s.prompt.render(s.Repo)
+	defer s.prompt.render()
 	items, idx := s.prompt.list.Items()
 	item := items[idx].(*git.StatusEntry)
 	if item.Indexed() {
