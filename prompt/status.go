@@ -1,9 +1,8 @@
 package prompt
 
 import (
-	"github.com/isacikgoz/fig/git"
-
 	"github.com/isacikgoz/gia/editor"
+	git "github.com/isacikgoz/libgit2-api"
 
 	"github.com/isacikgoz/sig/keys"
 	"github.com/isacikgoz/sig/writer"
@@ -12,7 +11,7 @@ import (
 // Status holds a list of items used to fill the terminal screen.
 type Status struct {
 	Repo  *git.Repository
-	Items []git.FuzzItem
+	Items []Item
 
 	prompt *prompt
 }
@@ -45,6 +44,14 @@ func (s *Status) onKey(key rune) bool {
 	var reqReload bool
 
 	switch key {
+	case 'k':
+		s.prompt.list.Prev()
+	case 'j':
+		s.prompt.list.Next()
+	case 'h':
+		s.prompt.list.PageDown()
+	case 'l':
+		s.prompt.list.PageUp()
 	case keys.Space:
 		reqReload = true
 		s.addReset()
@@ -59,10 +66,11 @@ func (s *Status) onKey(key rune) bool {
 		s.doCommitAmend()
 	case 'a':
 		reqReload = true
-		s.Repo.AddAll()
+		// TODO: check for errors
+		addAll(s.Repo)
 	case 'r':
 		reqReload = true
-		s.Repo.ResetAll()
+		resetAll(s.Repo)
 	case 'q':
 		return true
 	default:
@@ -76,13 +84,18 @@ func (s *Status) onKey(key rune) bool {
 // reloads the list
 func (s *Status) reloadStatus() error {
 	_, idx := s.prompt.list.Items()
-	items, err := s.Repo.ReloadStatusEntries()
+	status, err := s.Repo.LoadStatus()
 	if err != nil {
 		return err
 	}
+	items := make([]Item, 0)
+	for _, entry := range status.Entities {
+		items = append(items, entry)
+	}
 	s.prompt.list, err = NewList(items, s.prompt.list.Size())
 	s.prompt.list.SetCursor(idx)
-	return err
+	// return err
+	return nil
 }
 
 // add or reset selected entry
@@ -91,9 +104,9 @@ func (s *Status) addReset() error {
 	items, idx := s.prompt.list.Items()
 	item := items[idx].(*git.StatusEntry)
 	if item.Indexed() {
-		return s.Repo.ResetEntry(item)
+		return s.Repo.RemoveFromIndex(item)
 	}
-	return s.Repo.AddEntry(item)
+	return s.Repo.AddToIndex(item)
 }
 
 // open hunk stagin ui
@@ -101,7 +114,7 @@ func (s *Status) hunkStage() error {
 	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
 	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
-	file, err := git.GenerateDiffFile(s.Repo, entry)
+	file, err := generateDiffFile(s.Repo, entry)
 	if err == nil {
 		editor, err := editor.NewEditor(file)
 		if err != nil {
@@ -112,7 +125,7 @@ func (s *Status) hunkStage() error {
 			return err
 		}
 		for _, patch := range patches {
-			if err := git.ApplyPatchCmd(s.Repo, entry, patch); err != nil {
+			if err := applyPatchCmd(s.Repo, entry, patch); err != nil {
 				return err
 			}
 		}
@@ -126,18 +139,18 @@ func (s *Status) hunkStage() error {
 func (s *Status) showDiff() error {
 	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
-	return git.PopGenericCmd(s.Repo, entry.FileStatArgs())
+	return PopGenericCmd(s.Repo, fileStatArgs(entry))
 }
 
 func (s *Status) doCommit() error {
 	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
-	defer s.Repo.Reload()
+
 	args := []string{"commit", "--edit", "--quiet"}
-	err := git.PopGenericCmd(s.Repo, args)
+	err := PopGenericCmd(s.Repo, args)
 	if err != nil {
 		return err
 	}
-	if err := git.PopGenericCmd(s.Repo, s.Repo.LastCommitArgs()); err != nil {
+	if err := PopGenericCmd(s.Repo, lastCommitArgs(s.Repo)); err != nil {
 		return err
 	}
 	return nil
@@ -145,13 +158,13 @@ func (s *Status) doCommit() error {
 
 func (s *Status) doCommitAmend() error {
 	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
-	defer s.Repo.Reload()
+
 	args := []string{"commit", "--amend", "--quiet"}
-	err := git.PopGenericCmd(s.Repo, args)
+	err := PopGenericCmd(s.Repo, args)
 	if err != nil {
 		return err
 	}
-	if err := git.PopGenericCmd(s.Repo, s.Repo.LastCommitArgs()); err != nil {
+	if err := PopGenericCmd(s.Repo, lastCommitArgs(s.Repo)); err != nil {
 		return err
 	}
 	return nil

@@ -3,13 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"sync"
 
-	"github.com/isacikgoz/fig/git"
 	"github.com/isacikgoz/sig/prompt"
 
+	git "github.com/isacikgoz/libgit2-api"
 	env "github.com/kelseyhightower/envconfig"
-	log "github.com/sirupsen/logrus"
 	pin "gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -30,8 +28,6 @@ func main() {
 	pin.CommandLine.VersionFlag.Short('v')
 	pin.Parse()
 
-	log.SetLevel(log.ErrorLevel)
-
 	if err := run(*dir); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -48,19 +44,14 @@ func run(path string) error {
 	if err != nil {
 		return err
 	}
-	var mx sync.Mutex
-	done := make(chan bool)
-	items := make([]git.FuzzItem, 0)
-	adder := func(incoming []git.FuzzItem) {
-		mx.Lock()
-		defer mx.Unlock()
-		items = append(items, incoming...)
+
+	s, err := r.LoadStatus()
+	if err != nil {
+		return err
 	}
-
-	go r.LoadStatusEntries(adder, done)
-
-	if <-done {
-		log.Debug("loading finished")
+	items := make([]prompt.Item, 0)
+	for _, entry := range s.Entities {
+		items = append(items, entry)
 	}
 	status.Items = items
 	opts := &prompt.Options{

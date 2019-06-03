@@ -5,9 +5,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/isacikgoz/fig/git"
-	"github.com/isacikgoz/fig/search"
-
+	git "github.com/isacikgoz/libgit2-api"
 	"github.com/isacikgoz/sig/keys"
 	"github.com/isacikgoz/sig/reader"
 	"github.com/isacikgoz/sig/writer"
@@ -66,8 +64,6 @@ func (p *prompt) start() error {
 	p.list.SetCursor(p.opts.Cursor)
 	p.list.SetStart(p.opts.Scroll)
 
-	p.list.Searcher = search.FindFrom
-
 	// disable echo
 	p.reader.SetTermMode()
 	defer p.reader.RestoreTermMode()
@@ -87,6 +83,7 @@ func (p *prompt) innerRun() error {
 	p.render()
 
 	// start waiting for input
+mainloop:
 	for {
 		switch p.layout {
 		case status:
@@ -99,7 +96,7 @@ func (p *prompt) innerRun() error {
 					p.writer.Flush()
 				}()
 				err = nil
-				break
+				break mainloop
 			}
 		}
 		r, _, err := p.reader.ReadRune()

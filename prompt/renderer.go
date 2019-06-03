@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
-	"github.com/isacikgoz/fig/git"
+	git "github.com/isacikgoz/libgit2-api"
 )
 
 var (
@@ -35,8 +35,18 @@ type PrintOptions struct {
 	Author bool
 }
 
-func renderLine(item git.FuzzItem, opts *PrintOptions) string {
+func renderLine(item Item, opts *PrintOptions) string {
 	var line string
+
+	s, ok := item.(*git.StatusEntry)
+	if ok {
+		col := red
+		if s.Indexed() {
+			col = green
+		}
+		ind := "[" + cyan.Sprint(s.StatusEntryString()[:1]) + "]"
+		line = fmt.Sprintf(" %s %s", ind, col.Sprint(s))
+	}
 
 	switch item.(type) {
 	case *git.StatusEntry:
@@ -46,9 +56,9 @@ func renderLine(item git.FuzzItem, opts *PrintOptions) string {
 			col = green
 		}
 		ind := "[" + cyan.Sprint(entry.StatusEntryString()[:1]) + "]"
-		line = fmt.Sprintf(" %s %s", ind, col.Sprint(item.Display()))
+		line = fmt.Sprintf(" %s %s", ind, col.Sprint(entry))
 	default:
-		line = fmt.Sprintf(" %s", item.Display())
+		line = fmt.Sprintf(" %s", item)
 	}
 	return line
 }

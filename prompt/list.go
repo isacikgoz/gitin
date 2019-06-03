@@ -5,22 +5,20 @@ package prompt
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
-	"github.com/isacikgoz/fig/git"
+	"github.com/sahilm/fuzzy"
 )
 
-type interfaceSource []git.FuzzItem
+type Item interface {
+	String() string
+}
 
-func (is interfaceSource) String(i int) string { return is[i].Display() }
+type interfaceSource []Item
+
+func (is interfaceSource) String(i int) string { return is[i].String() }
 
 func (is interfaceSource) Len() int { return len(is) }
-
-// Searcher is a base function signature that is used inside select when activating the search mode.
-// If defined, it is called on each items of the select and should return a boolean for whether or not
-// the item fits the searched term.
-type Searcher func(scope []git.FuzzItem, term string) []git.FuzzItem
 
 // NotFound is an index returned when no item was selected. This could
 // happen due to a search without results.
@@ -30,25 +28,21 @@ const NotFound = -1
 // visible items. The list can be moved up, down by one item of time or an
 // entire page (ie: visible size). It keeps track of the current selected item.
 type List struct {
-	items    []git.FuzzItem
-	scope    []git.FuzzItem
-	cursor   int // cursor holds the index of the current selected item
-	size     int // size is the number of visible options
-	start    int
-	Searcher Searcher
-	find     string
+	items  []Item
+	scope  []Item
+	cursor int // cursor holds the index of the current selected item
+	size   int // size is the number of visible options
+	start  int
+	find   string
 }
 
 // NewList creates and initializes a list of searchable items. The items attribute must be a slice type with a
 // size greater than 0. Error will be returned if those two conditions are not met.
-func NewList(items []git.FuzzItem, size int) (*List, error) {
+func NewList(items []Item, size int) (*List, error) {
 	if size < 1 {
 		return nil, fmt.Errorf("list size %d must be greater than 0", size)
 	}
 
-	if items == nil || reflect.TypeOf(items).Kind() != reflect.Slice {
-		return nil, fmt.Errorf("items %v is not a slice", items)
-	}
 	return &List{size: size, items: items, scope: items}, nil
 }
 
@@ -84,7 +78,15 @@ func (l *List) CancelSearch() {
 }
 
 func (l *List) search(term string) {
-	l.scope = l.Searcher(l.items, term)
+	if len(term) == 0 {
+		l.scope = l.items
+		return
+	}
+	results := fuzzy.FindFrom(term, interfaceSource(l.items))
+	l.scope = make([]Item, 0)
+	for _, r := range results {
+		l.scope = append(l.scope, l.items[r.Index])
+	}
 }
 
 // Start returns the current render start position of the list.
@@ -219,8 +221,8 @@ func recoverFromPanic() {
 
 // Items returns a slice equal to the size of the list with the current visible
 // items and the index of the active item in this list.
-func (l *List) Items() ([]git.FuzzItem, int) {
-	var result []git.FuzzItem
+func (l *List) Items() ([]Item, int) {
+	var result []Item
 	max := len(l.scope)
 	end := l.start + l.size
 
@@ -253,7 +255,7 @@ func (l *List) Size() int {
 	return l.size
 }
 
-func (l *List) Append(in []git.FuzzItem) {
+func (l *List) Append(in []Item) {
 	l.items = append(l.items, in...)
 	if len(l.find) == 0 {
 		l.scope = l.items
