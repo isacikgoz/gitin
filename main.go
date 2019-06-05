@@ -27,40 +27,55 @@ func main() {
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
 	pin.Parse()
-
-	if err := run(*dir); err != nil {
+	mode := "status"
+	if err := run(mode, *dir); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 }
 
-func run(path string) error {
+func run(mode, path string) error {
 	r, err := git.Open(path)
 	if err != nil {
 		return err
 	}
-
-	status, err := configurePrompt(r)
-	if err != nil {
-		return err
-	}
-
-	s, err := r.LoadStatus()
-	if err != nil {
-		return err
-	}
-	items := make([]prompt.Item, 0)
-	for _, entry := range s.Entities {
-		items = append(items, entry)
-	}
-	status.Items = items
 	opts := &prompt.Options{
-		Cursor:      0,
-		Scroll:      0,
-		Size:        5,
-		SearchLabel: "Files: ",
+		Size: 5,
 	}
-	err = status.Start(opts)
+	switch mode {
+	case "status":
+		pr := prompt.Status{
+			Repo: r,
+		}
+
+		s, err := r.LoadStatus()
+		if err != nil {
+			return err
+		}
+		items := make([]prompt.Item, 0)
+		for _, entry := range s.Entities {
+			items = append(items, entry)
+		}
+		pr.Items = items
+		opts.SearchLabel = "Files"
+		err = pr.Start(opts)
+	case "log":
+		pr := prompt.Log{
+			Repo: r,
+		}
+
+		cs, err := r.Commits()
+		if err != nil {
+			return err
+		}
+		items := make([]prompt.Item, 0)
+		for _, commit := range cs {
+			items = append(items, commit)
+		}
+		pr.Items = items
+		opts.SearchLabel = "Commits"
+		err = pr.Start(opts)
+	}
 	return err
 }
 

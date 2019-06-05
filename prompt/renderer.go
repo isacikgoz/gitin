@@ -37,17 +37,6 @@ type PrintOptions struct {
 
 func renderLine(item Item, opts *PrintOptions) string {
 	var line string
-
-	s, ok := item.(*git.StatusEntry)
-	if ok {
-		col := red
-		if s.Indexed() {
-			col = green
-		}
-		ind := "[" + cyan.Sprint(s.StatusEntryString()[:1]) + "]"
-		line = fmt.Sprintf(" %s %s", ind, col.Sprint(s))
-	}
-
 	switch item.(type) {
 	case *git.StatusEntry:
 		col := red
@@ -57,6 +46,10 @@ func renderLine(item Item, opts *PrintOptions) string {
 		}
 		ind := "[" + cyan.Sprint(entry.StatusEntryString()[:1]) + "]"
 		line = fmt.Sprintf(" %s %s", ind, col.Sprint(entry))
+	case *git.Commit:
+		commit := item.(*git.Commit)
+		hash := "[" + cyan.Sprint(commit.Hash[:7]) + "]"
+		line = fmt.Sprintf(" %s %s", hash, item)
 	default:
 		line = fmt.Sprintf(" %s", item)
 	}
