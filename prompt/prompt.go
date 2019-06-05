@@ -132,15 +132,15 @@ func (p *prompt) render() {
 
 	items, idx := p.list.Items()
 
-	if p.layout == status && !p.inputMode {
-		if len(items) <= 0 && p.repo.Head != nil {
-			for _, line := range branchClean(p.repo.Head) {
-				p.writer.Write([]byte(line))
-			}
-			p.writer.Flush()
-			return
-		}
-	}
+	// if p.layout == status && !p.inputMode {
+	// 	if len(items) <= 0 && p.repo.Head != nil {
+	// 		for _, line := range branchClean(p.repo.Head) {
+	// 			p.writer.Write([]byte(line))
+	// 		}
+	// 		p.writer.Flush()
+	// 		return
+	// 	}
+	// }
 
 	if p.inputMode {
 		p.writer.Write([]byte(faint.Sprint("Search "+p.opts.SearchLabel) + " " + p.input))
