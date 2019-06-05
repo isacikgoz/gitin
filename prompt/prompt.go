@@ -131,17 +131,6 @@ func (p *prompt) render() {
 	defer p.mx.Unlock()
 
 	items, idx := p.list.Items()
-
-	// if p.layout == status && !p.inputMode {
-	// 	if len(items) <= 0 && p.repo.Head != nil {
-	// 		for _, line := range branchClean(p.repo.Head) {
-	// 			p.writer.Write([]byte(line))
-	// 		}
-	// 		p.writer.Flush()
-	// 		return
-	// 	}
-	// }
-
 	if p.inputMode {
 		p.writer.Write([]byte(faint.Sprint("Search "+p.opts.SearchLabel) + " " + p.input))
 	} else {
@@ -159,12 +148,24 @@ func (p *prompt) render() {
 		p.writer.Write(output)
 	}
 
-	if p.layout == status {
+	switch p.layout {
+	case status:
 		// print repository status
 		p.writer.Write([]byte(""))
 		for _, line := range branchInfo(p.repo.Head) {
 			p.writer.Write([]byte(line))
 		}
+	case log:
+		p.writer.Write([]byte(""))
+		if idx == NotFound {
+			break
+		}
+		for _, line := range logInfo(items[idx]) {
+			p.writer.Write([]byte(line))
+		}
+
+	default:
+
 	}
 
 	// finally, discharge to terminal

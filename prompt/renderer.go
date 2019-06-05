@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/justincampbell/timeago"
+
 	"github.com/fatih/color"
 	git "github.com/isacikgoz/libgit2-api"
 )
@@ -89,5 +91,16 @@ func branchClean(b *git.Branch) []string {
 	str := []string{faint.Sprint("On branch ") + yellow.Sprint(b.Name)}
 	str = append(str, branchInfo(b)...)
 	str = append(str, faint.Sprint("Nothing to commit, working tree clean"))
+	return str
+}
+
+func logInfo(item Item) []string {
+	str := make([]string, 0)
+	if item == nil {
+		return str
+	}
+	commit := item.(*git.Commit)
+	str = append(str, faint.Sprint("Author")+" "+commit.Author.Name+" <"+commit.Author.Email+">")
+	str = append(str, faint.Sprint("When")+"   "+timeago.FromTime(commit.Author.When))
 	return str
 }

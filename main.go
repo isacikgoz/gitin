@@ -16,9 +16,9 @@ type Config struct {
 }
 
 var (
-	cfg    Config
-	pwd, _ = os.Getwd()
-	dir    = pin.Arg("directory", "If Sig is suppose to run elsewhere.").Default(pwd).String()
+	cfg       Config
+	logCmd    = pin.Command("log", "Show commit logs.")
+	statusCmd = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 )
 
 func main() {
@@ -27,14 +27,14 @@ func main() {
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
 	pin.Parse()
-	mode := "status"
-	if err := run(mode, *dir); err != nil {
+	pwd, _ := os.Getwd()
+	if err := run(pwd); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 }
 
-func run(mode, path string) error {
+func run(path string) error {
 	r, err := git.Open(path)
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func run(mode, path string) error {
 	opts := &prompt.Options{
 		Size: 5,
 	}
-	switch mode {
+	switch pin.Parse() {
 	case "status":
 		pr := prompt.Status{
 			Repo: r,

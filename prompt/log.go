@@ -11,66 +11,61 @@ type Log struct {
 }
 
 // Start draws the screen with its list, initializing the cursor to the given position.
-func (s *Log) Start(opts *Options) error {
-	l, err := NewList(s.Items, opts.Size)
+func (l *Log) Start(opts *Options) error {
+	list, err := NewList(l.Items, opts.Size)
 	if err != nil {
 		return err
 	}
-	s.prompt = &prompt{
-		repo:      s.Repo,
-		list:      l,
+	l.prompt = &prompt{
+		repo:      l.Repo,
+		list:      list,
 		opts:      opts,
 		layout:    log,
-		keys:      s.onKey,
-		selection: s.onSelect,
+		keys:      l.onKey,
+		selection: l.onSelect,
 	}
 
-	return s.prompt.start()
+	return l.prompt.start()
 }
 
 // return true to terminate
-func (s *Log) onSelect() bool {
+func (l *Log) onSelect() bool {
 	// s.showDiff()
 	return false
 }
 
-func (s *Log) onKey(key rune) bool {
+func (l *Log) onKey(key rune) bool {
 	// var reqReload bool
 
 	switch key {
 	case 'k':
-		s.prompt.list.Prev()
+		l.prompt.list.Prev()
 	case 'j':
-		s.prompt.list.Next()
+		l.prompt.list.Next()
 	case 'h':
-		s.prompt.list.PageDown()
+		l.prompt.list.PageDown()
 	case 'l':
-		s.prompt.list.PageUp()
-		// case keys.Space:
-		// 	reqReload = true
-		// 	s.addReset()
-		// case 'p':
-		// 	reqReload = true
-		// 	s.hunkStage()
-		// case 'c':
-		// 	reqReload = true
-		// 	s.doCommit()
-		// case 'm':
-		// 	reqReload = true
-		// 	s.doCommitAmend()
-		// case 'a':
-		// 	reqReload = true
-		// 	// TODO: check for errors
-		// 	addAll(s.Repo)
-		// case 'r':
-		// 	reqReload = true
-		// 	resetAll(s.Repo)
-		// case 'q':
-		// 	return true
-		// default:
-		// }
-		// if reqReload {
-		// 	s.reloadStatus()
+		l.prompt.list.PageUp()
+	case 's':
+		l.showStat()
+	case 'd':
+		l.showDiff()
+	case 'q':
+		return true
 	}
 	return false
+}
+
+func (l *Log) showDiff() error {
+	items, idx := l.prompt.list.Items()
+	commit := items[idx].(*git.Commit)
+	args := []string{"show", commit.Hash}
+	return PopGenericCmd(l.Repo, args)
+}
+
+func (l *Log) showStat() error {
+	items, idx := l.prompt.list.Items()
+	commit := items[idx].(*git.Commit)
+	args := []string{"show", "--stat", commit.Hash}
+	return PopGenericCmd(l.Repo, args)
 }
