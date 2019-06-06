@@ -52,6 +52,10 @@ func renderLine(item Item, opts *PrintOptions) string {
 		commit := item.(*git.Commit)
 		hash := "[" + cyan.Sprint(commit.Hash[:7]) + "]"
 		line = fmt.Sprintf(" %s %s", hash, item)
+	case *git.DiffDelta:
+		dd := item.(*git.DiffDelta)
+		ind := "[" + cyan.Sprint(dd.DeltaStatusString()[:1]) + "]"
+		line = fmt.Sprintf(" %s %s", ind, dd)
 	default:
 		line = fmt.Sprintf(" %s", item)
 	}
@@ -99,8 +103,14 @@ func logInfo(item Item) []string {
 	if item == nil {
 		return str
 	}
-	commit := item.(*git.Commit)
-	str = append(str, faint.Sprint("Author")+" "+commit.Author.Name+" <"+commit.Author.Email+">")
-	str = append(str, faint.Sprint("When")+"   "+timeago.FromTime(commit.Author.When))
+	switch item.(type) {
+	case *git.Commit:
+		commit := item.(*git.Commit)
+		str = append(str, faint.Sprint("Author")+" "+commit.Author.Name+" <"+commit.Author.Email+">")
+		str = append(str, faint.Sprint("When")+"   "+timeago.FromTime(commit.Author.When))
+		return str
+	case *git.DiffDelta:
+
+	}
 	return str
 }
