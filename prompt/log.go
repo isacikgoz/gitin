@@ -101,14 +101,14 @@ func (l *Log) showDiff() error {
 	items, idx := l.prompt.list.Items()
 	commit := items[idx].(*git.Commit)
 	args := []string{"show", commit.Hash}
-	return PopGenericCmd(l.Repo, args)
+	return popGitCommand(l.Repo, args)
 }
 
 func (l *Log) showStat() error {
 	items, idx := l.prompt.list.Items()
 	commit := items[idx].(*git.Commit)
 	args := []string{"show", "--stat", commit.Hash}
-	return PopGenericCmd(l.Repo, args)
+	return popGitCommand(l.Repo, args)
 }
 
 func (l *Log) showFileDiff() error {
@@ -125,5 +125,5 @@ func (l *Log) showFileDiff() error {
 	items, idx := l.prompt.list.Items()
 	dd := items[idx].(*git.DiffDelta)
 	args = append(args, dd.OldFile.Path)
-	return PopGenericCmd(l.Repo, args)
+	return popGitCommand(l.Repo, args)
 }

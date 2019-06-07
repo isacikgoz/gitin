@@ -10,6 +10,7 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
+// Item is to create a simple interface for list items
 type Item interface {
 	String() string
 }
@@ -241,23 +242,4 @@ func (l *List) Items() ([]Item, int) {
 	}
 
 	return result, active
-}
-
-func (l *List) ItemSizes() (int, int) {
-	return len(l.items), len(l.scope)
-}
-
-func (l *List) SetSize(s int) {
-	l.size = s
-}
-
-func (l *List) Size() int {
-	return l.size
-}
-
-func (l *List) Append(in []Item) {
-	l.items = append(l.items, in...)
-	if len(l.find) == 0 {
-		l.scope = l.items
-	}
 }

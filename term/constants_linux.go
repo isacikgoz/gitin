@@ -1,4 +1,4 @@
-package reader
+package term
 
 const (
 	ioctlReadTermios  = 0x5401 // syscall.TCGETS

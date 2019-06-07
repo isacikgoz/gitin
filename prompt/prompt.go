@@ -7,8 +7,7 @@ import (
 
 	git "github.com/isacikgoz/libgit2-api"
 	"github.com/isacikgoz/sig/keys"
-	"github.com/isacikgoz/sig/reader"
-	"github.com/isacikgoz/sig/writer"
+	"github.com/isacikgoz/sig/term"
 )
 
 type promptType int
@@ -46,8 +45,8 @@ type prompt struct {
 	selection onSelect
 	inputMode bool
 	input     string
-	reader    *reader.RuneReader
-	writer    *writer.BufferedWriter
+	reader    *term.RuneReader
+	writer    *term.BufferedWriter
 	mx        *sync.RWMutex
 	opts      *Options
 }
@@ -55,12 +54,12 @@ type prompt struct {
 func (p *prompt) start() error {
 	var mx sync.RWMutex
 	p.mx = &mx
-	term := reader.Terminal{
+	t := term.Terminal{
 		In:  os.Stdin,
 		Out: os.Stdout,
 	}
-	p.reader = reader.NewRuneReader(term)
-	p.writer = writer.NewBufferedWriter(term.Out)
+	p.reader = term.NewRuneReader(t)
+	p.writer = term.NewBufferedWriter(t.Out)
 	p.list.SetCursor(p.opts.Cursor)
 	p.list.SetStart(p.opts.Scroll)
 
@@ -69,8 +68,8 @@ func (p *prompt) start() error {
 	defer p.reader.RestoreTermMode()
 
 	// disable linewrap
-	p.reader.Terminal.Out.Write([]byte(writer.HideCursor))
-	defer p.reader.Terminal.Out.Write([]byte(writer.ShowCursor))
+	p.reader.Terminal.Out.Write([]byte(term.HideCursor))
+	defer p.reader.Terminal.Out.Write([]byte(term.ShowCursor))
 
 	return p.innerRun()
 }
@@ -123,8 +122,8 @@ mainloop:
 // render function draws screen's list to terminal
 func (p *prompt) render() {
 	// make terminal not line wrap
-	p.reader.Terminal.Out.Write([]byte(writer.LineWrapOff))
-	defer p.reader.Terminal.Out.Write([]byte(writer.LineWrapOn))
+	p.reader.Terminal.Out.Write([]byte(term.LineWrapOff))
+	defer p.reader.Terminal.Out.Write([]byte(term.LineWrapOn))
 
 	// lock screen mutex
 	p.mx.Lock()

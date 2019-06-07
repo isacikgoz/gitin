@@ -1,7 +1,7 @@
 // This is a modified version of promptui's screenbuffer. The original version can
 // be found at https://github.com/manifoldco/promptui
 
-package writer
+package term
 
 import (
 	"bytes"

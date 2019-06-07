@@ -1,6 +1,6 @@
 // +build !windows
 
-package reader
+package term
 
 import (
 	"bufio"

@@ -5,7 +5,7 @@ import (
 	git "github.com/isacikgoz/libgit2-api"
 
 	"github.com/isacikgoz/sig/keys"
-	"github.com/isacikgoz/sig/writer"
+	"github.com/isacikgoz/sig/term"
 )
 
 // Status holds a list of items used to fill the terminal screen.
@@ -92,7 +92,7 @@ func (s *Status) reloadStatus() error {
 	for _, entry := range status.Entities {
 		items = append(items, entry)
 	}
-	s.prompt.list, err = NewList(items, s.prompt.list.Size())
+	s.prompt.list, err = NewList(items, s.prompt.list.size)
 	s.prompt.list.SetCursor(idx)
 	// return err
 	return nil
@@ -111,7 +111,7 @@ func (s *Status) addReset() error {
 
 // open hunk stagin ui
 func (s *Status) hunkStage() error {
-	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
+	defer s.prompt.reader.Terminal.Out.Write([]byte(term.HideCursor))
 	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
 	file, err := generateDiffFile(s.Repo, entry)
@@ -139,32 +139,32 @@ func (s *Status) hunkStage() error {
 func (s *Status) showDiff() error {
 	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
-	return PopGenericCmd(s.Repo, fileStatArgs(entry))
+	return popGitCommand(s.Repo, fileStatArgs(entry))
 }
 
 func (s *Status) doCommit() error {
-	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
+	defer s.prompt.reader.Terminal.Out.Write([]byte(term.HideCursor))
 
 	args := []string{"commit", "--edit", "--quiet"}
-	err := PopGenericCmd(s.Repo, args)
+	err := popGitCommand(s.Repo, args)
 	if err != nil {
 		return err
 	}
-	if err := PopGenericCmd(s.Repo, lastCommitArgs(s.Repo)); err != nil {
+	if err := popGitCommand(s.Repo, lastCommitArgs(s.Repo)); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (s *Status) doCommitAmend() error {
-	defer s.prompt.reader.Terminal.Out.Write([]byte(writer.HideCursor))
+	defer s.prompt.reader.Terminal.Out.Write([]byte(term.HideCursor))
 
 	args := []string{"commit", "--amend", "--quiet"}
-	err := PopGenericCmd(s.Repo, args)
+	err := popGitCommand(s.Repo, args)
 	if err != nil {
 		return err
 	}
-	if err := PopGenericCmd(s.Repo, lastCommitArgs(s.Repo)); err != nil {
+	if err := popGitCommand(s.Repo, lastCommitArgs(s.Repo)); err != nil {
 		return err
 	}
 	return nil

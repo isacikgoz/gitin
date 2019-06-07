@@ -9,7 +9,7 @@ import (
 	"github.com/waigani/diffparser"
 )
 
-func PopGenericCmd(r *git.Repository, args []string) error {
+func popGitCommand(r *git.Repository, args []string) error {
 	os.Setenv("LESS", "-RCS")
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Path()
