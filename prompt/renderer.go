@@ -3,6 +3,7 @@ package prompt
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/justincampbell/timeago"
 
@@ -110,7 +111,32 @@ func logInfo(item Item) []string {
 		str = append(str, faint.Sprint("When")+"   "+timeago.FromTime(commit.Author.When))
 		return str
 	case *git.DiffDelta:
-
+		dd := item.(*git.DiffDelta)
+		var adds, dels int
+		for _, line := range strings.Split(dd.Patch, "\n") {
+			if len(line) > 0 {
+				switch rn := line[0]; rn {
+				case '+':
+					adds++
+				case '-':
+					dels++
+				}
+			}
+		}
+		var infoLine string
+		if adds > 1 {
+			infoLine = fmt.Sprintf("%s %s", green.Sprintf("%d", adds-1), faint.Sprint("additions"))
+		}
+		if dels > 1 {
+			if len(infoLine) > 1 {
+				infoLine = infoLine + " "
+			}
+			infoLine = infoLine + fmt.Sprintf("%s %s", red.Sprintf("%d", dels-1), faint.Sprint("deletions"))
+		}
+		if len(infoLine) > 1 {
+			infoLine = infoLine + faint.Sprint(".")
+		}
+		str = append(str, infoLine)
 	}
 	return str
 }
