@@ -1,7 +1,11 @@
 package prompt
 
 import (
+	"fmt"
+	"strings"
+
 	git "github.com/isacikgoz/libgit2-api"
+	"github.com/justincampbell/timeago"
 )
 
 // Log holds a list of items used to fill the terminal screen.
@@ -27,6 +31,7 @@ func (l *Log) Start(opts *Options) error {
 		layout:    log,
 		keys:      l.onKey,
 		selection: l.onSelect,
+		info:      l.logInfo,
 	}
 
 	return l.prompt.start()
@@ -126,4 +131,46 @@ func (l *Log) showFileDiff() error {
 	dd := items[idx].(*git.DiffDelta)
 	args = append(args, dd.OldFile.Path)
 	return popGitCommand(l.Repo, args)
+}
+
+func (l *Log) logInfo(item Item) []string {
+	str := make([]string, 0)
+	if item == nil {
+		return str
+	}
+	switch item.(type) {
+	case *git.Commit:
+		commit := item.(*git.Commit)
+		str = append(str, faint.Sprint("Author")+" "+commit.Author.Name+" <"+commit.Author.Email+">")
+		str = append(str, faint.Sprint("When")+"   "+timeago.FromTime(commit.Author.When))
+		return str
+	case *git.DiffDelta:
+		dd := item.(*git.DiffDelta)
+		var adds, dels int
+		for _, line := range strings.Split(dd.Patch, "\n") {
+			if len(line) > 0 {
+				switch rn := line[0]; rn {
+				case '+':
+					adds++
+				case '-':
+					dels++
+				}
+			}
+		}
+		var infoLine string
+		if adds > 1 {
+			infoLine = fmt.Sprintf("%s %s", green.Sprintf("%d", adds-1), faint.Sprint("additions"))
+		}
+		if dels > 1 {
+			if len(infoLine) > 1 {
+				infoLine = infoLine + " "
+			}
+			infoLine = infoLine + fmt.Sprintf("%s %s", red.Sprintf("%d", dels-1), faint.Sprint("deletions"))
+		}
+		if len(infoLine) > 1 {
+			infoLine = infoLine + faint.Sprint(".")
+		}
+		str = append(str, infoLine)
+	}
+	return str
 }

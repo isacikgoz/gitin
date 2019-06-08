@@ -1,11 +1,12 @@
 package prompt
 
 import (
+	"strconv"
+
 	"github.com/isacikgoz/gia/editor"
 	git "github.com/isacikgoz/libgit2-api"
 
 	"github.com/isacikgoz/sig/keys"
-	"github.com/isacikgoz/sig/term"
 )
 
 // Status holds a list of items used to fill the terminal screen.
@@ -29,6 +30,7 @@ func (s *Status) Start(opts *Options) error {
 		layout:    status,
 		keys:      s.onKey,
 		selection: s.onSelect,
+		info:      s.branchInfo,
 	}
 
 	return s.prompt.start()
@@ -111,7 +113,7 @@ func (s *Status) addReset() error {
 
 // open hunk stagin ui
 func (s *Status) hunkStage() error {
-	defer s.prompt.reader.Terminal.Out.Write([]byte(term.HideCursor))
+	defer s.prompt.reader.Terminal.HideCursor()
 	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
 	file, err := generateDiffFile(s.Repo, entry)
@@ -143,7 +145,7 @@ func (s *Status) showDiff() error {
 }
 
 func (s *Status) doCommit() error {
-	defer s.prompt.reader.Terminal.Out.Write([]byte(term.HideCursor))
+	defer s.prompt.reader.Terminal.HideCursor()
 
 	args := []string{"commit", "--edit", "--quiet"}
 	err := popGitCommand(s.Repo, args)
@@ -157,7 +159,7 @@ func (s *Status) doCommit() error {
 }
 
 func (s *Status) doCommitAmend() error {
-	defer s.prompt.reader.Terminal.Out.Write([]byte(term.HideCursor))
+	defer s.prompt.reader.Terminal.HideCursor()
 
 	args := []string{"commit", "--amend", "--quiet"}
 	err := popGitCommand(s.Repo, args)
@@ -168,4 +170,34 @@ func (s *Status) doCommitAmend() error {
 		return err
 	}
 	return nil
+}
+
+func (s *Status) branchInfo(item Item) []string {
+	b := s.Repo.Head
+	if b == nil {
+		return []string{faint.Sprint("Unable to load branch info")}
+	}
+	if b.Upstream == nil {
+		return []string{faint.Sprint("Your branch is not tracking a remote branch.")}
+	}
+	var str []string
+	pl := b.Behind
+	ps := b.Ahead
+
+	if ps == 0 && pl == 0 {
+		str = []string{faint.Sprint("Your branch is up to date with ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(".")}
+	} else {
+		if ps > 0 && pl > 0 {
+			str = []string{faint.Sprint("Your branch and ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(" have diverged,")}
+			str = append(str, faint.Sprint("and have ")+yellow.Sprint(strconv.Itoa(ps))+faint.Sprint(" and ")+yellow.Sprint(strconv.Itoa(pl))+faint.Sprint(" different commits each, respectively."))
+			str = append(str, faint.Sprint("(\"pull\" to merge the remote branch into yours)"))
+		} else if pl > 0 && ps == 0 {
+			str = []string{faint.Sprint("Your branch is behind ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(" by ") + yellow.Sprint(strconv.Itoa(pl)) + faint.Sprint(" commit(s).")}
+			str = append(str, faint.Sprint("(\"pull\" to update your local branch)"))
+		} else if ps > 0 && pl == 0 {
+			str = []string{faint.Sprint("Your branch is ahead of ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(" by ") + yellow.Sprint(strconv.Itoa(ps)) + faint.Sprint(" commit(s).")}
+			str = append(str, faint.Sprint("(\"push\" to publish your local commits)"))
+		}
+	}
+	return str
 }

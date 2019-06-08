@@ -58,7 +58,7 @@ func (rr *RuneReader) SetTermMode() error {
 	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(rr.Terminal.In.Fd()), ioctlWriteTermios, uintptr(unsafe.Pointer(&newState)), 0, 0, 0); err != 0 {
 		return err
 	}
-
+	rr.Terminal.HideCursor()
 	return nil
 }
 
@@ -66,6 +66,7 @@ func (rr *RuneReader) RestoreTermMode() error {
 	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(rr.Terminal.In.Fd()), ioctlWriteTermios, uintptr(unsafe.Pointer(&rr.state.term)), 0, 0, 0); err != 0 {
 		return err
 	}
+	rr.Terminal.ShowCursor()
 	return nil
 }
 

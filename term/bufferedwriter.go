@@ -9,33 +9,16 @@ import (
 	"io"
 )
 
-const (
-	esc = "\033["
-	// HideCursor writes the sequence for hiding cursor
-	HideCursor = "\x1b[?25l"
-	// ShowCursor writes the sequence for resotring show cursor
-	ShowCursor = "\x1b[?25h"
-	// LineWrapOff sets the terminal to avoid line wrap
-	LineWrapOff = "\x1b[?7l"
-	// LineWrapOn restores the linewrap setting
-	LineWrapOn = "\x1b[?7h"
-)
-
-var (
-	clearLine = []byte(esc + "2K\r")
-	moveUp    = []byte(esc + "1A")
-	moveDown  = []byte(esc + "1B")
-)
-
 // BufferedWriter creates, clears and, moves up or down lines as needed to write
 // the output to the terminal using ANSI escape codes.
 type BufferedWriter struct {
-	w      io.Writer
-	buf    *bytes.Buffer
-	reset  bool
-	flush  bool
-	cursor int
-	height int
+	w        io.Writer
+	buf      *bytes.Buffer
+	lineWrap bool
+	reset    bool
+	flush    bool
+	cursor   int
+	height   int
 }
 
 // NewBufferedWriter creates and initializes a new BufferedWriter.
@@ -57,6 +40,11 @@ func (b *BufferedWriter) Reset() {
 func (b *BufferedWriter) Write(bites []byte) (int, error) {
 	if bytes.ContainsAny(bites, "\r\n") {
 		return 0, fmt.Errorf("%q should not contain either \\r or \\n", bites)
+	}
+
+	if !b.lineWrap {
+		b.buf.Write([]byte(lwoff))
+		defer b.buf.Write([]byte(lwon))
 	}
 
 	if b.reset {

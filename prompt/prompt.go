@@ -22,6 +22,7 @@ const (
 
 type onKey func(rune) bool
 type onSelect func() bool
+type infobox func(Item) []string
 
 // Options is the common options for building a prompt
 type Options struct {
@@ -43,6 +44,7 @@ type prompt struct {
 	list      *List
 	keys      onKey
 	selection onSelect
+	info      infobox
 	inputMode bool
 	input     string
 	reader    *term.RuneReader
@@ -66,10 +68,6 @@ func (p *prompt) start() error {
 	// disable echo
 	p.reader.SetTermMode()
 	defer p.reader.RestoreTermMode()
-
-	// disable linewrap
-	p.reader.Terminal.Out.Write([]byte(term.HideCursor))
-	defer p.reader.Terminal.Out.Write([]byte(term.ShowCursor))
 
 	return p.innerRun()
 }
@@ -121,10 +119,6 @@ mainloop:
 
 // render function draws screen's list to terminal
 func (p *prompt) render() {
-	// make terminal not line wrap
-	p.reader.Terminal.Out.Write([]byte(term.LineWrapOff))
-	defer p.reader.Terminal.Out.Write([]byte(term.LineWrapOn))
-
 	// lock screen mutex
 	p.mx.Lock()
 	defer p.mx.Unlock()
@@ -147,24 +141,11 @@ func (p *prompt) render() {
 		p.writer.Write(output)
 	}
 
-	switch p.layout {
-	case status:
-		// print repository status
-		p.writer.Write([]byte(""))
-		for _, line := range branchInfo(p.repo.Head) {
+	p.writer.Write([]byte(""))
+	if idx != NotFound {
+		for _, line := range p.info(items[idx]) {
 			p.writer.Write([]byte(line))
 		}
-	case log:
-		p.writer.Write([]byte(""))
-		if idx == NotFound {
-			break
-		}
-		for _, line := range logInfo(items[idx]) {
-			p.writer.Write([]byte(line))
-		}
-
-	default:
-
 	}
 
 	// finally, discharge to terminal
