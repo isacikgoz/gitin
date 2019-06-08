@@ -156,7 +156,7 @@ func (p *prompt) assignKey(key rune) bool {
 	var skipLoop bool
 	switch key {
 	case keys.Enter, '\n':
-		p.selection()
+		return p.selection()
 	case keys.ArrowUp:
 		skipLoop = true
 		p.list.Prev()

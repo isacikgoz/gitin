@@ -19,6 +19,7 @@ var (
 	cfg       Config
 	logCmd    = pin.Command("log", "Show commit logs.")
 	statusCmd = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
+	branchCmd = pin.Command("branch", "Show list of branches.")
 )
 
 func main() {
@@ -47,33 +48,16 @@ func run(path string) error {
 		pr := prompt.Status{
 			Repo: r,
 		}
-
-		s, err := r.LoadStatus()
-		if err != nil {
-			return err
-		}
-		items := make([]prompt.Item, 0)
-		for _, entry := range s.Entities {
-			items = append(items, entry)
-		}
-		pr.Items = items
-		opts.SearchLabel = "Files"
 		err = pr.Start(opts)
 	case "log":
 		pr := prompt.Log{
 			Repo: r,
 		}
-
-		cs, err := r.Commits()
-		if err != nil {
-			return err
+		err = pr.Start(opts)
+	case "branch":
+		pr := prompt.Branch{
+			Repo: r,
 		}
-		items := make([]prompt.Item, 0)
-		for _, commit := range cs {
-			items = append(items, commit)
-		}
-		pr.Items = items
-		opts.SearchLabel = "Commits"
 		err = pr.Start(opts)
 	}
 	return err

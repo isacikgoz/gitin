@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"os/exec"
 	"strconv"
 
 	"github.com/isacikgoz/gia/editor"
@@ -11,15 +12,23 @@ import (
 
 // Status holds a list of items used to fill the terminal screen.
 type Status struct {
-	Repo  *git.Repository
-	Items []Item
+	Repo *git.Repository
 
 	prompt *prompt
 }
 
 // Start draws the screen with its list, initializing the cursor to the given position.
 func (s *Status) Start(opts *Options) error {
-	l, err := NewList(s.Items, opts.Size)
+	st, err := s.Repo.LoadStatus()
+	if err != nil {
+		return err
+	}
+	items := make([]Item, 0)
+	for _, entry := range st.Entities {
+		items = append(items, entry)
+	}
+	opts.SearchLabel = "Files"
+	l, err := NewList(items, opts.Size)
 	if err != nil {
 		return err
 	}
@@ -104,11 +113,17 @@ func (s *Status) reloadStatus() error {
 func (s *Status) addReset() error {
 	defer s.prompt.render()
 	items, idx := s.prompt.list.Items()
-	item := items[idx].(*git.StatusEntry)
-	if item.Indexed() {
-		return s.Repo.RemoveFromIndex(item)
+	entry := items[idx].(*git.StatusEntry)
+	args := []string{"add", "--", entry.String()}
+	if entry.Indexed() {
+		args = []string{"reset", "HEAD", "--", entry.String()}
 	}
-	return s.Repo.AddToIndex(item)
+	cmd := exec.Command("git", args...)
+	cmd.Dir = s.Repo.Path()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // open hunk stagin ui

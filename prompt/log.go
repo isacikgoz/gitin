@@ -10,8 +10,7 @@ import (
 
 // Log holds a list of items used to fill the terminal screen.
 type Log struct {
-	Repo  *git.Repository
-	Items []Item
+	Repo *git.Repository
 
 	prompt   *prompt
 	selected *git.Commit
@@ -20,10 +19,19 @@ type Log struct {
 
 // Start draws the screen with its list, initializing the cursor to the given position.
 func (l *Log) Start(opts *Options) error {
-	list, err := NewList(l.Items, opts.Size)
+	cs, err := l.Repo.Commits()
 	if err != nil {
 		return err
 	}
+	items := make([]Item, 0)
+	for _, commit := range cs {
+		items = append(items, commit)
+	}
+	list, err := NewList(items, opts.Size)
+	if err != nil {
+		return err
+	}
+	opts.SearchLabel = "Commits"
 	l.prompt = &prompt{
 		repo:      l.Repo,
 		list:      list,
