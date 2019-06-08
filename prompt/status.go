@@ -104,8 +104,10 @@ func (s *Status) reloadStatus() error {
 		items = append(items, entry)
 	}
 	s.prompt.list, err = NewList(items, s.prompt.list.size)
+	if err != nil {
+		return err
+	}
 	s.prompt.list.SetCursor(idx)
-	// return err
 	return nil
 }
 
