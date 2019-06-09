@@ -1,4 +1,4 @@
-package keys
+package term
 
 const (
 	ArrowLeft       = '\x02'
@@ -61,8 +61,7 @@ const (
 	KeyBS2 Key = 127
 )
 
-// These are the control keys.  Note that they overlap with other keys,
-// perhaps.  For example, KeyCtrlH is the same as KeyBackspace.
+// These are the control keys.  Note that they overlap with other keys.
 const (
 	KeyCtrlSpace Key = iota
 	KeyCtrlA

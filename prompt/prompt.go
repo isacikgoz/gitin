@@ -1,10 +1,13 @@
 package prompt
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"unicode/utf8"
 
+	"github.com/fatih/color"
+	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
 	"github.com/isacikgoz/sig/keys"
 	"github.com/isacikgoz/sig/term"
@@ -23,13 +26,13 @@ const (
 type onKey func(rune) bool
 type onSelect func() bool
 type infobox func(Item) []string
+type helpbox func() []string
 
 // Options is the common options for building a prompt
 type Options struct {
 	Cursor           int
 	Scroll           int
 	Size             int
-	HideHelp         bool
 	ShowDetail       bool
 	StartInSearch    bool
 	SearchLabel      string
@@ -45,7 +48,9 @@ type prompt struct {
 	keys      onKey
 	selection onSelect
 	info      infobox
+	help      helpbox
 	inputMode bool
+	helpMode  bool
 	input     string
 	reader    *term.RuneReader
 	writer    *term.BufferedWriter
@@ -100,10 +105,10 @@ mainloop:
 		if err != nil {
 			return err
 		}
-		if r == keys.Interrupt {
+		if r == term.Interrupt {
 			break
 		}
-		if r == keys.EndTransmission {
+		if r == term.EndTransmission {
 			break
 		}
 		if br := p.assignKey(r); br {
@@ -123,9 +128,17 @@ func (p *prompt) render() {
 	p.mx.Lock()
 	defer p.mx.Unlock()
 
+	if p.helpMode {
+		for _, line := range p.printHelp() {
+			p.writer.Write([]byte(line))
+		}
+		p.writer.Flush()
+		return
+	}
+
 	items, idx := p.list.Items()
 	if p.inputMode {
-		p.writer.Write([]byte(faint.Sprint("Search "+p.opts.SearchLabel) + " " + p.input))
+		p.writer.Write([]byte(faint.Sprint("Search "+p.opts.SearchLabel) + " " + p.input + whitebg.Add(color.BlinkRapid).Sprint("█")))
 	} else {
 		p.writer.Write([]byte(faint.Sprint(p.opts.SearchLabel)))
 	}
@@ -154,19 +167,23 @@ func (p *prompt) render() {
 
 func (p *prompt) assignKey(key rune) bool {
 	var skipLoop bool
+	if p.helpMode {
+		p.helpMode = false
+		return false
+	}
 	switch key {
-	case keys.Enter, '\n':
+	case term.Enter, '\n':
 		return p.selection()
-	case keys.ArrowUp:
+	case term.ArrowUp:
 		skipLoop = true
 		p.list.Prev()
-	case keys.ArrowDown:
+	case term.ArrowDown:
 		skipLoop = true
 		p.list.Next()
-	case keys.ArrowLeft:
+	case term.ArrowLeft:
 		skipLoop = true
 		p.list.PageDown()
-	case keys.ArrowRight:
+	case term.ArrowRight:
 		skipLoop = true
 		p.list.PageUp()
 	default:
@@ -179,20 +196,35 @@ func (p *prompt) assignKey(key rune) bool {
 		p.input = ""
 	} else if p.inputMode {
 		switch key {
-		case rune(keys.KeyBS), rune(keys.KeyBS2):
+		case rune(term.KeyBS), rune(term.KeyBS2):
 			if len(p.input) > 0 {
 				_, size := utf8.DecodeLastRuneInString(p.input)
 				p.input = p.input[0 : len(p.input)-size]
 			}
-		case rune(keys.KeyCtrlU):
+		case rune(term.KeyCtrlU):
 			p.input = ""
 		default:
 			p.input += string(key)
 		}
 		p.list.Search(p.input)
+	} else if key == '?' {
+		p.helpMode = !p.helpMode
 	} else {
 		return p.keys(key)
 	}
 
 	return false
+}
+
+func (p *prompt) printHelp() []string {
+	var str []string
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("navigation"), yellow.Sprint("↓ ↑ → ← (h,j,k,l)")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("quit app"), yellow.Sprint("q")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("toggle search"), yellow.Sprint("/")))
+	if p.help != nil {
+		str = append(str, p.help()...)
+	}
+	str = append(str, "")
+	str = append(str, faint.Sprint("press any key to return."))
+	return str
 }

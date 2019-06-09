@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
-
-	"github.com/isacikgoz/sig/keys"
 )
 
 var (
@@ -80,7 +78,7 @@ func (rr *RuneReader) ReadRune() (rune, int, error) {
 	if r == '\033' {
 		if rr.state.reader.Buffered() == 0 {
 			// no more characters so must be `Esc` key
-			return keys.Escape, 1, nil
+			return Escape, 1, nil
 		}
 		r, size, err = rr.state.reader.ReadRune()
 		if err != nil {
@@ -95,25 +93,25 @@ func (rr *RuneReader) ReadRune() (rune, int, error) {
 		}
 		switch r {
 		case 'D':
-			return keys.ArrowLeft, 1, nil
+			return ArrowLeft, 1, nil
 		case 'C':
-			return keys.ArrowRight, 1, nil
+			return ArrowRight, 1, nil
 		case 'A':
-			return keys.ArrowUp, 1, nil
+			return ArrowUp, 1, nil
 		case 'B':
-			return keys.ArrowDown, 1, nil
+			return ArrowDown, 1, nil
 		case 'H': // Home button
-			return keys.Home, 1, nil
+			return Home, 1, nil
 		case 'F': // End button
-			return keys.End, 1, nil
+			return End, 1, nil
 		case '3': // Delete Button
 			// discard the following '~' key from buffer
 			rr.state.reader.Discard(1)
-			return keys.Delete2, 1, nil
+			return Delete2, 1, nil
 		default:
 			// discard the following '~' key from buffer
 			rr.state.reader.Discard(1)
-			return keys.IgnoreKey, 1, nil
+			return IgnoreKey, 1, nil
 		}
 	}
 	return r, size, err

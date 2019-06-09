@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"os/exec"
 	"strconv"
 
@@ -40,6 +41,7 @@ func (s *Status) Start(opts *Options) error {
 		keys:      s.onKey,
 		selection: s.onSelect,
 		info:      s.branchInfo,
+		help:      s.help,
 	}
 
 	return s.prompt.start()
@@ -63,7 +65,7 @@ func (s *Status) onKey(key rune) bool {
 		s.prompt.list.PageDown()
 	case 'l':
 		s.prompt.list.PageUp()
-	case keys.Space:
+	case ' ':
 		reqReload = true
 		s.addReset()
 	case 'p':
@@ -220,5 +222,18 @@ func (s *Status) branchInfo(item Item) []string {
 			str = append(str, faint.Sprint("(\"push\" to publish your local commits)"))
 		}
 	}
+	return str
+}
+
+func (s *Status) help() []string {
+	var str []string
+
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("add/reset entry"), yellow.Sprint("space")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("show diff"), yellow.Sprint("enter")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("add all"), yellow.Sprint("a")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("reset all"), yellow.Sprint("r")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("hunk stage"), yellow.Sprint("p")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("commit"), yellow.Sprint("c")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("amend"), yellow.Sprint("m")))
 	return str
 }
