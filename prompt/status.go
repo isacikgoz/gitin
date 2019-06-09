@@ -194,25 +194,29 @@ func (s *Status) branchInfo(item Item) []string {
 	if b == nil {
 		return []string{faint.Sprint("Unable to load branch info")}
 	}
-	if b.Upstream == nil {
-		return []string{faint.Sprint("Your branch is not tracking a remote branch.")}
-	}
+
 	var str []string
+	if len(b.Name) > 0 {
+		str = []string{faint.Sprint("On branch ") + yellow.Sprint(b.Name)}
+	}
+	if b.Upstream == nil {
+		return append(str, faint.Sprint("Your branch is not tracking a remote branch."))
+	}
 	pl := b.Behind
 	ps := b.Ahead
 
 	if ps == 0 && pl == 0 {
-		str = []string{faint.Sprint("Your branch is up to date with ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(".")}
+		str = append(str, faint.Sprint("Your branch is up to date with ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint("."))
 	} else {
 		if ps > 0 && pl > 0 {
-			str = []string{faint.Sprint("Your branch and ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(" have diverged,")}
+			str = append(str, faint.Sprint("Your branch and ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint(" have diverged,"))
 			str = append(str, faint.Sprint("and have ")+yellow.Sprint(strconv.Itoa(ps))+faint.Sprint(" and ")+yellow.Sprint(strconv.Itoa(pl))+faint.Sprint(" different commits each, respectively."))
 			str = append(str, faint.Sprint("(\"pull\" to merge the remote branch into yours)"))
 		} else if pl > 0 && ps == 0 {
-			str = []string{faint.Sprint("Your branch is behind ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(" by ") + yellow.Sprint(strconv.Itoa(pl)) + faint.Sprint(" commit(s).")}
+			str = append(str, faint.Sprint("Your branch is behind ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint(" by ")+yellow.Sprint(strconv.Itoa(pl))+faint.Sprint(" commit(s)."))
 			str = append(str, faint.Sprint("(\"pull\" to update your local branch)"))
 		} else if ps > 0 && pl == 0 {
-			str = []string{faint.Sprint("Your branch is ahead of ") + cyan.Sprint(b.Upstream.Name) + faint.Sprint(" by ") + yellow.Sprint(strconv.Itoa(ps)) + faint.Sprint(" commit(s).")}
+			str = append(str, faint.Sprint("Your branch is ahead of ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint(" by ")+yellow.Sprint(strconv.Itoa(ps))+faint.Sprint(" commit(s)."))
 			str = append(str, faint.Sprint("(\"push\" to publish your local commits)"))
 		}
 	}
