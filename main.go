@@ -13,6 +13,8 @@ import (
 
 // Config will be passed to screenopts
 type Config struct {
+	LineSize    int `default:"5"`
+	StartSearch bool
 }
 
 var (
@@ -23,16 +25,20 @@ var (
 )
 
 func main() {
-	pin.Version("sig version 0.1.0")
+	evalArgs()
+
+	pwd, _ := os.Getwd()
+	if err := run(pwd); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+}
+
+func evalArgs() {
+	pin.Version("gitin version 0.2.0")
 	pin.UsageTemplate(pin.DefaultUsageTemplate + envVarHelp() + "\n")
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
-	pin.Parse()
-	pwd, _ := os.Getwd()
-	if err := run(pwd); err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
 }
 
 func run(path string) error {
@@ -40,8 +46,13 @@ func run(path string) error {
 	if err != nil {
 		return err
 	}
+	err = env.Process("gitin", &cfg)
+	if err != nil {
+		return err
+	}
 	opts := &prompt.Options{
-		Size: 5,
+		Size:          cfg.LineSize,
+		StartInSearch: cfg.StartSearch,
 	}
 	switch pin.Parse() {
 	case "status":
@@ -63,19 +74,11 @@ func run(path string) error {
 	return err
 }
 
-func configurePrompt(r *git.Repository) (*prompt.Status, error) {
-	err := env.Process("sig", &cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	prompt := prompt.Status{
-		Repo: r,
-	}
-	return &prompt, nil
-}
-
 func envVarHelp() string {
 	return `Environment Variables:
-  None.`
+
+  GITIN_LINESIZE=<int>
+  GITIN_STARTSEARCH=<bool>
+
+  Press ? for controls while application is running.`
 }

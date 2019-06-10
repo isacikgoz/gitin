@@ -74,6 +74,9 @@ func (p *prompt) start() error {
 	p.reader.SetTermMode()
 	defer p.reader.RestoreTermMode()
 
+	if p.opts.StartInSearch {
+		p.inputMode = true
+	}
 	return p.innerRun()
 }
 
@@ -138,7 +141,7 @@ func (p *prompt) render() {
 
 	items, idx := p.list.Items()
 	if p.inputMode {
-		p.writer.Write([]byte(faint.Sprint("Search "+p.opts.SearchLabel) + " " + p.input + whitebg.Add(color.BlinkRapid).Sprint("█")))
+		p.writer.Write([]byte(faint.Sprint("Search "+p.opts.SearchLabel) + " " + p.input + faint.Add(color.BlinkRapid).Sprint("█")))
 	} else {
 		p.writer.Write([]byte(faint.Sprint(p.opts.SearchLabel)))
 	}
@@ -218,7 +221,7 @@ func (p *prompt) assignKey(key rune) bool {
 
 func (p *prompt) printHelp() []string {
 	var str []string
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("navigation"), yellow.Sprint("↓ ↑ → ← (h,j,k,l)")))
+	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("navigation"), yellow.Sprint("← ↓ ↑ → (h,j,k,l)")))
 	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("quit app"), yellow.Sprint("q")))
 	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("toggle search"), yellow.Sprint("/")))
 	if p.help != nil {
