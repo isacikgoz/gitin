@@ -7,8 +7,6 @@ import (
 
 	"github.com/isacikgoz/gia/editor"
 	git "github.com/isacikgoz/libgit2-api"
-
-	"github.com/isacikgoz/sig/keys"
 )
 
 // Status holds a list of items used to fill the terminal screen.
@@ -171,7 +169,11 @@ func (s *Status) doCommit() error {
 	if err != nil {
 		return err
 	}
-	if err := popGitCommand(s.Repo, lastCommitArgs(s.Repo)); err != nil {
+	args, err = lastCommitArgs(s.Repo)
+	if err != nil {
+		return err
+	}
+	if err := popGitCommand(s.Repo, args); err != nil {
 		return err
 	}
 	return nil
@@ -185,7 +187,11 @@ func (s *Status) doCommitAmend() error {
 	if err != nil {
 		return err
 	}
-	if err := popGitCommand(s.Repo, lastCommitArgs(s.Repo)); err != nil {
+	args, err = lastCommitArgs(s.Repo)
+	if err != nil {
+		return err
+	}
+	if err := popGitCommand(s.Repo, args); err != nil {
 		return err
 	}
 	return nil

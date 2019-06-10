@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -40,12 +41,15 @@ func fileStatArgs(e *git.StatusEntry) []string {
 }
 
 // lastCommitArgs returns the args for show stat
-func lastCommitArgs(r *git.Repository) []string {
+func lastCommitArgs(r *git.Repository) ([]string, error) {
 	r.LoadStatus()
 	head := r.Head
+	if head == nil {
+		return nil, fmt.Errorf("can't get HEAD")
+	}
 	hash := string(head.Target().Hash)
 	args := []string{"show", "--stat", hash}
-	return args
+	return args, nil
 }
 
 func generateDiffFile(r *git.Repository, entry *git.StatusEntry) (*diffparser.DiffFile, error) {

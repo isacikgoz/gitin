@@ -9,8 +9,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
-	"github.com/isacikgoz/sig/keys"
-	"github.com/isacikgoz/sig/term"
 )
 
 type promptType int

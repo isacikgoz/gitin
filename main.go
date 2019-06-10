@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/isacikgoz/sig/prompt"
+	"github.com/isacikgoz/gitin/prompt"
 
 	git "github.com/isacikgoz/libgit2-api"
 	env "github.com/kelseyhightower/envconfig"
