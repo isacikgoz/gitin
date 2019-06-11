@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fatih/color"
+
 	git "github.com/isacikgoz/libgit2-api"
 	"github.com/justincampbell/timeago"
 )
@@ -23,6 +25,8 @@ func (l *Log) Start(opts *Options) error {
 	if err != nil {
 		return err
 	}
+	l.Repo.Branches()
+	l.Repo.Tags()
 	items := make([]Item, 0)
 	for _, commit := range cs {
 		items = append(items, commit)
@@ -147,6 +151,7 @@ func (l *Log) logInfo(item Item) []string {
 		commit := item.(*git.Commit)
 		str = append(str, faint.Sprint("Author")+" "+commit.Author.Name+" <"+commit.Author.Email+">")
 		str = append(str, faint.Sprint("When")+"   "+timeago.FromTime(commit.Author.When))
+		str = append(str, commitRefs(l.Repo, commit))
 		return str
 	case *git.DiffDelta:
 		dd := item.(*git.DiffDelta)
@@ -177,4 +182,26 @@ func (l *Log) logInfo(item Item) []string {
 		str = append(str, infoLine)
 	}
 	return str
+}
+
+func commitRefs(r *git.Repository, c *git.Commit) string {
+	var decor string
+	if refs, ok := r.RefMap[c.Hash]; ok {
+		if len(refs) <= 0 {
+			return decor
+		}
+		decor = "("
+		for _, ref := range refs {
+			switch ref.Type() {
+			case git.RefTypeHEAD:
+				decor += cyan.Add(color.Bold).Sprint("HEAD ->") + " " + green.Add(color.Bold).Sprint(ref.String()) + ", "
+			case git.RefTypeBranch:
+				decor += red.Add(color.Bold).Sprint(ref.String()) + ", "
+			case git.RefTypeTag:
+				decor += yellow.Add(color.Bold).Sprint("tag: "+ref.String()) + ", "
+			}
+		}
+		decor = decor[:len(decor)-2] + ")"
+	}
+	return decor
 }

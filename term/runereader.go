@@ -1,4 +1,6 @@
 // +build !windows
+// This is a modified version of survey's runereader. The original version can
+// be found at https://github.com/AlecAivazis/survey
 
 package term
 
