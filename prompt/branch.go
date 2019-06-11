@@ -28,7 +28,13 @@ func (b *Branch) Start(opts *Options) error {
 	if err != nil {
 		return err
 	}
+	controls := make(map[string]string)
+	controls["delete branch"] = "d"
+	controls["force delete"] = "D"
+	controls["checkout"] = "enter"
+
 	opts.SearchLabel = "Branches"
+
 	b.prompt = &prompt{
 		repo:      b.Repo,
 		list:      list,
@@ -37,6 +43,7 @@ func (b *Branch) Start(opts *Options) error {
 		selection: b.onSelect,
 		keys:      b.onKey,
 		info:      b.branchInfo,
+		controls:  controls,
 	}
 
 	return b.prompt.start()
@@ -56,14 +63,6 @@ func (b *Branch) onSelect() bool {
 
 func (b *Branch) onKey(key rune) bool {
 	switch key {
-	case 'k':
-		b.prompt.list.Prev()
-	case 'j':
-		b.prompt.list.Next()
-	case 'h':
-		b.prompt.list.PageDown()
-	case 'l':
-		b.prompt.list.PageUp()
 	case 'd':
 		b.deleteBranch("d")
 	case 'D':

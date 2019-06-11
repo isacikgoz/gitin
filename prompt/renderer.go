@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/fatih/color"
@@ -12,16 +13,10 @@ var (
 	// define colors
 	green     = color.New(color.FgGreen)
 	yellow    = color.New(color.FgYellow)
-	blue      = color.New(color.FgBlue)
 	red       = color.New(color.FgRed)
 	cyan      = color.New(color.FgCyan)
 	faint     = color.New(color.Faint)
-	hiWhite   = color.New(color.FgHiWhite)
-	bold      = color.New(color.Bold)
-	whitebg   = color.New(color.BgWhite)
-	blackbg   = color.New(color.BgBlack)
 	underline = color.New(color.Underline)
-	black     = color.New(color.FgBlack)
 )
 
 const (
@@ -98,4 +93,20 @@ func branchClean(b *git.Branch) []string {
 	str = append(str, branchInfo(b)...)
 	str = append(str, faint.Sprint("Nothing to commit, working tree clean"))
 	return str
+}
+
+func generateHelp(pairs map[string]string) []string {
+	var arr []string
+	// sort keys alphabetically
+	keys := make([]string, 0, len(pairs))
+	for key := range pairs {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		arr = append(arr, fmt.Sprintf("%s: %s", faint.Sprint(key), yellow.Sprint(pairs[key])))
+	}
+	arr = append(arr, "")
+	arr = append(arr, faint.Sprint("press any key to return."))
+	return arr
 }

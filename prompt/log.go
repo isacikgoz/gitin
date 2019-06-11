@@ -31,7 +31,13 @@ func (l *Log) Start(opts *Options) error {
 	if err != nil {
 		return err
 	}
+	controls := make(map[string]string)
+	controls["show diff"] = "d"
+	controls["show stat"] = "s"
+	controls["select"] = "enter"
+
 	opts.SearchLabel = "Commits"
+
 	l.prompt = &prompt{
 		repo:      l.Repo,
 		list:      list,
@@ -40,6 +46,7 @@ func (l *Log) Start(opts *Options) error {
 		keys:      l.onKey,
 		selection: l.onSelect,
 		info:      l.logInfo,
+		controls:  controls,
 	}
 
 	return l.prompt.start()
@@ -77,17 +84,6 @@ func (l *Log) onSelect() bool {
 }
 
 func (l *Log) onKey(key rune) bool {
-	switch key {
-	case 'k':
-		l.prompt.list.Prev()
-	case 'j':
-		l.prompt.list.Next()
-	case 'h':
-		l.prompt.list.PageDown()
-	case 'l':
-		l.prompt.list.PageUp()
-	}
-
 	items, idx := l.prompt.list.Items()
 	item := items[idx]
 	switch item.(type) {

@@ -1,7 +1,6 @@
 package prompt
 
 import (
-	"fmt"
 	"os/exec"
 	"strconv"
 
@@ -26,11 +25,21 @@ func (s *Status) Start(opts *Options) error {
 	for _, entry := range st.Entities {
 		items = append(items, entry)
 	}
-	opts.SearchLabel = "Files"
 	l, err := NewList(items, opts.Size)
 	if err != nil {
 		return err
 	}
+	controls := make(map[string]string)
+	controls["add/reset entry"] = "space"
+	controls["show diff"] = "enter"
+	controls["add all"] = "a"
+	controls["reset all"] = "r"
+	controls["hunk stage"] = "p"
+	controls["commit"] = "c"
+	controls["amend"] = "m"
+
+	opts.SearchLabel = "Files"
+
 	s.prompt = &prompt{
 		repo:      s.Repo,
 		list:      l,
@@ -39,7 +48,7 @@ func (s *Status) Start(opts *Options) error {
 		keys:      s.onKey,
 		selection: s.onSelect,
 		info:      s.branchInfo,
-		help:      s.help,
+		controls:  controls,
 	}
 
 	return s.prompt.start()
@@ -55,14 +64,6 @@ func (s *Status) onKey(key rune) bool {
 	var reqReload bool
 
 	switch key {
-	case 'k':
-		s.prompt.list.Prev()
-	case 'j':
-		s.prompt.list.Next()
-	case 'h':
-		s.prompt.list.PageDown()
-	case 'l':
-		s.prompt.list.PageUp()
 	case ' ':
 		reqReload = true
 		s.addReset()
@@ -228,18 +229,5 @@ func (s *Status) branchInfo(item Item) []string {
 			str = append(str, faint.Sprint("(\"push\" to publish your local commits)"))
 		}
 	}
-	return str
-}
-
-func (s *Status) help() []string {
-	var str []string
-
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("add/reset entry"), yellow.Sprint("space")))
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("show diff"), yellow.Sprint("enter")))
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("add all"), yellow.Sprint("a")))
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("reset all"), yellow.Sprint("r")))
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("hunk stage"), yellow.Sprint("p")))
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("commit"), yellow.Sprint("c")))
-	str = append(str, fmt.Sprintf("%s: %s", faint.Sprint("amend"), yellow.Sprint("m")))
 	return str
 }
