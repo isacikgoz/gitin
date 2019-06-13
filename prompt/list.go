@@ -29,12 +29,13 @@ const NotFound = -1
 // visible items. The list can be moved up, down by one item of time or an
 // entire page (ie: visible size). It keeps track of the current selected item.
 type List struct {
-	items  []Item
-	scope  []Item
-	cursor int // cursor holds the index of the current selected item
-	size   int // size is the number of visible options
-	start  int
-	find   string
+	items   []Item
+	scope   []Item
+	matches map[Item][]int
+	cursor  int // cursor holds the index of the current selected item
+	size    int // size is the number of visible options
+	start   int
+	find    string
 }
 
 // NewList creates and initializes a list of searchable items. The items attribute must be a slice type with a
@@ -83,10 +84,13 @@ func (l *List) search(term string) {
 		l.scope = l.items
 		return
 	}
+	l.matches = make(map[Item][]int)
 	results := fuzzy.FindFrom(term, interfaceSource(l.items))
 	l.scope = make([]Item, 0)
 	for _, r := range results {
-		l.scope = append(l.scope, l.items[r.Index])
+		item := l.items[r.Index]
+		l.scope = append(l.scope, item)
+		l.matches[item] = r.MatchedIndexes
 	}
 }
 

@@ -22,18 +22,23 @@ const (
 
 type onKey func(rune) bool
 type onSelect func() bool
-type infobox func(Item) []string
+type infobox func(Item) [][]term.Cell
 
 // Options is the common options for building a prompt
 type Options struct {
-	Cursor           int
-	Scroll           int
-	Size             int
-	ShowDetail       bool
-	StartInSearch    bool
-	SearchLabel      string
-	InitSearchString string
-	Finder           string
+	Cursor        int
+	Scroll        int
+	Size          int
+	StartInSearch bool
+	SearchLabel   string
+}
+
+type promptState struct {
+	list       *List
+	searchMode bool
+	searchStr  string
+	cursor     int
+	scroll     int
 }
 
 type prompt struct {
@@ -91,8 +96,8 @@ mainloop:
 			items, _ := p.list.Items()
 			if len(items) <= 0 && p.repo.Head != nil && !p.inputMode {
 				defer func() {
-					for _, line := range branchClean(p.repo.Head) {
-						p.writer.Write([]byte(line))
+					for _, line := range workingTreeClean(p.repo.Head) {
+						p.writer.WriteCells(line)
 					}
 					p.writer.Flush()
 				}()
@@ -128,8 +133,8 @@ func (p *prompt) render() {
 	defer p.mx.Unlock()
 
 	if p.helpMode {
-		for _, line := range generateHelp(p.allControls()) {
-			p.writer.Write([]byte(line))
+		for _, line := range genHelp(p.allControls()) {
+			p.writer.WriteCells(line)
 		}
 		p.writer.Flush()
 		return
@@ -137,27 +142,33 @@ func (p *prompt) render() {
 
 	items, idx := p.list.Items()
 	if p.inputMode {
-		p.writer.Write([]byte(faint.Sprint("Search "+p.opts.SearchLabel) + " " + p.input + faint.Add(color.BlinkRapid).Sprint("█")))
+		cells := term.Cprint("Search ", color.Faint)
+		cells = append(cells, term.Cprint(p.opts.SearchLabel+" ", color.Faint)...)
+		cells = append(cells, term.Cprint(p.input, color.FgWhite)...)
+		cells = append(cells, term.Cprint("█", color.Faint, color.BlinkRapid)...)
+		p.writer.WriteCells(cells)
 	} else {
-		p.writer.Write([]byte(faint.Sprint(p.opts.SearchLabel)))
+		cells := term.Cprint(p.opts.SearchLabel, color.Faint)
+		if len(p.input) > 0 {
+			cells = append(cells, term.Cprint(" (/"+p.input+")", color.FgWhite)...)
+		}
+		p.writer.WriteCells(cells)
 	}
 
 	// print each entry in the list
-	var output []byte
 	for i := range items {
-		if i == idx {
-			output = []byte(cyan.Sprint(">") + renderLine(items[i], nil))
-		} else {
-			output = []byte(" " + renderLine(items[i], nil))
-		}
-		p.writer.Write(output)
+		var output []term.Cell
+		output = append(output, renderLine(items[i], p.list.matches[items[i]], (i == idx))...)
+		p.writer.WriteCells(output)
 	}
 
-	p.writer.Write([]byte(""))
+	p.writer.WriteCells(nil) // add an empty line
 	if idx != NotFound {
 		for _, line := range p.info(items[idx]) {
-			p.writer.Write([]byte(line))
+			p.writer.WriteCells(line)
 		}
+	} else {
+		p.writer.WriteCells(term.Cprint("Not found.", color.FgRed))
 	}
 
 	// finally, discharge to terminal
@@ -183,7 +194,7 @@ func (p *prompt) assignKey(key rune) bool {
 	default:
 		if key == '/' {
 			p.inputMode = !p.inputMode
-			p.input = ""
+			// p.input = ""
 		} else if p.inputMode {
 			switch key {
 			case rune(term.KeyBS), rune(term.KeyBS2):

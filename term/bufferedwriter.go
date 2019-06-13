@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+
+	"github.com/fatih/color"
 )
 
 // BufferedWriter creates, clears and, moves up or down lines as needed to write
@@ -95,6 +97,17 @@ func (b *BufferedWriter) Write(bites []byte) (int, error) {
 	default:
 		return 0, fmt.Errorf("Invalid write cursor position (%d) exceeded line height: %d", b.cursor, b.height)
 	}
+}
+
+// WriteCells add colored text to the inner buffer
+func (b *BufferedWriter) WriteCells(cs []Cell) (int, error) {
+	bs := make([]byte, 0)
+	for _, c := range cs {
+		paint := color.New(c.Attr...)
+		painted := paint.Sprintf(string(c.Ch))
+		bs = append(bs, []byte(painted)...)
+	}
+	return b.Write(bs)
 }
 
 // Flush writes any buffered data to the underlying io.Writer, ensuring that any pending data is displayed.

@@ -1,11 +1,11 @@
 package prompt
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
-
+	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
 	"github.com/justincampbell/timeago"
 )
@@ -16,7 +16,7 @@ type Log struct {
 
 	prompt   *prompt
 	selected *git.Commit
-	mainList *List
+	oldState *promptState
 }
 
 // Start draws the screen with its list, initializing the cursor to the given position.
@@ -74,12 +74,20 @@ func (l *Log) onSelect() bool {
 		for _, delta := range deltas {
 			newlist = append(newlist, delta)
 		}
-		l.mainList = l.prompt.list
+		l.oldState = &promptState{
+			list:       l.prompt.list,
+			searchMode: l.prompt.inputMode,
+			searchStr:  l.prompt.input,
+		}
 		list, err := NewList(newlist, 5)
 		if err != nil {
 			return false
 		}
 		l.prompt.opts.SearchLabel = "Files"
+		if l.prompt.inputMode {
+			l.prompt.input = ""
+			l.prompt.inputMode = false
+		}
 		l.prompt.list = list
 	case *git.DiffDelta:
 		l.showFileDiff()
@@ -103,7 +111,9 @@ func (l *Log) onKey(key rune) bool {
 	case *git.DiffDelta:
 		switch key {
 		case 'q':
-			l.prompt.list = l.mainList
+			l.prompt.list = l.oldState.list
+			l.prompt.inputMode = l.oldState.searchMode
+			l.prompt.input = l.oldState.searchStr
 			l.prompt.opts.SearchLabel = "Commits"
 		}
 	}
@@ -141,18 +151,22 @@ func (l *Log) showFileDiff() error {
 	return popGitCommand(l.Repo, args)
 }
 
-func (l *Log) logInfo(item Item) []string {
-	str := make([]string, 0)
+func (l *Log) logInfo(item Item) [][]term.Cell {
+	grid := make([][]term.Cell, 0)
 	if item == nil {
-		return str
+		return grid
 	}
 	switch item.(type) {
 	case *git.Commit:
 		commit := item.(*git.Commit)
-		str = append(str, faint.Sprint("Author")+" "+commit.Author.Name+" <"+commit.Author.Email+">")
-		str = append(str, faint.Sprint("When")+"   "+timeago.FromTime(commit.Author.When))
-		str = append(str, commitRefs(l.Repo, commit))
-		return str
+		cells := term.Cprint("Author ", color.Faint)
+		cells = append(cells, term.Cprint(commit.Author.Name+" <"+commit.Author.Email+">", color.FgWhite)...)
+		grid = append(grid, cells)
+		cells = term.Cprint("When", color.Faint)
+		cells = append(cells, term.Cprint("   "+timeago.FromTime(commit.Author.When), color.FgWhite)...)
+		grid = append(grid, cells)
+		grid = append(grid, commitRefs(l.Repo, commit))
+		return grid
 	case *git.DiffDelta:
 		dd := item.(*git.DiffDelta)
 		var adds, dels int
@@ -166,42 +180,50 @@ func (l *Log) logInfo(item Item) []string {
 				}
 			}
 		}
-		var infoLine string
+		var cells []term.Cell
 		if adds > 1 {
-			infoLine = fmt.Sprintf("%s %s", green.Sprintf("%d", adds-1), faint.Sprint("additions"))
+			cells = term.Cprint(strconv.Itoa(adds-1), color.FgGreen)
+			cells = append(cells, term.Cprint(" additions", color.Faint)...)
 		}
 		if dels > 1 {
-			if len(infoLine) > 1 {
-				infoLine = infoLine + " "
+			if len(cells) > 1 {
+				cells = append(cells, term.Cell{Ch: ' '})
 			}
-			infoLine = infoLine + fmt.Sprintf("%s %s", red.Sprintf("%d", dels-1), faint.Sprint("deletions"))
+			cells = append(cells, term.Cprint(strconv.Itoa(dels-1), color.FgRed)...)
+			cells = append(cells, term.Cprint(" deletions", color.Faint)...)
 		}
-		if len(infoLine) > 1 {
-			infoLine = infoLine + faint.Sprint(".")
+		if len(cells) > 1 {
+			cells = append(cells, term.Cell{Ch: '.', Attr: []color.Attribute{color.Faint}})
 		}
-		str = append(str, infoLine)
+		grid = append(grid, cells)
 	}
-	return str
+	return grid
 }
 
-func commitRefs(r *git.Repository, c *git.Commit) string {
-	var decor string
+func commitRefs(r *git.Repository, c *git.Commit) []term.Cell {
+	var cells []term.Cell
 	if refs, ok := r.RefMap[c.Hash]; ok {
 		if len(refs) <= 0 {
-			return decor
+			return cells
 		}
-		decor = "("
+		cells = term.Cprint("(", color.FgYellow)
 		for _, ref := range refs {
 			switch ref.Type() {
 			case git.RefTypeHEAD:
-				decor += cyan.Add(color.Bold).Sprint("HEAD ->") + " " + green.Add(color.Bold).Sprint(ref.String()) + ", "
-			case git.RefTypeBranch:
-				decor += red.Add(color.Bold).Sprint(ref.String()) + ", "
+				cells = append(cells, term.Cprint("HEAD -> ", color.FgCyan, color.Bold)...)
+				cells = append(cells, term.Cprint(ref.String(), color.FgGreen, color.Bold)...)
+				cells = append(cells, term.Cprint(", ", color.FgYellow)...)
 			case git.RefTypeTag:
-				decor += yellow.Add(color.Bold).Sprint("tag: "+ref.String()) + ", "
+				cells = append(cells, term.Cprint("tag: ", color.FgYellow, color.Bold)...)
+				cells = append(cells, term.Cprint(ref.String(), color.FgRed, color.Bold)...)
+				cells = append(cells, term.Cprint(", ", color.FgYellow)...)
+			case git.RefTypeBranch:
+				cells = append(cells, term.Cprint(ref.String(), color.FgRed, color.Bold)...)
+				cells = append(cells, term.Cprint(", ", color.FgYellow)...)
 			}
 		}
-		decor = decor[:len(decor)-2] + ")"
+		cells = cells[:len(cells)-2]
+		cells = append(cells, term.Cprint(")", color.FgYellow)...)
 	}
-	return decor
+	return cells
 }

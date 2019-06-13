@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/isacikgoz/gitin/prompt"
-
 	git "github.com/isacikgoz/libgit2-api"
 	env "github.com/kelseyhightower/envconfig"
 	pin "gopkg.in/alecthomas/kingpin.v2"
@@ -17,35 +16,38 @@ type Config struct {
 	StartSearch bool
 }
 
-var (
-	cfg       Config
-	logCmd    = pin.Command("log", "Show commit logs.")
-	statusCmd = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
-	branchCmd = pin.Command("branch", "Show list of branches.")
-)
-
 func main() {
-	evalArgs()
+	mode := evalArgs()
 
 	pwd, _ := os.Getwd()
-	if err := run(pwd); err != nil {
+	if err := run(mode, pwd); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
 
-func evalArgs() {
+// define the program commands and args
+func evalArgs() string {
+	pin.Command("log", "Show commit logs.")
+	pin.Command("status", "Show working-tree status. Also stage and commit changes.")
+	pin.Command("branch", "Show list of branches.")
+
 	pin.Version("gitin version 0.2.0")
-	pin.UsageTemplate(pin.DefaultUsageTemplate + envVarHelp() + "\n")
+
+	pin.UsageTemplate(pin.DefaultUsageTemplate + additionalHelp() + "\n")
 	pin.CommandLine.HelpFlag.Short('h')
 	pin.CommandLine.VersionFlag.Short('v')
+
+	return pin.Parse()
 }
 
-func run(path string) error {
+// main runner function that creates the prompts
+func run(mode, path string) error {
 	r, err := git.Open(path)
 	if err != nil {
 		return err
 	}
+	var cfg Config
 	err = env.Process("gitin", &cfg)
 	if err != nil {
 		return err
@@ -54,7 +56,7 @@ func run(path string) error {
 		Size:          cfg.LineSize,
 		StartInSearch: cfg.StartSearch,
 	}
-	switch pin.Parse() {
+	switch mode {
 	case "status":
 		pr := prompt.Status{
 			Repo: r,
@@ -74,11 +76,11 @@ func run(path string) error {
 	return err
 }
 
-func envVarHelp() string {
+func additionalHelp() string {
 	return `Environment Variables:
 
   GITIN_LINESIZE=<int>
   GITIN_STARTSEARCH=<bool>
 
-  Press ? for controls while application is running.`
+Press ? for controls while application is running.`
 }

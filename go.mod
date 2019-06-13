@@ -12,6 +12,7 @@ require (
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/nsf/termbox-go v0.0.0-20190325093121-288510b9734e
 	github.com/sahilm/fuzzy v0.1.0
 	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/waigani/diffparser v0.0.0-20190426062500-1f7065f429b5

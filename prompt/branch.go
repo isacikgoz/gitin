@@ -2,8 +2,9 @@ package prompt
 
 import (
 	"os/exec"
-	"strconv"
 
+	"github.com/fatih/color"
+	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
 	"github.com/justincampbell/timeago"
 )
@@ -73,36 +74,20 @@ func (b *Branch) onKey(key rune) bool {
 	return false
 }
 
-func (b *Branch) branchInfo(item Item) []string {
+func (b *Branch) branchInfo(item Item) [][]term.Cell {
 	branch := item.(*git.Branch)
 	target := branch.Target()
-	str := make([]string, 0)
+	grid := make([][]term.Cell, 0)
 	if target != nil {
-		str = append(str, faint.Sprint("Last commit was")+" "+timeago.FromTime(target.Author.When))
+		cells := term.Cprint("Last commit was ", color.Faint)
+		cells = append(cells, term.Cprint(timeago.FromTime(target.Author.When), color.FgBlue)...)
+		grid = append(grid, cells)
 		if branch.IsRemote() {
-			return str
+			return grid
 		}
-		if branch.Upstream == nil {
-			str = append(str, faint.Sprint("This branch is not tracking a remote branch."))
-			return str
-		}
-		pl := branch.Behind
-		ps := branch.Ahead
-
-		if ps == 0 && pl == 0 {
-			str = append(str, faint.Sprint("This branch is up to date with ")+cyan.Sprint(branch.Upstream.Name)+faint.Sprint("."))
-		} else {
-			if ps > 0 && pl > 0 {
-				str = append(str, faint.Sprint("This branch and ")+cyan.Sprint(branch.Upstream.Name)+faint.Sprint(" have diverged,"))
-				str = append(str, faint.Sprint("and have ")+yellow.Sprint(strconv.Itoa(ps))+faint.Sprint(" and ")+yellow.Sprint(strconv.Itoa(pl))+faint.Sprint(" different commits each, respectively."))
-			} else if pl > 0 && ps == 0 {
-				str = append(str, faint.Sprint("This branch is behind ")+cyan.Sprint(branch.Upstream.Name)+faint.Sprint(" by ")+yellow.Sprint(strconv.Itoa(pl))+faint.Sprint(" commit(s)."))
-			} else if ps > 0 && pl == 0 {
-				str = append(str, faint.Sprint("This branch is ahead of ")+cyan.Sprint(branch.Upstream.Name)+faint.Sprint(" by ")+yellow.Sprint(strconv.Itoa(ps))+faint.Sprint(" commit(s)."))
-			}
-		}
+		grid = append(grid, branchInfo(branch, false)...)
 	}
-	return str
+	return grid
 }
 
 func (b *Branch) deleteBranch(mode string) error {

@@ -6,17 +6,8 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
+	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
-)
-
-var (
-	// define colors
-	green     = color.New(color.FgGreen)
-	yellow    = color.New(color.FgYellow)
-	red       = color.New(color.FgRed)
-	cyan      = color.New(color.FgCyan)
-	faint     = color.New(color.Faint)
-	underline = color.New(color.Underline)
 )
 
 const (
@@ -24,79 +15,140 @@ const (
 	dateFormat = "2006-01-02 15:04"
 )
 
-// PrintOptions tells the renderer to add author or date options
-type PrintOptions struct {
-	Date   bool
-	Author bool
-}
-
-func renderLine(item Item, opts *PrintOptions) string {
-	var line string
+func renderLine(item Item, matches []int, selected bool) []term.Cell {
+	var line []term.Cell
+	if selected {
+		line = append(line, term.Cprint("> ", color.FgCyan)...)
+	} else {
+		line = append(line, term.Cprint("  ", color.FgWhite)...)
+	}
 	switch item.(type) {
 	case *git.StatusEntry:
-		col := red
+		attr := color.FgRed
 		entry := item.(*git.StatusEntry)
 		if entry.Indexed() {
-			col = green
+			attr = color.FgGreen
 		}
-		ind := "[" + cyan.Sprint(entry.StatusEntryString()[:1]) + "]"
-		line = fmt.Sprintf(" %s %s", ind, col.Sprint(entry))
+		line = append(line, stautsText(entry.StatusEntryString()[:1])...)
+		line = append(line, highLightedText(matches, attr, entry.String())...)
 	case *git.Commit:
 		commit := item.(*git.Commit)
-		hash := "[" + cyan.Sprint(commit.Hash[:7]) + "]"
-		line = fmt.Sprintf(" %s %s", hash, item)
+		line = append(line, stautsText(commit.Hash[:7])...)
+		line = append(line, highLightedText(matches, color.FgWhite, commit.String())...)
 	case *git.DiffDelta:
 		dd := item.(*git.DiffDelta)
-		ind := "[" + cyan.Sprint(dd.DeltaStatusString()[:1]) + "]"
-		line = fmt.Sprintf(" %s %s", ind, dd)
+		line = append(line, stautsText(dd.DeltaStatusString()[:1])...)
+		line = append(line, highLightedText(matches, color.FgWhite, dd.String())...)
 	default:
-		line = fmt.Sprintf(" %s", item)
+		line = append(line, highLightedText(matches, color.FgWhite, item.String())...)
 	}
 	return line
 }
 
-func branchInfo(b *git.Branch) []string {
-	if b == nil {
-		return []string{faint.Sprint("Unable to load branch info")}
+func stautsText(text string) []term.Cell {
+	var cells []term.Cell
+	if len(text) == 0 {
+		return cells
 	}
+	cells = append(cells, term.Cell{Ch: '['})
+	cells = append(cells, term.Cprint(text, color.FgCyan)...)
+	cells = append(cells, term.Cell{Ch: ']'})
+	cells = append(cells, term.Cell{Ch: ' '})
+	return cells
+}
 
-	var str []string
-	if len(b.Name) > 0 {
-		str = []string{faint.Sprint("On branch ") + yellow.Sprint(b.Name)}
+func highLightedText(matches []int, c color.Attribute, str string) []term.Cell {
+	if len(matches) == 0 {
+		return term.Cprint(str, c)
+	}
+	highligted := make([]term.Cell, 0)
+	for _, r := range str {
+		highligted = append(highligted, term.Cell{
+			Ch:   r,
+			Attr: []color.Attribute{c},
+		})
+	}
+	for _, m := range matches {
+		if m > len(highligted)-1 {
+			continue
+		}
+		highligted[m] = term.Cell{
+			Ch:   highligted[m].Ch,
+			Attr: append(highligted[m].Attr, color.Underline),
+		}
+	}
+	return highligted
+}
+
+func branchInfo(b *git.Branch, yours bool) [][]term.Cell {
+	sal := "This"
+	if yours {
+		sal = "Your"
+	}
+	var grid [][]term.Cell
+	if b == nil {
+		return append(grid, term.Cprint("Unable to load branch info", color.Faint))
+	}
+	if yours && len(b.Name) > 0 {
+		bName := term.Cprint("On branch ", color.Faint)
+		bName = append(bName, term.Cprint(b.Name, color.FgYellow)...)
+		grid = append(grid, bName)
 	}
 	if b.Upstream == nil {
-		return append(str, faint.Sprint("Your branch is not tracking a remote branch."))
+		return append(grid, term.Cprint(sal+" branch is not tracking a remote branch.", color.Faint))
 	}
 	pl := b.Behind
 	ps := b.Ahead
-
 	if ps == 0 && pl == 0 {
-		str = append(str, faint.Sprint("Your branch is up to date with ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint("."))
+		cells := term.Cprint(sal+" branch is up to date with ", color.Faint)
+		cells = append(cells, term.Cprint(b.Upstream.Name, color.FgCyan)...)
+		cells = append(cells, term.Cprint(".", color.Faint)...)
+		grid = append(grid, cells)
 	} else {
+		ucs := term.Cprint(b.Upstream.Name, color.FgCyan)
 		if ps > 0 && pl > 0 {
-			str = append(str, faint.Sprint("Your branch and ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint(" have diverged,"))
-			str = append(str, faint.Sprint("and have ")+yellow.Sprint(strconv.Itoa(ps))+faint.Sprint(" and ")+yellow.Sprint(strconv.Itoa(pl))+faint.Sprint(" different commits each, respectively."))
-			str = append(str, faint.Sprint("(\"pull\" to merge the remote branch into yours)"))
+			cells := term.Cprint(sal+" branch and ", color.Faint)
+			cells = append(cells, ucs...)
+			cells = append(cells, term.Cprint(" have diverged,", color.Faint)...)
+			grid = append(grid, cells)
+			cells = term.Cprint("and have ", color.Faint)
+			cells = append(cells, term.Cprint(strconv.Itoa(ps), color.FgYellow)...)
+			cells = append(cells, term.Cprint(" and ", color.Faint)...)
+			cells = append(cells, term.Cprint(strconv.Itoa(pl), color.FgYellow)...)
+			cells = append(cells, term.Cprint(" different commits each, respectively.", color.Faint)...)
+			grid = append(grid, cells)
+			grid = append(grid, term.Cprint("(\"pull\" to merge the remote branch into yours)", color.Faint))
 		} else if pl > 0 && ps == 0 {
-			str = append(str, faint.Sprint("Your branch is behind ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint(" by ")+yellow.Sprint(strconv.Itoa(pl))+faint.Sprint(" commit(s)."))
-			str = append(str, faint.Sprint("(\"pull\" to update your local branch)"))
+			cells := term.Cprint(sal+" branch is behind ", color.Faint)
+			cells = append(cells, ucs...)
+			cells = append(cells, term.Cprint(" by ", color.Faint)...)
+			cells = append(cells, term.Cprint(strconv.Itoa(pl), color.FgYellow)...)
+			cells = append(cells, term.Cprint(" commit(s).", color.Faint)...)
+			grid = append(grid, cells)
+			grid = append(grid, term.Cprint("(\"pull\" to update your local branch)", color.Faint))
 		} else if ps > 0 && pl == 0 {
-			str = append(str, faint.Sprint("Your branch is ahead of ")+cyan.Sprint(b.Upstream.Name)+faint.Sprint(" by ")+yellow.Sprint(strconv.Itoa(ps))+faint.Sprint(" commit(s)."))
-			str = append(str, faint.Sprint("(\"push\" to publish your local commits)"))
+			cells := term.Cprint(sal+" branch is ahead of ", color.Faint)
+			cells = append(cells, ucs...)
+			cells = append(cells, term.Cprint(" by ", color.Faint)...)
+			cells = append(cells, term.Cprint(strconv.Itoa(ps), color.FgYellow)...)
+			cells = append(cells, term.Cprint(" commit(s).", color.Faint)...)
+			grid = append(grid, cells)
+			grid = append(grid, term.Cprint("(\"push\" to publish your local commit(s))", color.Faint))
 		}
 	}
-	return str
+	return grid
 }
 
-func branchClean(b *git.Branch) []string {
-	var str []string
-	str = append(str, branchInfo(b)...)
-	str = append(str, faint.Sprint("Nothing to commit, working tree clean"))
-	return str
+func workingTreeClean(b *git.Branch) [][]term.Cell {
+	var grid [][]term.Cell
+	grid = branchInfo(b, true)
+	grid = append(grid, term.Cprint("Nothing to commit, working tree clean", color.Faint))
+	return grid
 }
 
-func generateHelp(pairs map[string]string) []string {
-	var arr []string
+// returns multiline so the return value will be a 2-d slice
+func genHelp(pairs map[string]string) [][]term.Cell {
+	var matrix [][]term.Cell
 	// sort keys alphabetically
 	keys := make([]string, 0, len(pairs))
 	for key := range pairs {
@@ -104,9 +156,10 @@ func generateHelp(pairs map[string]string) []string {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		arr = append(arr, fmt.Sprintf("%s: %s", faint.Sprint(key), yellow.Sprint(pairs[key])))
+		matrix = append(matrix, append(term.Cprint(fmt.Sprintf("%s: ", key), color.Faint),
+			term.Cprint(fmt.Sprintf("%s", pairs[key]), color.FgYellow)...))
 	}
-	arr = append(arr, "")
-	arr = append(arr, faint.Sprint("press any key to return."))
-	return arr
+	matrix = append(matrix, term.Cprint("", 0))
+	matrix = append(matrix, term.Cprint("press any key to return.", color.Faint))
+	return matrix
 }
