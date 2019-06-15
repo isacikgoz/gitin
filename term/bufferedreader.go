@@ -5,6 +5,7 @@ import (
 	"io"
 )
 
+// BufferedReader fullfills the io.Reader interface
 type BufferedReader struct {
 	In     io.Reader
 	Buffer *bytes.Buffer

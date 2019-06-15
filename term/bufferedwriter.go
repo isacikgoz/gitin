@@ -173,3 +173,13 @@ func (b *BufferedWriter) ClearScreen() error {
 	b.buf.Reset()
 	return nil
 }
+
+// ShowCursor writes to os.Stdout that to show cursor
+func (b *BufferedWriter) ShowCursor() {
+	b.w.Write([]byte(showCursor))
+}
+
+// HideCursor writes to os.Stdout that to hide cursor
+func (b *BufferedWriter) HideCursor() {
+	b.w.Write([]byte(hideCursor))
+}

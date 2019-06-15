@@ -62,18 +62,17 @@ type prompt struct {
 func (p *prompt) start() error {
 	var mx sync.RWMutex
 	p.mx = &mx
-	t := term.Terminal{
-		In:  os.Stdin,
-		Out: os.Stdout,
-	}
-	p.reader = term.NewRuneReader(t)
-	p.writer = term.NewBufferedWriter(t.Out)
+
+	p.reader = term.NewRuneReader(os.Stdin)
+	p.writer = term.NewBufferedWriter(os.Stdout)
 	p.list.SetCursor(p.opts.Cursor)
 	p.list.SetStart(p.opts.Scroll)
 
-	// disable echo
-	p.reader.SetTermMode()
-	defer p.reader.RestoreTermMode()
+	// disable echo and hide cursor
+	if err := term.Init(os.Stdin, os.Stdout); err != nil {
+		return err
+	}
+	defer term.Close()
 
 	if p.opts.StartInSearch {
 		p.inputMode = true
@@ -109,10 +108,10 @@ mainloop:
 		if err != nil {
 			return err
 		}
-		if r == term.Interrupt {
+		if r == rune(term.KeyCtrlC) {
 			break
 		}
-		if r == term.EndTransmission {
+		if r == rune(term.KeyCtrlD) {
 			break
 		}
 		if br := p.assignKey(r); br {
@@ -150,7 +149,7 @@ func (p *prompt) render() {
 	} else {
 		cells := term.Cprint(p.opts.SearchLabel, color.Faint)
 		if len(p.input) > 0 {
-			cells = append(cells, term.Cprint(" (/"+p.input+")", color.FgWhite)...)
+			cells = append(cells, term.Cprint(" /"+p.input, color.FgWhite)...)
 		}
 		p.writer.WriteCells(cells)
 	}
@@ -197,7 +196,7 @@ func (p *prompt) assignKey(key rune) bool {
 			// p.input = ""
 		} else if p.inputMode {
 			switch key {
-			case rune(term.KeyBS), rune(term.KeyBS2):
+			case term.Backspace, term.Backspace2:
 				if len(p.input) > 0 {
 					_, size := utf8.DecodeLastRuneInString(p.input)
 					p.input = p.input[0 : len(p.input)-size]

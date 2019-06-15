@@ -1,22 +1,25 @@
 package term
 
 import (
+	"bufio"
+	"bytes"
 	"io"
+	"syscall"
+	"unsafe"
 
 	"github.com/fatih/color"
 )
 
-// Terminal is the standard input/output the terminal reads/writes with.
-type Terminal struct {
-	In  Reader
-	Out Writer
-	Err io.Writer
-}
+var (
+	state  terminalState
+	reader Reader
+	writer Writer
+)
 
-// Cell is a single character that will be drawn to the terminal
-type Cell struct {
-	Ch   rune
-	Attr []color.Attribute
+type terminalState struct {
+	term   syscall.Termios
+	reader *bufio.Reader
+	buf    *bytes.Buffer
 }
 
 // Writer provides a minimal interface for Stdin.
@@ -31,20 +34,49 @@ type Reader interface {
 	Fd() uintptr
 }
 
-func (t *Terminal) LineWrapOff() {
-	t.Out.Write([]byte(lwoff))
+// Cell is a single character that will be drawn to the terminal
+type Cell struct {
+	Ch   rune
+	Attr []color.Attribute
 }
 
-func (t *Terminal) LineWrapOn() {
-	t.Out.Write([]byte(lwon))
+// Init initializes the term package
+func Init(r Reader, w Writer) error {
+	reader = r
+	writer = w
+	state = newTerminalState(reader)
+	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(reader.Fd()), ioctlReadTermios, uintptr(unsafe.Pointer(&state.term)), 0, 0, 0); err != 0 {
+		return err
+	}
+
+	newState := state.term
+	newState.Lflag &^= syscall.ECHO | syscall.ECHONL | syscall.ICANON | syscall.ISIG
+
+	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(reader.Fd()), ioctlWriteTermios, uintptr(unsafe.Pointer(&newState)), 0, 0, 0); err != 0 {
+		return err
+	}
+	_, err := writer.Write([]byte(hideCursor))
+	return err
 }
 
-func (t *Terminal) ShowCursor() {
-	t.Out.Write([]byte(showCursor))
+// Close restores the terminal state
+func Close() error {
+	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(reader.Fd()), ioctlWriteTermios, uintptr(unsafe.Pointer(&state.term)), 0, 0, 0); err != 0 {
+		return err
+	}
+	_, err := writer.Write([]byte(showCursor))
+	return err
 }
 
-func (t *Terminal) HideCursor() {
-	t.Out.Write([]byte(hideCursor))
+func newTerminalState(input Reader) terminalState {
+	buf := new(bytes.Buffer)
+	return terminalState{
+		reader: bufio.NewReader(&BufferedReader{
+			In:     input,
+			Buffer: buf,
+		}),
+		buf: buf,
+	}
 }
 
 // Cprint returns the text as colored cell slice

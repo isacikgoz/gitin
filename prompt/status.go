@@ -131,7 +131,7 @@ func (s *Status) addReset() error {
 
 // open hunk stagin ui
 func (s *Status) hunkStage() error {
-	defer s.prompt.reader.Terminal.HideCursor()
+	defer s.prompt.writer.HideCursor()
 	items, idx := s.prompt.list.Items()
 	entry := items[idx].(*git.StatusEntry)
 	file, err := generateDiffFile(s.Repo, entry)
@@ -163,7 +163,7 @@ func (s *Status) showDiff() error {
 }
 
 func (s *Status) doCommit() error {
-	defer s.prompt.reader.Terminal.HideCursor()
+	defer s.prompt.writer.HideCursor()
 
 	args := []string{"commit", "--edit", "--quiet"}
 	err := popGitCommand(s.Repo, args)
@@ -181,7 +181,7 @@ func (s *Status) doCommit() error {
 }
 
 func (s *Status) doCommitAmend() error {
-	defer s.prompt.reader.Terminal.HideCursor()
+	defer s.prompt.writer.HideCursor()
 
 	args := []string{"commit", "--amend", "--quiet"}
 	err := popGitCommand(s.Repo, args)
