@@ -37,6 +37,7 @@ func (s *Status) Start(opts *Options) error {
 	controls["hunk stage"] = "p"
 	controls["commit"] = "c"
 	controls["amend"] = "m"
+	controls["discard changes"] = "!"
 
 	opts.SearchLabel = "Files"
 
@@ -83,6 +84,9 @@ func (s *Status) onKey(key rune) bool {
 	case 'r':
 		reqReload = true
 		resetAll(s.Repo)
+	case '!':
+		reqReload = true
+		s.discardChanges()
 	case 'q':
 		return true
 	default:
@@ -201,4 +205,17 @@ func (s *Status) doCommitAmend() error {
 func (s *Status) branchInfo(item Item) [][]term.Cell {
 	b := s.Repo.Head
 	return branchInfo(b, true)
+}
+
+func (s *Status) discardChanges() error {
+	defer s.prompt.render()
+	items, idx := s.prompt.list.Items()
+	entry := items[idx].(*git.StatusEntry)
+	args := []string{"checkout", "--", entry.String()}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = s.Repo.Path()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
 }
