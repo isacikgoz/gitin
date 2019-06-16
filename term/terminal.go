@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	state  terminalState
-	reader Reader
-	writer Writer
+	state   terminalState
+	reader  Reader
+	writer  Writer
+	colored = true
 )
 
 type terminalState struct {
@@ -89,4 +90,9 @@ func Cprint(text string, attrs ...color.Attribute) []Cell {
 		})
 	}
 	return cells
+}
+
+// DisableColor makes cell attributes meaningless
+func DisableColor() {
+	colored = false
 }

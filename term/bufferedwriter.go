@@ -102,10 +102,16 @@ func (b *BufferedWriter) Write(bites []byte) (int, error) {
 // WriteCells add colored text to the inner buffer
 func (b *BufferedWriter) WriteCells(cs []Cell) (int, error) {
 	bs := make([]byte, 0)
-	for _, c := range cs {
-		paint := color.New(c.Attr...)
-		painted := paint.Sprintf(string(c.Ch))
-		bs = append(bs, []byte(painted)...)
+	if colored {
+		for _, c := range cs {
+			paint := color.New(c.Attr...)
+			painted := paint.Sprintf(string(c.Ch))
+			bs = append(bs, []byte(painted)...)
+		}
+	} else {
+		for _, c := range cs {
+			bs = append(bs, []byte(string(c.Ch))...)
+		}
 	}
 	return b.Write(bs)
 }

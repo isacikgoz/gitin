@@ -12,8 +12,9 @@ import (
 
 // Config will be passed to screenopts
 type Config struct {
-	LineSize    int `default:"5"`
-	StartSearch bool
+	LineSize     int `default:"5"`
+	StartSearch  bool
+	DisableColor bool
 }
 
 func main() {
@@ -55,6 +56,7 @@ func run(mode, path string) error {
 	opts := &prompt.Options{
 		Size:          cfg.LineSize,
 		StartInSearch: cfg.StartSearch,
+		DisableColor:  cfg.DisableColor,
 	}
 	switch mode {
 	case "status":
@@ -81,6 +83,7 @@ func additionalHelp() string {
 
   GITIN_LINESIZE=<int>
   GITIN_STARTSEARCH=<bool>
+  GITIN_DISABLECOLOR=<bool>
 
 Press ? for controls while application is running.`
 }

@@ -31,6 +31,7 @@ type Options struct {
 	Size          int
 	StartInSearch bool
 	SearchLabel   string
+	DisableColor  bool
 }
 
 type promptState struct {
@@ -73,7 +74,9 @@ func (p *prompt) start() error {
 		return err
 	}
 	defer term.Close()
-
+	if p.opts.DisableColor {
+		term.DisableColor()
+	}
 	if p.opts.StartInSearch {
 		p.inputMode = true
 	}
