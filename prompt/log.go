@@ -84,10 +84,8 @@ func (l *Log) onSelect() bool {
 			return false
 		}
 		l.prompt.opts.SearchLabel = "Files"
-		if l.prompt.inputMode {
-			l.prompt.input = ""
-			l.prompt.inputMode = false
-		}
+		l.prompt.input = ""
+		l.prompt.inputMode = false
 		l.prompt.list = list
 	case *git.DiffDelta:
 		l.showFileDiff()
