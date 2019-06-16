@@ -15,7 +15,7 @@ const (
 	dateFormat = "2006-01-02 15:04"
 )
 
-func renderLine(item Item, matches []int, selected bool) []term.Cell {
+func renderItem(item Item, matches []int, selected bool) []term.Cell {
 	var line []term.Cell
 	if selected {
 		line = append(line, term.Cprint("> ", color.FgCyan)...)
@@ -43,6 +43,23 @@ func renderLine(item Item, matches []int, selected bool) []term.Cell {
 		line = append(line, highLightedText(matches, color.FgWhite, item.String())...)
 	}
 	return line
+}
+
+func renderSearch(placeholder string, inputMode bool, input string) []term.Cell {
+	var cells []term.Cell
+	if inputMode {
+		cells = term.Cprint("Search ", color.Faint)
+		cells = append(cells, term.Cprint(placeholder+" ", color.Faint)...)
+		cells = append(cells, term.Cprint(input, color.FgWhite)...)
+		cells = append(cells, term.Cprint("█", color.Faint, color.BlinkRapid)...)
+		return cells
+	}
+	cells = term.Cprint(placeholder, color.Faint)
+	if len(input) > 0 {
+		cells = append(cells, term.Cprint(" /"+input, color.FgWhite)...)
+	}
+
+	return cells
 }
 
 func stautsText(text string) []term.Cell {

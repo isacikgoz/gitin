@@ -140,24 +140,12 @@ func (p *prompt) render() {
 	}
 
 	items, idx := p.list.Items()
-	if p.inputMode {
-		cells := term.Cprint("Search ", color.Faint)
-		cells = append(cells, term.Cprint(p.opts.SearchLabel+" ", color.Faint)...)
-		cells = append(cells, term.Cprint(p.input, color.FgWhite)...)
-		cells = append(cells, term.Cprint("█", color.Faint, color.BlinkRapid)...)
-		p.writer.WriteCells(cells)
-	} else {
-		cells := term.Cprint(p.opts.SearchLabel, color.Faint)
-		if len(p.input) > 0 {
-			cells = append(cells, term.Cprint(" /"+p.input, color.FgWhite)...)
-		}
-		p.writer.WriteCells(cells)
-	}
+	p.writer.WriteCells(renderSearch(p.opts.SearchLabel, p.inputMode, p.input))
 
 	// print each entry in the list
 	for i := range items {
 		var output []term.Cell
-		output = append(output, renderLine(items[i], p.list.matches[items[i]], (i == idx))...)
+		output = append(output, renderItem(items[i], p.list.matches[items[i]], (i == idx))...)
 		p.writer.WriteCells(output)
 	}
 
