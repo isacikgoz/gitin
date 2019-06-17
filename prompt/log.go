@@ -43,7 +43,6 @@ func (l *Log) Start(opts *Options) error {
 	opts.SearchLabel = "Commits"
 
 	l.prompt = &prompt{
-		repo:      l.Repo,
 		list:      list,
 		opts:      opts,
 		layout:    log,
@@ -104,6 +103,7 @@ func (l *Log) onKey(key rune) bool {
 		case 'd':
 			l.showDiff()
 		case 'q':
+			l.prompt.quit <- true
 			return true
 		}
 	case *git.DiffDelta:

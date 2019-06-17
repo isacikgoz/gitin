@@ -2,12 +2,14 @@ package prompt
 
 import (
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
+	"time"
 	"unicode/utf8"
 
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/term"
-	git "github.com/isacikgoz/libgit2-api"
 )
 
 type promptType int
@@ -20,14 +22,17 @@ const (
 	stash
 )
 
+type keyEvent struct {
+	ch  rune
+	err error
+}
+
 type onKey func(rune) bool
 type onSelect func() bool
-type infobox func(Item) [][]term.Cell
+type grid func(Item) [][]term.Cell
 
 // Options is the common options for building a prompt
 type Options struct {
-	Cursor        int
-	Scroll        int
 	Size          int
 	StartInSearch bool
 	SearchLabel   string
@@ -45,11 +50,11 @@ type promptState struct {
 type prompt struct {
 	layout promptType
 
-	repo      *git.Repository
 	list      *List
 	keys      onKey
 	selection onSelect
-	info      infobox
+	info      grid
+	exitMsg   [][]term.Cell
 	controls  map[string]string
 	inputMode bool
 	helpMode  bool
@@ -58,6 +63,10 @@ type prompt struct {
 	writer    *term.BufferedWriter
 	mx        *sync.RWMutex
 	opts      *Options
+
+	events chan keyEvent
+	quit   chan bool
+	hold   bool
 }
 
 func (p *prompt) start() error {
@@ -66,8 +75,9 @@ func (p *prompt) start() error {
 
 	p.reader = term.NewRuneReader(os.Stdin)
 	p.writer = term.NewBufferedWriter(os.Stdout)
-	p.list.SetCursor(p.opts.Cursor)
-	p.list.SetStart(p.opts.Scroll)
+
+	p.events = make(chan keyEvent, 20)
+	p.quit = make(chan bool)
 
 	// disable echo and hide cursor
 	if err := term.Init(os.Stdin, os.Stdout); err != nil {
@@ -80,47 +90,69 @@ func (p *prompt) start() error {
 	if p.opts.StartInSearch {
 		p.inputMode = true
 	}
-	return p.innerRun()
+
+	go func() {
+		for {
+			select {
+			case <-p.quit:
+				return
+			default:
+				time.Sleep(10 * time.Millisecond)
+				if p.hold {
+					continue
+				}
+				r, _, err := p.reader.ReadRune()
+				p.events <- keyEvent{ch: r, err: err}
+			}
+		}
+	}()
+
+	if err := p.innerRun(); err != nil {
+		return err
+	}
+
+	if p.exitMsg != nil {
+		for _, cells := range p.exitMsg {
+			p.writer.WriteCells(cells)
+		}
+		p.writer.Flush()
+	}
+	return nil
 }
 
 // this is the main loop for reading input
 func (p *prompt) innerRun() error {
 	var err error
-
+	sigwinch := make(chan os.Signal, 1)
+	signal.Notify(sigwinch, syscall.SIGWINCH)
 	// start with first render
 	p.render()
 
 	// start waiting for input
 mainloop:
 	for {
-		switch p.layout {
-		case status:
-			items, _ := p.list.Items()
-			if len(items) <= 0 && p.repo.Head != nil && !p.inputMode {
-				defer func() {
-					for _, line := range workingTreeClean(p.repo.Head) {
-						p.writer.WriteCells(line)
-					}
-					p.writer.Flush()
-				}()
-				err = nil
+		select {
+		case ev := <-p.events:
+			p.hold = true
+			r := ev.ch
+			err := ev.err
+			if err != nil {
+				return err
+			}
+			if r == rune(term.KeyCtrlC) {
 				break mainloop
 			}
+			if r == rune(term.KeyCtrlD) {
+				break mainloop
+			}
+			if br := p.assignKey(r); br {
+				break mainloop
+			}
+			p.render()
+			p.hold = false
+		case <-sigwinch:
+			p.render()
 		}
-		r, _, err := p.reader.ReadRune()
-		if err != nil {
-			return err
-		}
-		if r == rune(term.KeyCtrlC) {
-			break
-		}
-		if r == rune(term.KeyCtrlD) {
-			break
-		}
-		if br := p.assignKey(r); br {
-			break
-		}
-		p.render()
 	}
 	// reset cursor position and remove buffer
 	p.writer.Reset()

@@ -1,6 +1,8 @@
 package prompt
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 
 	"github.com/isacikgoz/gia/editor"
@@ -25,6 +27,7 @@ func (s *Status) Start(opts *Options) error {
 	for _, entry := range st.Entities {
 		items = append(items, entry)
 	}
+
 	l, err := NewList(items, opts.Size)
 	if err != nil {
 		return err
@@ -42,7 +45,6 @@ func (s *Status) Start(opts *Options) error {
 	opts.SearchLabel = "Files"
 
 	s.prompt = &prompt{
-		repo:      s.Repo,
 		list:      l,
 		opts:      opts,
 		layout:    status,
@@ -50,6 +52,11 @@ func (s *Status) Start(opts *Options) error {
 		selection: s.onSelect,
 		info:      s.branchInfo,
 		controls:  controls,
+	}
+
+	if len(items) == 0 {
+		s.printClean()
+		return nil
 	}
 
 	return s.prompt.start()
@@ -88,11 +95,14 @@ func (s *Status) onKey(key rune) bool {
 		reqReload = true
 		s.discardChanges()
 	case 'q':
+		s.prompt.quit <- true
 		return true
 	default:
 	}
 	if reqReload {
-		s.reloadStatus()
+		if err := s.reloadStatus(); err != nil {
+			return true
+		}
 	}
 	return false
 }
@@ -107,6 +117,12 @@ func (s *Status) reloadStatus() error {
 	items := make([]Item, 0)
 	for _, entry := range status.Entities {
 		items = append(items, entry)
+	}
+	if len(items) == 0 {
+		// this is the case when the working tree is cleaned at runtime
+		s.prompt.quit <- true
+		s.prompt.exitMsg = workingTreeClean(s.Repo.Head)
+		return fmt.Errorf("quit")
 	}
 	s.prompt.list, err = NewList(items, s.prompt.list.size)
 	if err != nil {
@@ -218,4 +234,12 @@ func (s *Status) discardChanges() error {
 		return err
 	}
 	return nil
+}
+
+func (s *Status) printClean() {
+	writer := term.NewBufferedWriter(os.Stdout)
+	for _, line := range workingTreeClean(s.Repo.Head) {
+		writer.WriteCells(line)
+	}
+	writer.Flush()
 }

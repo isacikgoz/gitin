@@ -37,7 +37,6 @@ func (b *Branch) Start(opts *Options) error {
 	opts.SearchLabel = "Branches"
 
 	b.prompt = &prompt{
-		repo:      b.Repo,
 		list:      list,
 		opts:      opts,
 		layout:    branch,
@@ -69,6 +68,7 @@ func (b *Branch) onKey(key rune) bool {
 	case 'D':
 		b.deleteBranch("D")
 	case 'q':
+		b.prompt.quit <- true
 		return true
 	}
 	return false

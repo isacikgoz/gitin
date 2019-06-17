@@ -165,7 +165,7 @@ func workingTreeClean(b *git.Branch) [][]term.Cell {
 
 // returns multiline so the return value will be a 2-d slice
 func genHelp(pairs map[string]string) [][]term.Cell {
-	var matrix [][]term.Cell
+	var grid [][]term.Cell
 	// sort keys alphabetically
 	keys := make([]string, 0, len(pairs))
 	for key := range pairs {
@@ -173,10 +173,10 @@ func genHelp(pairs map[string]string) [][]term.Cell {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		matrix = append(matrix, append(term.Cprint(fmt.Sprintf("%s: ", key), color.Faint),
+		grid = append(grid, append(term.Cprint(fmt.Sprintf("%s: ", key), color.Faint),
 			term.Cprint(fmt.Sprintf("%s", pairs[key]), color.FgYellow)...))
 	}
-	matrix = append(matrix, term.Cprint("", 0))
-	matrix = append(matrix, term.Cprint("press any key to return.", color.Faint))
-	return matrix
+	grid = append(grid, term.Cprint("", 0))
+	grid = append(grid, term.Cprint("press any key to return.", color.Faint))
+	return grid
 }
