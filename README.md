@@ -7,13 +7,11 @@
 gitin is a minimalist tool that lets you explore a git repository from the command line. You can search from commits, inspect individual files and changes in the commits. It is an alternative and interactive way to explore the commit history. Also, you can explore your current state by investigating diffs, stage your changes and commit them.
 
 <p align="center">
-   <img src="https://github.com/isacikgoz/gitin/blob/master/img/screencast.gif" alt="screencast"/>
+   <img src="https://user-images.githubusercontent.com/2153367/59564874-98fed180-9054-11e9-9341-1b2801268194.gif" alt="screencast"/>
 </p>
 
 ## Features
 - Fuzzy search (type `/` to start a search after running `gitin <command>`)
-- Various filters for commit history (e.g. `gitin log --author="..."`)
-- See ahead/behind commits (e.g. `gitin log --ahead`)
 - Interactive stage and see the diff of files (`gitin status` then press `enter` to see diff or `space` to stage)
 - Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
 - Interactive hunk staging (`gitin status` then press `p`)
@@ -60,8 +58,8 @@ Commands:
 
 ## Configure
 - To set the line size `export GITIN_LINESIZE=5`
-- To hide help `export GITIN_HIDEHELP=true`
-- To set find method `GITIN_SEARCHMODE=<method>` (`fuzzy`, `basic` or `combined`)
+- To set always start in search mode `GITIN_STARTSEARCH=true`
+- To disable colors `GITIN_DISABLECOLOR=true`
 
 ## Development Requirements
 - Requires gitlib2 v27 and `git2go`. See the project homepages for more information about build instructions. For gitin you can simply;

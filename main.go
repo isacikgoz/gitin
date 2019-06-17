@@ -3,117 +3,87 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/isacikgoz/gitin/cli"
-	"github.com/isacikgoz/gitin/git"
-
+	"github.com/isacikgoz/gitin/prompt"
+	git "github.com/isacikgoz/libgit2-api"
 	env "github.com/kelseyhightower/envconfig"
-	log "github.com/sirupsen/logrus"
 	pin "gopkg.in/alecthomas/kingpin.v2"
 )
 
+// Config will be passed to screenopts
 type Config struct {
-	LineSize   int
-	HideHelp   bool
-	SearchMode string
-	HideDetail bool
+	LineSize     int `default:"5"`
+	StartSearch  bool
+	DisableColor bool
 }
 
-var (
-	cfg             Config
-	branchCommand   = pin.Command("branch", "Checkout, list, or delete branches.")
-	startSearch     = pin.Flag("search", "start in search mode").Short('s').Bool()
-	branchAll       = branchCommand.Flag("all", "list both remote and local branches").Bool()
-	branchRemotes   = branchCommand.Flag("remote", "list only remote branches").Bool()
-	branchOrderDate = branchCommand.Flag("date-order", "order branches by date").Bool()
-	logCommand      = pin.Command("log", "Show commit logs.")
-	logAhead        = logCommand.Flag("ahead", "show commits that not pushed to upstream").Bool()
-	logAuthor       = logCommand.Flag("author", "limit commits to those by given author").String()
-	logBefore       = logCommand.Flag("before", "show commits older than given date (RFC3339)").String()
-	logBehind       = logCommand.Flag("behind", "show commits that not merged from upstream").Bool()
-	logCommitter    = logCommand.Flag("committer", "limit commits to those by given committer").String()
-	logMaxCount     = logCommand.Flag("max-count", "maximum number of commits to display").Int()
-	logSince        = logCommand.Flag("since", "show commits newer than given date (RFC3339)").String()
-	status          = pin.Command("status", "Show working-tree status. Also stage and commit changes.")
-)
-
 func main() {
+	mode := evalArgs()
 
-	pin.Version("gitin version 0.1.6")
-	pin.CommandLine.HelpFlag.Short('h')
-	pin.CommandLine.VersionFlag.Short('v')
-	pin.Parse()
-	err := env.Process("gitin", &cfg)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	log.SetLevel(log.ErrorLevel)
 	pwd, _ := os.Getwd()
-
-	if err := run(pwd); err != nil {
-		fmt.Println(err.Error())
+	if err := run(mode, pwd); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(path string) error {
+// define the program commands and args
+func evalArgs() string {
+	pin.Command("log", "Show commit logs.")
+	pin.Command("status", "Show working-tree status. Also stage and commit changes.")
+	pin.Command("branch", "Show list of branches.")
+
+	pin.Version("gitin version 0.2.0")
+
+	pin.UsageTemplate(pin.DefaultUsageTemplate + additionalHelp() + "\n")
+	pin.CommandLine.HelpFlag.Short('h')
+	pin.CommandLine.VersionFlag.Short('v')
+
+	return pin.Parse()
+}
+
+// main runner function that creates the prompts
+func run(mode, path string) error {
 	r, err := git.Open(path)
 	if err != nil {
 		return err
 	}
-	promptOps := &cli.PromptOptions{
-		Cursor:        0,
-		Scroll:        0,
+	var cfg Config
+	err = env.Process("gitin", &cfg)
+	if err != nil {
+		return err
+	}
+	opts := &prompt.Options{
 		Size:          cfg.LineSize,
-		HideHelp:      cfg.HideHelp,
-		ShowDetail:    !cfg.HideDetail,
-		StartInSearch: *startSearch,
-		SearchLabel:   "Search :",
-		Finder:        strings.ToLower(cfg.SearchMode),
+		StartInSearch: cfg.StartSearch,
+		DisableColor:  cfg.DisableColor,
 	}
-	switch pin.Parse() {
-	case "branch":
-		orderType := cli.BranchSortDefault
-		if *branchOrderDate {
-			orderType = cli.BranchSortDate
-		}
-		types := cli.LocalBranches
-		if *branchAll {
-			types = cli.AllBranches
-		} else if *branchRemotes {
-			types = cli.RemoteBranches
-		}
-		opts := &cli.BranchOptions{
-			Types:     types,
-			PromptOps: promptOps,
-			Sort:      orderType,
-		}
-		return cli.BranchBuilder(r, opts)
-	case "log":
-		opts := &cli.LogOptions{
-			Author:    *logAuthor,
-			Before:    *logBefore,
-			Committer: *logCommitter,
-			MaxCount:  *logMaxCount,
-			Since:     *logSince,
-			PromptOps: promptOps,
-		}
-		if *logAhead {
-			opts.Mode = cli.LogAhead
-			return cli.LogBuilder(r, opts)
-		} else if *logBehind {
-			opts.Mode = cli.LogBehind
-			return cli.LogBuilder(r, opts)
-		} else {
-			opts.Mode = cli.LogNormal
-			return cli.LogBuilder(r, opts)
-		}
+	switch mode {
 	case "status":
-		opts := &cli.StatusOptions{
-			PromptOps: promptOps,
+		pr := prompt.Status{
+			Repo: r,
 		}
-		return cli.StatusBuilder(r, opts)
+		err = pr.Start(opts)
+	case "log":
+		pr := prompt.Log{
+			Repo: r,
+		}
+		err = pr.Start(opts)
+	case "branch":
+		pr := prompt.Branch{
+			Repo: r,
+		}
+		err = pr.Start(opts)
 	}
-	return nil
+	return err
+}
+
+func additionalHelp() string {
+	return `Environment Variables:
+
+  GITIN_LINESIZE=<int>
+  GITIN_STARTSEARCH=<bool>
+  GITIN_DISABLECOLOR=<bool>
+
+Press ? for controls while application is running.`
 }
