@@ -91,6 +91,7 @@ func (p *prompt) start() error {
 		p.inputMode = true
 	}
 
+	// start input loop
 	go func() {
 		for {
 			select {
@@ -111,42 +112,37 @@ func (p *prompt) start() error {
 		return err
 	}
 
-	if p.exitMsg != nil {
-		for _, cells := range p.exitMsg {
-			p.writer.WriteCells(cells)
-		}
-		p.writer.Flush()
+	// if p.exitMsg != nil {
+	for _, cells := range p.exitMsg {
+		p.writer.WriteCells(cells)
 	}
+	p.writer.Flush()
+	// }
 	return nil
 }
 
-// this is the main loop for reading input
+// this is the main loop for reading input channel
 func (p *prompt) innerRun() error {
 	var err error
 	sigwinch := make(chan os.Signal, 1)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
-	// start with first render
 	p.render()
 
-	// start waiting for input
 mainloop:
 	for {
 		select {
 		case ev := <-p.events:
 			p.hold = true
-			r := ev.ch
-			err := ev.err
-			if err != nil {
+			if err := ev.err; err != nil {
 				return err
 			}
-			if r == rune(term.KeyCtrlC) {
+			switch r := ev.ch; r {
+			case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
 				break mainloop
-			}
-			if r == rune(term.KeyCtrlD) {
-				break mainloop
-			}
-			if br := p.assignKey(r); br {
-				break mainloop
+			default:
+				if br := p.assignKey(r); br {
+					break mainloop
+				}
 			}
 			p.render()
 			p.hold = false

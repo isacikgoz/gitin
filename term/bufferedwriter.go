@@ -35,10 +35,7 @@ func (b *BufferedWriter) Reset() {
 	b.reset = true
 }
 
-// Write writes a single line to the underlining buffer. If the BufferedWriter was
-// previously reset, all previous lines are cleared and the output starts from
-// the top. Lines with \r or \n will cause an error since they can interfere with the
-// terminal ability to move between lines.
+// Write writes a single line to the underlining buffer.
 func (b *BufferedWriter) Write(bites []byte) (int, error) {
 	if bytes.ContainsAny(bites, "\r\n") {
 		return 0, fmt.Errorf("%q should not contain either \\r or \\n", bites)

@@ -51,6 +51,8 @@ func Init(r Reader, w Writer) error {
 	}
 
 	newState := state.term
+	// syscall.ECHO | syscall.ECHONL | syscall.ICANON to disable echo
+	// syscall.ISIG is to catch keys like ctr-c or ctrl-d
 	newState.Lflag &^= syscall.ECHO | syscall.ECHONL | syscall.ICANON | syscall.ISIG
 
 	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(reader.Fd()), ioctlWriteTermios, uintptr(unsafe.Pointer(&newState)), 0, 0, 0); err != 0 {
