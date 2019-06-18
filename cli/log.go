@@ -1,4 +1,4 @@
-package prompt
+package cli
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
 	"github.com/justincampbell/timeago"
@@ -15,24 +16,24 @@ import (
 type Log struct {
 	Repo *git.Repository
 
-	prompt   *prompt
+	prompt   *prompt.Prompt
 	selected *git.Commit
-	oldState *promptState
+	oldState *prompt.State
 }
 
-// Start draws the screen with its list, initializing the cursor to the given position.
-func (l *Log) Start(opts *Options) error {
-	cs, err := l.Repo.Commits()
+// LogPrompt draws the screen with its list, initializing the cursor to the given position.
+func LogPrompt(r *git.Repository, opts *prompt.Options) error {
+	cs, err := r.Commits()
 	if err != nil {
 		return err
 	}
-	l.Repo.Branches()
-	l.Repo.Tags()
-	items := make([]Item, 0)
+	r.Branches()
+	r.Tags()
+	items := make([]prompt.Item, 0)
 	for _, commit := range cs {
 		items = append(items, commit)
 	}
-	list, err := NewList(items, opts.Size)
+	list, err := prompt.NewList(items, opts.Size)
 	if err != nil {
 		return err
 	}
@@ -42,14 +43,15 @@ func (l *Log) Start(opts *Options) error {
 	controls["select"] = "enter"
 
 	opts.SearchLabel = "Commits"
-
-	l.prompt = create(opts,
+	l := &Log{Repo: r}
+	l.prompt = prompt.Create(opts,
 		list,
-		withOnKey(l.onKey),
-		withSelection(l.onSelect),
-		withInfo(l.logInfo),
+		prompt.WithKeyHandler(l.onKey),
+		prompt.WithSelectionHandler(l.onSelect),
+		prompt.WithItemRenderer(renderItem),
+		prompt.WithInformation(l.logInfo),
 	)
-	l.prompt.controls = controls
+	l.prompt.Controls = controls
 	if err := l.prompt.Run(); err != nil {
 		return err
 	}
@@ -58,12 +60,11 @@ func (l *Log) Start(opts *Options) error {
 
 // return true to terminate
 func (l *Log) onSelect() bool {
-	// s.showDiff()
-	items, idx := l.prompt.list.Items()
-	if idx == NotFound {
+
+	item, err := l.prompt.Selection()
+	if err != nil {
 		return false
 	}
-	item := items[idx]
 	switch item.(type) {
 	case *git.Commit:
 		commit := item.(*git.Commit)
@@ -73,21 +74,22 @@ func (l *Log) onSelect() bool {
 			return false
 		}
 		deltas := diff.Deltas()
-		newlist := make([]Item, 0)
+		newlist := make([]prompt.Item, 0)
 		for _, delta := range deltas {
 			newlist = append(newlist, delta)
 		}
-		l.oldState = l.prompt.getState()
-		list, err := NewList(newlist, 5)
+		l.oldState = l.prompt.State()
+		list, err := prompt.NewList(newlist, 5)
 		if err != nil {
 			return false
 		}
-		l.prompt.setState(&promptState{
-			list:       list,
-			searchMode: false,
-			searchStr:  "",
+		l.prompt.SetState(&prompt.State{
+			List:        list,
+			SearchMode:  false,
+			SearchStr:   "",
+			SearchLabel: "Files",
 		})
-		l.prompt.opts.SearchLabel = "Files"
+		// l.prompt.opts.SearchLabel = "Files"
 	case *git.DiffDelta:
 		l.showFileDiff()
 	}
@@ -95,10 +97,11 @@ func (l *Log) onSelect() bool {
 }
 
 func (l *Log) onKey(key rune) bool {
-	items, idx := l.prompt.list.Items()
-	var item Item
-	if idx != NotFound {
-		item = items[idx]
+	var item prompt.Item
+	var err error
+	item, err = l.prompt.Selection()
+	if err != nil {
+		return false
 	}
 	switch item.(type) {
 	case *git.Commit:
@@ -108,35 +111,34 @@ func (l *Log) onKey(key rune) bool {
 		case 'd':
 			l.showDiff()
 		case 'q':
-			l.prompt.quit <- true
+			l.prompt.Stop()
 			return true
 		}
 	case *git.DiffDelta:
 		switch key {
 		case 'q':
-			l.prompt.setState(l.oldState)
-			l.prompt.opts.SearchLabel = "Commits"
+			l.prompt.SetState(l.oldState)
 		}
 	}
 	return false
 }
 
 func (l *Log) showDiff() error {
-	items, idx := l.prompt.list.Items()
-	if idx == NotFound {
+	item, err := l.prompt.Selection()
+	if err != nil {
 		return fmt.Errorf("there is no item to show diff")
 	}
-	commit := items[idx].(*git.Commit)
+	commit := item.(*git.Commit)
 	args := []string{"show", commit.Hash}
 	return popGitCommand(l.Repo, args)
 }
 
 func (l *Log) showStat() error {
-	items, idx := l.prompt.list.Items()
-	if idx == NotFound {
+	item, err := l.prompt.Selection()
+	if err != nil {
 		return fmt.Errorf("there is no item to show diff")
 	}
-	commit := items[idx].(*git.Commit)
+	commit := item.(*git.Commit)
 	args := []string{"show", "--stat", commit.Hash}
 	return popGitCommand(l.Repo, args)
 }
@@ -152,13 +154,16 @@ func (l *Log) showFileDiff() error {
 	} else {
 		args = []string{"diff", pid + ".." + l.selected.Hash}
 	}
-	items, idx := l.prompt.list.Items()
-	dd := items[idx].(*git.DiffDelta)
+	item, err := l.prompt.Selection()
+	if err != nil {
+		return fmt.Errorf("there is no item to show diff")
+	}
+	dd := item.(*git.DiffDelta)
 	args = append(args, dd.OldFile.Path)
 	return popGitCommand(l.Repo, args)
 }
 
-func (l *Log) logInfo(item Item) [][]term.Cell {
+func (l *Log) logInfo(item prompt.Item) [][]term.Cell {
 	grid := make([][]term.Cell, 0)
 	if item == nil {
 		return grid

@@ -1,4 +1,4 @@
-package prompt
+package cli
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/isacikgoz/gia/editor"
+	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
 )
@@ -14,21 +15,21 @@ import (
 type Status struct {
 	Repo *git.Repository
 
-	prompt *prompt
+	prompt *prompt.Prompt
 }
 
-// Start draws the screen with its list, initializing the cursor to the given position.
-func (s *Status) Start(opts *Options) error {
-	st, err := s.Repo.LoadStatus()
+// StatusPrompt draws the screen with its list, initializing the cursor to the given position.
+func StatusPrompt(r *git.Repository, opts *prompt.Options) error {
+	st, err := r.LoadStatus()
 	if err != nil {
 		return err
 	}
-	items := make([]Item, 0)
+	items := make([]prompt.Item, 0)
 	for _, entry := range st.Entities {
 		items = append(items, entry)
 	}
 
-	list, err := NewList(items, opts.Size)
+	list, err := prompt.NewList(items, opts.Size)
 	if err != nil {
 		return err
 	}
@@ -44,18 +45,18 @@ func (s *Status) Start(opts *Options) error {
 
 	opts.SearchLabel = "Files"
 
+	s := &Status{Repo: r}
 	if len(items) == 0 {
 		s.printClean()
 		return nil
 	}
-
-	s.prompt = create(opts,
-		list,
-		withOnKey(s.onKey),
-		withSelection(s.onSelect),
-		withInfo(s.branchInfo),
+	s.prompt = prompt.Create(opts, list,
+		prompt.WithKeyHandler(s.onKey),
+		prompt.WithSelectionHandler(s.onSelect),
+		prompt.WithItemRenderer(renderItem),
+		prompt.WithInformation(s.branchInfo),
 	)
-	s.prompt.controls = controls
+	s.prompt.Controls = controls
 	if err := s.prompt.Run(); err != nil {
 		return err
 	}
@@ -94,7 +95,7 @@ func (s *Status) onKey(key rune) bool {
 		reqReload = true
 		s.discardChanges()
 	case 'q':
-		s.prompt.quit <- true
+		s.prompt.Stop()
 		return true
 	default:
 	}
@@ -108,34 +109,37 @@ func (s *Status) onKey(key rune) bool {
 
 // reloads the list
 func (s *Status) reloadStatus() error {
-	_, idx := s.prompt.list.Items()
 	status, err := s.Repo.LoadStatus()
 	if err != nil {
 		return err
 	}
-	items := make([]Item, 0)
+	items := make([]prompt.Item, 0)
 	for _, entry := range status.Entities {
 		items = append(items, entry)
 	}
 	if len(items) == 0 {
 		// this is the case when the working tree is cleaned at runtime
-		s.prompt.quit <- true
-		s.prompt.exitMsg = workingTreeClean(s.Repo.Head)
+		s.prompt.Stop()
+		s.prompt.SetExitMsg(workingTreeClean(s.Repo.Head))
 		return fmt.Errorf("quit")
 	}
-	s.prompt.list, err = NewList(items, s.prompt.list.size)
+	state := s.prompt.State()
+	list, err := prompt.NewList(items, state.ListSize)
 	if err != nil {
 		return err
 	}
-	s.prompt.list.SetCursor(idx)
+	state.List = list
+	s.prompt.SetState(state)
 	return nil
 }
 
 // add or reset selected entry
 func (s *Status) addReset() error {
-	defer s.prompt.render()
-	items, idx := s.prompt.list.Items()
-	entry := items[idx].(*git.StatusEntry)
+	item, err := s.prompt.Selection()
+	if err != nil {
+		return fmt.Errorf("can't add/reset item: %v", err)
+	}
+	entry := item.(*git.StatusEntry)
 	args := []string{"add", "--", entry.String()}
 	if entry.Indexed() {
 		args = []string{"reset", "HEAD", "--", entry.String()}
@@ -150,9 +154,13 @@ func (s *Status) addReset() error {
 
 // open hunk stagin ui
 func (s *Status) hunkStage() error {
-	defer s.prompt.writer.HideCursor()
-	items, idx := s.prompt.list.Items()
-	entry := items[idx].(*git.StatusEntry)
+	// defer s.prompt.writer.HideCursor()
+
+	item, err := s.prompt.Selection()
+	if err != nil {
+		return fmt.Errorf("can't hunk stage item: %v", err)
+	}
+	entry := item.(*git.StatusEntry)
 	file, err := generateDiffFile(s.Repo, entry)
 	if err == nil {
 		editor, err := editor.NewEditor(file)
@@ -174,18 +182,17 @@ func (s *Status) hunkStage() error {
 	return nil
 }
 
-// pop git diff
 func (s *Status) showDiff() error {
-	items, idx := s.prompt.list.Items()
-	if idx == NotFound {
-		return fmt.Errorf("there is no item to show diff")
+	item, err := s.prompt.Selection()
+	if err != nil {
+		return fmt.Errorf("can't show diff: %v", err)
 	}
-	entry := items[idx].(*git.StatusEntry)
+	entry := item.(*git.StatusEntry)
 	return popGitCommand(s.Repo, fileStatArgs(entry))
 }
 
 func (s *Status) doCommit() error {
-	defer s.prompt.writer.HideCursor()
+	// defer s.prompt.writer.HideCursor()
 
 	args := []string{"commit", "--edit", "--quiet"}
 	err := popGitCommand(s.Repo, args)
@@ -203,7 +210,7 @@ func (s *Status) doCommit() error {
 }
 
 func (s *Status) doCommitAmend() error {
-	defer s.prompt.writer.HideCursor()
+	// defer s.prompt.writer.HideCursor()
 
 	args := []string{"commit", "--amend", "--quiet"}
 	err := popGitCommand(s.Repo, args)
@@ -220,15 +227,18 @@ func (s *Status) doCommitAmend() error {
 	return nil
 }
 
-func (s *Status) branchInfo(item Item) [][]term.Cell {
+func (s *Status) branchInfo(item prompt.Item) [][]term.Cell {
 	b := s.Repo.Head
 	return branchInfo(b, true)
 }
 
 func (s *Status) discardChanges() error {
-	defer s.prompt.render()
-	items, idx := s.prompt.list.Items()
-	entry := items[idx].(*git.StatusEntry)
+	// defer s.prompt.render()
+	item, err := s.prompt.Selection()
+	if err != nil {
+		return fmt.Errorf("cant't discard changes on item: %v", err)
+	}
+	entry := item.(*git.StatusEntry)
 	args := []string{"checkout", "--", entry.String()}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = s.Repo.Path()

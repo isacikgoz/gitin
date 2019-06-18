@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/isacikgoz/gitin/cli"
 	"github.com/isacikgoz/gitin/prompt"
+
 	git "github.com/isacikgoz/libgit2-api"
 	env "github.com/kelseyhightower/envconfig"
 	pin "gopkg.in/alecthomas/kingpin.v2"
@@ -19,9 +21,35 @@ type Config struct {
 
 func main() {
 	mode := evalArgs()
-
 	pwd, _ := os.Getwd()
-	if err := run(mode, pwd); err != nil {
+
+	r, err := git.Open(pwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	var cfg Config
+	err = env.Process("gitin", &cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	opts := &prompt.Options{
+		Size:          cfg.LineSize,
+		StartInSearch: cfg.StartSearch,
+		DisableColor:  cfg.DisableColor,
+	}
+
+	switch mode {
+	case "status":
+		err = cli.StatusPrompt(r, opts)
+	case "log":
+		err = cli.LogPrompt(r, opts)
+	case "branch":
+		err = cli.BranchPrompt(r, opts)
+	}
+
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
@@ -40,42 +68,6 @@ func evalArgs() string {
 	pin.CommandLine.VersionFlag.Short('v')
 
 	return pin.Parse()
-}
-
-// main runner function that creates the prompts
-func run(mode, path string) error {
-	r, err := git.Open(path)
-	if err != nil {
-		return err
-	}
-	var cfg Config
-	err = env.Process("gitin", &cfg)
-	if err != nil {
-		return err
-	}
-	opts := &prompt.Options{
-		Size:          cfg.LineSize,
-		StartInSearch: cfg.StartSearch,
-		DisableColor:  cfg.DisableColor,
-	}
-	switch mode {
-	case "status":
-		pr := prompt.Status{
-			Repo: r,
-		}
-		err = pr.Start(opts)
-	case "log":
-		pr := prompt.Log{
-			Repo: r,
-		}
-		err = pr.Start(opts)
-	case "branch":
-		pr := prompt.Branch{
-			Repo: r,
-		}
-		err = pr.Start(opts)
-	}
-	return err
 }
 
 func additionalHelp() string {

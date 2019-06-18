@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -17,9 +18,13 @@ type keyEvent struct {
 	err error
 }
 
-type onKey func(rune) bool
-type onSelect func() bool
-type genInfo func(Item) [][]term.Cell
+type keyHandlerFunc func(rune) bool
+type selectionHandlerFunc func() bool
+type itemRendererFunc func(Item, []int, bool) []term.Cell
+type informationRendererFunc func(Item) [][]term.Cell
+
+//OptionalFunc handles functional arguments of the prompt
+type OptionalFunc func(*Prompt)
 
 // Options is the common options for building a prompt
 type Options struct {
@@ -29,24 +34,28 @@ type Options struct {
 	DisableColor  bool
 }
 
-type promptState struct {
-	list       *List
-	searchMode bool
-	searchStr  string
-	cursor     int
-	scroll     int
+// State holds the changeable vars of the prompt
+type State struct {
+	List        *List
+	SearchMode  bool
+	SearchStr   string
+	SearchLabel string
+	Cursor      int
+	ListSize    int
 }
 
-type prompt struct {
+// Prompt is a interactive prompt for command-line
+type Prompt struct {
 	list *List
 	opts *Options
 
-	keys      onKey
-	selection onSelect
-	info      genInfo
+	keyHandler          keyHandlerFunc
+	selectionHandler    selectionHandlerFunc
+	itemRenderer        itemRendererFunc
+	informationRenderer informationRendererFunc
 
 	exitMsg  [][]term.Cell     // to be set on runtime if required
-	controls map[string]string // to be updated if additional controls added
+	Controls map[string]string // to be updated if additional controls added
 
 	inputMode bool
 	helpMode  bool
@@ -61,17 +70,17 @@ type prompt struct {
 	hold   bool
 }
 
-type optionalFunc func(*prompt)
-
-func create(opts *Options, list *List, fs ...optionalFunc) *prompt {
-	p := &prompt{
+// Create returns a pointer to prompt that is ready to Run
+func Create(opts *Options, list *List, fs ...OptionalFunc) *Prompt {
+	p := &Prompt{
 		opts: opts,
 		list: list,
 	}
 
-	p.keys = p.onKey
-	p.selection = p.onSelect
-	p.info = p.genInfo
+	p.keyHandler = p.onKey
+	p.selectionHandler = p.onSelect
+	p.itemRenderer = itemText
+	p.informationRenderer = p.genInfo
 
 	var mx sync.RWMutex
 	p.mx = &mx
@@ -88,25 +97,36 @@ func create(opts *Options, list *List, fs ...optionalFunc) *prompt {
 	return p
 }
 
-func withOnKey(f onKey) optionalFunc {
-	return func(p *prompt) {
-		p.keys = f
+// WithKeyHandler adds a keyHandler to the prompt
+func WithKeyHandler(f keyHandlerFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.keyHandler = f
 	}
 }
 
-func withSelection(f onSelect) optionalFunc {
-	return func(p *prompt) {
-		p.selection = f
+// WithSelectionHandler adds a selection handler to the prompt
+func WithSelectionHandler(f selectionHandlerFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.selectionHandler = f
 	}
 }
 
-func withInfo(f genInfo) optionalFunc {
-	return func(p *prompt) {
-		p.info = f
+// WithItemRenderer to add your own implementation on rendering an Item
+func WithItemRenderer(f itemRendererFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.itemRenderer = f
 	}
 }
 
-func (p *prompt) Run() error {
+// WithInformation adds additional information below to the prompt
+func WithInformation(f informationRendererFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.informationRenderer = f
+	}
+}
+
+// Run as name implies starts the prompt until it quits
+func (p *Prompt) Run() error {
 	// disable echo and hide cursor
 	if err := term.Init(os.Stdin, os.Stdout); err != nil {
 		return err
@@ -120,7 +140,7 @@ func (p *prompt) Run() error {
 	}
 
 	// start input loop
-	go p.spawnEvent()
+	go p.spawnEvents()
 
 	if err := p.mainloop(); err != nil {
 		return err
@@ -134,7 +154,12 @@ func (p *prompt) Run() error {
 	return nil
 }
 
-func (p *prompt) spawnEvent() {
+// Stop sends a quit signal to the main loop of the prompt
+func (p *Prompt) Stop() {
+	p.quit <- true
+}
+
+func (p *Prompt) spawnEvents() {
 	for {
 		select {
 		case <-p.quit:
@@ -151,7 +176,7 @@ func (p *prompt) spawnEvent() {
 }
 
 // this is the main loop for reading input channel
-func (p *prompt) mainloop() error {
+func (p *Prompt) mainloop() error {
 	var err error
 	sigwinch := make(chan os.Signal, 1)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
@@ -168,8 +193,12 @@ mainloop:
 			switch r := ev.ch; r {
 			case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
 				break mainloop
+			case term.Enter, term.NewLine:
+				if br := p.selectionHandler(); br {
+					break mainloop
+				}
 			default:
-				if br := p.assignKey(r); br {
+				if br := p.keyBindings(r); br {
 					break mainloop
 				}
 			}
@@ -186,7 +215,7 @@ mainloop:
 }
 
 // render function draws screen's list to terminal
-func (p *prompt) render() {
+func (p *Prompt) render() {
 	// lock screen mutex
 	p.mx.Lock()
 	defer func() {
@@ -204,16 +233,15 @@ func (p *prompt) render() {
 	items, idx := p.list.Items()
 	p.writer.WriteCells(renderSearch(p.opts.SearchLabel, p.inputMode, p.input))
 
-	// print each entry in the list
 	for i := range items {
 		var output []term.Cell
-		output = append(output, renderItem(items[i], p.list.matches[items[i]], (i == idx))...)
+		output = append(output, p.itemRenderer(items[i], p.list.matches[items[i]], (i == idx))...)
 		p.writer.WriteCells(output)
 	}
 
 	p.writer.WriteCells(nil) // add an empty line
 	if idx != NotFound {
-		for _, line := range p.info(items[idx]) {
+		for _, line := range p.informationRenderer(items[idx]) {
 			p.writer.WriteCells(line)
 		}
 	} else {
@@ -221,14 +249,12 @@ func (p *prompt) render() {
 	}
 }
 
-func (p *prompt) assignKey(key rune) bool {
+func (p *Prompt) keyBindings(key rune) bool {
 	if p.helpMode {
 		p.helpMode = false
 		return false
 	}
 	switch key {
-	case term.Enter, '\n':
-		return p.selection()
 	case term.ArrowUp:
 		p.list.Prev()
 	case term.ArrowDown:
@@ -268,25 +294,25 @@ func (p *prompt) assignKey(key rune) bool {
 				p.list.PageUp()
 			}
 		} else {
-			return p.keys(key)
+			return p.keyHandler(key)
 		}
 	}
 	return false
 }
 
-func (p *prompt) allControls() map[string]string {
+func (p *Prompt) allControls() map[string]string {
 	controls := make(map[string]string)
 	controls["navigation"] = "← ↓ ↑ → (h,j,k,l)"
 	controls["quit app"] = "q"
 	controls["toggle search"] = "/"
-	for k, v := range p.controls {
+	for k, v := range p.Controls {
 		controls[k] = v
 	}
 	return controls
 }
 
 // onKey is the default keybinding function for a prompt
-func (p *prompt) onKey(key rune) bool {
+func (p *Prompt) onKey(key rune) bool {
 	switch key {
 	case 'q':
 		p.quit <- true
@@ -297,7 +323,7 @@ func (p *prompt) onKey(key rune) bool {
 }
 
 // onSelect is the default selection
-func (p *prompt) onSelect() bool {
+func (p *Prompt) onSelect() bool {
 	items, idx := p.list.Items()
 	if idx == NotFound {
 		return false
@@ -307,20 +333,50 @@ func (p *prompt) onSelect() bool {
 }
 
 // genInfo is the default function to genereate info
-func (p *prompt) genInfo(item Item) [][]term.Cell {
+func (p *Prompt) genInfo(item Item) [][]term.Cell {
 	return nil
 }
 
-func (p *prompt) getState() *promptState {
-	return &promptState{
-		list:       p.list,
-		searchMode: p.inputMode,
-		searchStr:  p.input,
+// State return the current replace-able vars as a struct
+func (p *Prompt) State() *State {
+	var idx int
+	if _, i := p.list.Items(); i != NotFound {
+		idx = i
+	}
+	return &State{
+		List:        p.list,
+		SearchMode:  p.inputMode,
+		SearchStr:   p.input,
+		SearchLabel: p.opts.SearchLabel,
+		Cursor:      idx,
+		ListSize:    p.list.size,
 	}
 }
 
-func (p *prompt) setState(state *promptState) {
-	p.list = state.list
-	p.inputMode = state.searchMode
-	p.input = state.searchStr
+// SetState replaces the state of the prompt
+func (p *Prompt) SetState(state *State) {
+	p.list = state.List
+	p.inputMode = state.SearchMode
+	p.input = state.SearchStr
+	p.opts.SearchLabel = state.SearchLabel
+	p.list.SetCursor(state.Cursor)
+}
+
+// ListSize returns the size of the items that is renderer each time
+func (p *Prompt) ListSize() int {
+	return p.opts.Size
+}
+
+// Selection returns the selected item
+func (p *Prompt) Selection() (Item, error) {
+	items, idx := p.list.Items()
+	if idx == NotFound {
+		return nil, fmt.Errorf("there is no item to be selected")
+	}
+	return items[idx], nil
+}
+
+// SetExitMsg adds a rendered cell grid to be rendered after prompt is finished
+func (p *Prompt) SetExitMsg(grid [][]term.Cell) {
+	p.exitMsg = grid
 }
