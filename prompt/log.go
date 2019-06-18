@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -45,7 +46,6 @@ func (l *Log) Start(opts *Options) error {
 	l.prompt = &prompt{
 		list:      list,
 		opts:      opts,
-		layout:    log,
 		keys:      l.onKey,
 		selection: l.onSelect,
 		info:      l.logInfo,
@@ -59,6 +59,9 @@ func (l *Log) Start(opts *Options) error {
 func (l *Log) onSelect() bool {
 	// s.showDiff()
 	items, idx := l.prompt.list.Items()
+	if idx == NotFound {
+		return false
+	}
 	item := items[idx]
 	switch item.(type) {
 	case *git.Commit:
@@ -94,7 +97,10 @@ func (l *Log) onSelect() bool {
 
 func (l *Log) onKey(key rune) bool {
 	items, idx := l.prompt.list.Items()
-	item := items[idx]
+	var item Item
+	if idx != NotFound {
+		item = items[idx]
+	}
 	switch item.(type) {
 	case *git.Commit:
 		switch key {
@@ -120,6 +126,9 @@ func (l *Log) onKey(key rune) bool {
 
 func (l *Log) showDiff() error {
 	items, idx := l.prompt.list.Items()
+	if idx == NotFound {
+		return fmt.Errorf("there is no item to show diff")
+	}
 	commit := items[idx].(*git.Commit)
 	args := []string{"show", commit.Hash}
 	return popGitCommand(l.Repo, args)
@@ -127,6 +136,9 @@ func (l *Log) showDiff() error {
 
 func (l *Log) showStat() error {
 	items, idx := l.prompt.list.Items()
+	if idx == NotFound {
+		return fmt.Errorf("there is no item to show diff")
+	}
 	commit := items[idx].(*git.Commit)
 	args := []string{"show", "--stat", commit.Hash}
 	return popGitCommand(l.Repo, args)

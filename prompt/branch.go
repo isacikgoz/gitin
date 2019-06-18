@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"os/exec"
 
 	"github.com/fatih/color"
@@ -39,7 +40,6 @@ func (b *Branch) Start(opts *Options) error {
 	b.prompt = &prompt{
 		list:      list,
 		opts:      opts,
-		layout:    branch,
 		selection: b.onSelect,
 		keys:      b.onKey,
 		info:      b.branchInfo,
@@ -51,6 +51,9 @@ func (b *Branch) Start(opts *Options) error {
 
 func (b *Branch) onSelect() bool {
 	items, idx := b.prompt.list.Items()
+	if idx == NotFound {
+		return false
+	}
 	branch := items[idx].(*git.Branch)
 	args := []string{"checkout", branch.Name}
 	cmd := exec.Command("git", args...)
@@ -92,6 +95,9 @@ func (b *Branch) branchInfo(item Item) [][]term.Cell {
 
 func (b *Branch) deleteBranch(mode string) error {
 	items, idx := b.prompt.list.Items()
+	if idx == NotFound {
+		return fmt.Errorf("there is no item to delete")
+	}
 	branch := items[idx].(*git.Branch)
 	cmd := exec.Command("git", "branch", "-"+mode, branch.Name)
 	cmd.Dir = b.Repo.Path()
