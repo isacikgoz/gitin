@@ -28,7 +28,7 @@ func (s *Status) Start(opts *Options) error {
 		items = append(items, entry)
 	}
 
-	l, err := NewList(items, opts.Size)
+	list, err := NewList(items, opts.Size)
 	if err != nil {
 		return err
 	}
@@ -44,21 +44,22 @@ func (s *Status) Start(opts *Options) error {
 
 	opts.SearchLabel = "Files"
 
-	s.prompt = &prompt{
-		list:      l,
-		opts:      opts,
-		keys:      s.onKey,
-		selection: s.onSelect,
-		info:      s.branchInfo,
-		controls:  controls,
-	}
-
 	if len(items) == 0 {
 		s.printClean()
 		return nil
 	}
 
-	return s.prompt.start()
+	s.prompt = create(opts,
+		list,
+		withOnKey(s.onKey),
+		withSelection(s.onSelect),
+		withInfo(s.branchInfo),
+	)
+	s.prompt.controls = controls
+	if err := s.prompt.Run(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // return true to terminate

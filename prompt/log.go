@@ -43,16 +43,17 @@ func (l *Log) Start(opts *Options) error {
 
 	opts.SearchLabel = "Commits"
 
-	l.prompt = &prompt{
-		list:      list,
-		opts:      opts,
-		keys:      l.onKey,
-		selection: l.onSelect,
-		info:      l.logInfo,
-		controls:  controls,
+	l.prompt = create(opts,
+		list,
+		withOnKey(l.onKey),
+		withSelection(l.onSelect),
+		withInfo(l.logInfo),
+	)
+	l.prompt.controls = controls
+	if err := l.prompt.Run(); err != nil {
+		return err
 	}
-
-	return l.prompt.start()
+	return nil
 }
 
 // return true to terminate
@@ -76,19 +77,17 @@ func (l *Log) onSelect() bool {
 		for _, delta := range deltas {
 			newlist = append(newlist, delta)
 		}
-		l.oldState = &promptState{
-			list:       l.prompt.list,
-			searchMode: l.prompt.inputMode,
-			searchStr:  l.prompt.input,
-		}
+		l.oldState = l.prompt.getState()
 		list, err := NewList(newlist, 5)
 		if err != nil {
 			return false
 		}
+		l.prompt.setState(&promptState{
+			list:       list,
+			searchMode: false,
+			searchStr:  "",
+		})
 		l.prompt.opts.SearchLabel = "Files"
-		l.prompt.input = ""
-		l.prompt.inputMode = false
-		l.prompt.list = list
 	case *git.DiffDelta:
 		l.showFileDiff()
 	}
@@ -115,9 +114,7 @@ func (l *Log) onKey(key rune) bool {
 	case *git.DiffDelta:
 		switch key {
 		case 'q':
-			l.prompt.list = l.oldState.list
-			l.prompt.inputMode = l.oldState.searchMode
-			l.prompt.input = l.oldState.searchStr
+			l.prompt.setState(l.oldState)
 			l.prompt.opts.SearchLabel = "Commits"
 		}
 	}

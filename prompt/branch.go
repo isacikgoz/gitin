@@ -37,16 +37,17 @@ func (b *Branch) Start(opts *Options) error {
 
 	opts.SearchLabel = "Branches"
 
-	b.prompt = &prompt{
-		list:      list,
-		opts:      opts,
-		selection: b.onSelect,
-		keys:      b.onKey,
-		info:      b.branchInfo,
-		controls:  controls,
+	b.prompt = create(opts,
+		list,
+		withOnKey(b.onKey),
+		withSelection(b.onSelect),
+		withInfo(b.branchInfo),
+	)
+	b.prompt.controls = controls
+	if err := b.prompt.Run(); err != nil {
+		return err
 	}
-
-	return b.prompt.start()
+	return nil
 }
 
 func (b *Branch) onSelect() bool {

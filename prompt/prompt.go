@@ -63,24 +63,6 @@ type prompt struct {
 
 type optionalFunc func(*prompt)
 
-func withOnKey(f onKey) optionalFunc {
-	return func(p *prompt) {
-		p.keys = f
-	}
-}
-
-func withSelection(f onSelect) optionalFunc {
-	return func(p *prompt) {
-		p.selection = f
-	}
-}
-
-func withInfo(f genInfo) optionalFunc {
-	return func(p *prompt) {
-		p.info = f
-	}
-}
-
 func create(opts *Options, list *List, fs ...optionalFunc) *prompt {
 	p := &prompt{
 		opts: opts,
@@ -106,16 +88,25 @@ func create(opts *Options, list *List, fs ...optionalFunc) *prompt {
 	return p
 }
 
-func (p *prompt) start() error {
-	var mx sync.RWMutex
-	p.mx = &mx
+func withOnKey(f onKey) optionalFunc {
+	return func(p *prompt) {
+		p.keys = f
+	}
+}
 
-	p.reader = term.NewRuneReader(os.Stdin)
-	p.writer = term.NewBufferedWriter(os.Stdout)
+func withSelection(f onSelect) optionalFunc {
+	return func(p *prompt) {
+		p.selection = f
+	}
+}
 
-	p.events = make(chan keyEvent, 20)
-	p.quit = make(chan bool)
+func withInfo(f genInfo) optionalFunc {
+	return func(p *prompt) {
+		p.info = f
+	}
+}
 
+func (p *prompt) Run() error {
 	// disable echo and hide cursor
 	if err := term.Init(os.Stdin, os.Stdout); err != nil {
 		return err
@@ -131,7 +122,7 @@ func (p *prompt) start() error {
 	// start input loop
 	go p.spawnEvent()
 
-	if err := p.innerRun(); err != nil {
+	if err := p.mainloop(); err != nil {
 		return err
 	}
 
@@ -160,7 +151,7 @@ func (p *prompt) spawnEvent() {
 }
 
 // this is the main loop for reading input channel
-func (p *prompt) innerRun() error {
+func (p *prompt) mainloop() error {
 	var err error
 	sigwinch := make(chan os.Signal, 1)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
@@ -318,4 +309,18 @@ func (p *prompt) onSelect() bool {
 // genInfo is the default function to genereate info
 func (p *prompt) genInfo(item Item) [][]term.Cell {
 	return nil
+}
+
+func (p *prompt) getState() *promptState {
+	return &promptState{
+		list:       p.list,
+		searchMode: p.inputMode,
+		searchStr:  p.input,
+	}
+}
+
+func (p *prompt) setState(state *promptState) {
+	p.list = state.list
+	p.inputMode = state.searchMode
+	p.input = state.searchStr
 }
