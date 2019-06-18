@@ -47,7 +47,6 @@ func (s *Status) Start(opts *Options) error {
 	s.prompt = &prompt{
 		list:      l,
 		opts:      opts,
-		layout:    status,
 		keys:      s.onKey,
 		selection: s.onSelect,
 		info:      s.branchInfo,
@@ -70,7 +69,6 @@ func (s *Status) onSelect() bool {
 
 func (s *Status) onKey(key rune) bool {
 	var reqReload bool
-
 	switch key {
 	case ' ':
 		reqReload = true
@@ -178,6 +176,9 @@ func (s *Status) hunkStage() error {
 // pop git diff
 func (s *Status) showDiff() error {
 	items, idx := s.prompt.list.Items()
+	if idx == NotFound {
+		return fmt.Errorf("there is no item to show diff")
+	}
 	entry := items[idx].(*git.StatusEntry)
 	return popGitCommand(s.Repo, fileStatArgs(entry))
 }

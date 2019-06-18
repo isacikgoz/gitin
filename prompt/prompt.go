@@ -12,16 +12,6 @@ import (
 	"github.com/isacikgoz/gitin/term"
 )
 
-type promptType int
-
-const (
-	status promptType = iota
-	log
-	file
-	branch
-	stash
-)
-
 type keyEvent struct {
 	ch  rune
 	err error
@@ -48,8 +38,6 @@ type promptState struct {
 }
 
 type prompt struct {
-	layout promptType
-
 	list      *List
 	keys      onKey
 	selection onSelect
@@ -112,12 +100,11 @@ func (p *prompt) start() error {
 		return err
 	}
 
-	// if p.exitMsg != nil {
 	for _, cells := range p.exitMsg {
 		p.writer.WriteCells(cells)
 	}
 	p.writer.Flush()
-	// }
+
 	return nil
 }
 
@@ -160,13 +147,15 @@ mainloop:
 func (p *prompt) render() {
 	// lock screen mutex
 	p.mx.Lock()
-	defer p.mx.Unlock()
+	defer func() {
+		p.writer.Flush()
+		p.mx.Unlock()
+	}()
 
 	if p.helpMode {
 		for _, line := range genHelp(p.allControls()) {
 			p.writer.WriteCells(line)
 		}
-		p.writer.Flush()
 		return
 	}
 
@@ -188,9 +177,6 @@ func (p *prompt) render() {
 	} else {
 		p.writer.WriteCells(term.Cprint("Not found.", color.FgRed))
 	}
-
-	// finally, discharge to terminal
-	p.writer.Flush()
 }
 
 func (p *prompt) assignKey(key rune) bool {
