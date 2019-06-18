@@ -19,7 +19,7 @@ type keyEvent struct {
 
 type onKey func(rune) bool
 type onSelect func() bool
-type grid func(Item) [][]term.Cell
+type genInfo func(Item) [][]term.Cell
 
 // Options is the common options for building a prompt
 type Options struct {
@@ -38,23 +38,72 @@ type promptState struct {
 }
 
 type prompt struct {
-	list      *List
+	list *List
+	opts *Options
+
 	keys      onKey
 	selection onSelect
-	info      grid
-	exitMsg   [][]term.Cell
-	controls  map[string]string
+	info      genInfo
+
+	exitMsg  [][]term.Cell     // to be set on runtime if required
+	controls map[string]string // to be updated if additional controls added
+
 	inputMode bool
 	helpMode  bool
 	input     string
-	reader    *term.RuneReader
-	writer    *term.BufferedWriter
-	mx        *sync.RWMutex
-	opts      *Options
+
+	reader *term.RuneReader     // initialized by prompt
+	writer *term.BufferedWriter // initialized by prompt
+	mx     *sync.RWMutex
 
 	events chan keyEvent
 	quit   chan bool
 	hold   bool
+}
+
+type optionalFunc func(*prompt)
+
+func withOnKey(f onKey) optionalFunc {
+	return func(p *prompt) {
+		p.keys = f
+	}
+}
+
+func withSelection(f onSelect) optionalFunc {
+	return func(p *prompt) {
+		p.selection = f
+	}
+}
+
+func withInfo(f genInfo) optionalFunc {
+	return func(p *prompt) {
+		p.info = f
+	}
+}
+
+func create(opts *Options, list *List, fs ...optionalFunc) *prompt {
+	p := &prompt{
+		opts: opts,
+		list: list,
+	}
+
+	p.keys = p.onKey
+	p.selection = p.onSelect
+	p.info = p.genInfo
+
+	var mx sync.RWMutex
+	p.mx = &mx
+
+	p.reader = term.NewRuneReader(os.Stdin)
+	p.writer = term.NewBufferedWriter(os.Stdout)
+
+	p.events = make(chan keyEvent, 20)
+	p.quit = make(chan bool)
+
+	for _, f := range fs {
+		f(p)
+	}
+	return p
 }
 
 func (p *prompt) start() error {
@@ -80,21 +129,7 @@ func (p *prompt) start() error {
 	}
 
 	// start input loop
-	go func() {
-		for {
-			select {
-			case <-p.quit:
-				return
-			default:
-				time.Sleep(10 * time.Millisecond)
-				if p.hold {
-					continue
-				}
-				r, _, err := p.reader.ReadRune()
-				p.events <- keyEvent{ch: r, err: err}
-			}
-		}
-	}()
+	go p.spawnEvent()
 
 	if err := p.innerRun(); err != nil {
 		return err
@@ -106,6 +141,22 @@ func (p *prompt) start() error {
 	p.writer.Flush()
 
 	return nil
+}
+
+func (p *prompt) spawnEvent() {
+	for {
+		select {
+		case <-p.quit:
+			return
+		default:
+			time.Sleep(10 * time.Millisecond)
+			if p.hold {
+				continue
+			}
+			r, _, err := p.reader.ReadRune()
+			p.events <- keyEvent{ch: r, err: err}
+		}
+	}
 }
 
 // this is the main loop for reading input channel
@@ -241,4 +292,30 @@ func (p *prompt) allControls() map[string]string {
 		controls[k] = v
 	}
 	return controls
+}
+
+// onKey is the default keybinding function for a prompt
+func (p *prompt) onKey(key rune) bool {
+	switch key {
+	case 'q':
+		p.quit <- true
+		return true
+	default:
+	}
+	return false
+}
+
+// onSelect is the default selection
+func (p *prompt) onSelect() bool {
+	items, idx := p.list.Items()
+	if idx == NotFound {
+		return false
+	}
+	p.writer.WriteCells(term.Cprint(items[idx].String()))
+	return false
+}
+
+// genInfo is the default function to genereate info
+func (p *prompt) genInfo(item Item) [][]term.Cell {
+	return nil
 }
