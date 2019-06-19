@@ -87,7 +87,25 @@ func (l *log) onSelect() error {
 		})
 		// l.prompt.opts.SearchLabel = "Files"
 	case *git.DiffDelta:
-		l.showFileDiff()
+		if l.selected == nil {
+			return nil
+		}
+		var args []string
+		pid, err := l.selected.ParentID()
+		if err != nil {
+			args = []string{"show", "--oneline", "--patch"}
+		} else {
+			args = []string{"diff", pid + ".." + l.selected.Hash}
+		}
+		item, err := l.prompt.Selection()
+		if err != nil {
+			return fmt.Errorf("there is no item to show diff")
+		}
+		dd := item.(*git.DiffDelta)
+		args = append(args, dd.OldFile.Path)
+		if err := popGitCommand(l.repository, args); err != nil {
+			//no err handling required here
+		}
 	}
 	return nil
 }
@@ -103,9 +121,22 @@ func (l *log) onKey(key rune) error {
 	case *git.Commit:
 		switch key {
 		case 's':
-			l.showStat()
+			item, err := l.prompt.Selection()
+			if err != nil {
+				return fmt.Errorf("there is no item to show diff")
+			}
+			commit := item.(*git.Commit)
+			args := []string{"show", "--stat", commit.Hash}
+			return popGitCommand(l.repository, args)
 		case 'd':
-			l.showDiff()
+			item, err := l.prompt.Selection()
+			if err != nil {
+				return fmt.Errorf("there is no item to show diff")
+			}
+			commit := item.(*git.Commit)
+			args := []string{"show", commit.Hash}
+			return popGitCommand(l.repository, args)
+
 		case 'q':
 			l.prompt.Stop()
 		}
@@ -116,46 +147,6 @@ func (l *log) onKey(key rune) error {
 		}
 	}
 	return nil
-}
-
-func (l *log) showDiff() error {
-	item, err := l.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("there is no item to show diff")
-	}
-	commit := item.(*git.Commit)
-	args := []string{"show", commit.Hash}
-	return popGitCommand(l.repository, args)
-}
-
-func (l *log) showStat() error {
-	item, err := l.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("there is no item to show diff")
-	}
-	commit := item.(*git.Commit)
-	args := []string{"show", "--stat", commit.Hash}
-	return popGitCommand(l.repository, args)
-}
-
-func (l *log) showFileDiff() error {
-	if l.selected == nil {
-		return nil
-	}
-	var args []string
-	pid, err := l.selected.ParentID()
-	if err != nil {
-		args = []string{"show", "--oneline", "--patch"}
-	} else {
-		args = []string{"diff", pid + ".." + l.selected.Hash}
-	}
-	item, err := l.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("there is no item to show diff")
-	}
-	dd := item.(*git.DiffDelta)
-	args = append(args, dd.OldFile.Path)
-	return popGitCommand(l.repository, args)
 }
 
 func (l *log) logInfo(item prompt.Item) [][]term.Cell {

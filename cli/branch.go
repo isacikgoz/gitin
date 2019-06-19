@@ -67,9 +67,9 @@ func (b *branch) onSelect() error {
 func (b *branch) onKey(key rune) error {
 	switch key {
 	case 'd':
-		b.deleteBranch("d")
+		return b.deleteBranch("d")
 	case 'D':
-		b.deleteBranch("D")
+		return b.deleteBranch("D")
 	case 'q':
 		b.prompt.Stop()
 	}
@@ -101,7 +101,7 @@ func (b *branch) deleteBranch(mode string) error {
 	cmd := exec.Command("git", "branch", "-"+mode, branch.Name)
 	cmd.Dir = b.repository.Path()
 	if err := cmd.Run(); err != nil {
-		return err // possibly an unmerged branch
+		return nil // possibly an unmerged branch, just ignore it
 	}
 	return b.reloadBranches()
 }

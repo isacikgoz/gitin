@@ -28,7 +28,11 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 		items = append(items, entry)
 	}
 	if len(items) == 0 {
-		printClean(r)
+		writer := term.NewBufferedWriter(os.Stdout)
+		for _, line := range workingTreeClean(r.Head) {
+			writer.WriteCells(line)
+		}
+		writer.Flush()
 		os.Exit(0)
 	}
 	list, err := prompt.NewList(items, opts.LineSize)
@@ -72,39 +76,111 @@ func (s *status) onSelect() error {
 	return nil
 }
 
+// lots of command handling here
 func (s *status) onKey(key rune) error {
 	var reqReload bool
 	switch key {
 	case ' ':
 		reqReload = true
-		s.addReset()
+		item, err := s.prompt.Selection()
+		if err != nil {
+			return fmt.Errorf("can't add/reset item: %v", err)
+		}
+		entry := item.(*git.StatusEntry)
+		args := []string{"add", "--", entry.String()}
+		if entry.Indexed() {
+			args = []string{"reset", "HEAD", "--", entry.String()}
+		}
+		cmd := exec.Command("git", args...)
+		cmd.Dir = s.repository.Path()
+		if err := cmd.Run(); err != nil {
+			return err
+		}
 	case 'p':
 		reqReload = true
-		s.hunkStage()
+		// defer s.prompt.writer.HideCursor()
+		item, err := s.prompt.Selection()
+		if err != nil {
+			return fmt.Errorf("can't hunk stage item: %v", err)
+		}
+		entry := item.(*git.StatusEntry)
+		file, err := generateDiffFile(s.repository, entry)
+		if err == nil {
+			editor, err := editor.NewEditor(file)
+			if err != nil {
+				return err
+			}
+			patches, err := editor.Run()
+			if err != nil {
+				return err
+			}
+			for _, patch := range patches {
+				if err := applyPatchCmd(s.repository, entry, patch); err != nil {
+					return err
+				}
+			}
+		}
 	case 'c':
 		reqReload = true
-		s.doCommit()
+		// defer s.prompt.writer.HideCursor()
+		args := []string{"commit", "--edit", "--quiet"}
+		err := popGitCommand(s.repository, args)
+		if err != nil {
+			return err
+		}
+		s.repository.LoadHead()
+		args, err = lastCommitArgs(s.repository)
+		if err != nil {
+			return err
+		}
+		if err := popGitCommand(s.repository, args); err != nil {
+			return fmt.Errorf("failed to commit: %v", err)
+		}
 	case 'm':
 		reqReload = true
-		s.doCommitAmend()
+		// defer s.prompt.writer.HideCursor()
+		args := []string{"commit", "--amend", "--quiet"}
+		err := popGitCommand(s.repository, args)
+		if err != nil {
+			return err
+		}
+		s.repository.LoadHead()
+		args, err = lastCommitArgs(s.repository)
+		if err != nil {
+			return err
+		}
+		if err := popGitCommand(s.repository, args); err != nil {
+			return fmt.Errorf("failed to commit: %v", err)
+		}
 	case 'a':
 		reqReload = true
-		// TODO: check for errors
-		addAll(s.repository)
+		cmd := exec.Command("git", "add", ".")
+		cmd.Dir = s.repository.Path()
+		cmd.Run()
 	case 'r':
 		reqReload = true
-		resetAll(s.repository)
+		cmd := exec.Command("git", "reset", "--mixed")
+		cmd.Dir = s.repository.Path()
+		cmd.Run()
 	case '!':
 		reqReload = true
-		s.discardChanges()
+		item, err := s.prompt.Selection()
+		if err != nil {
+			return fmt.Errorf("could not discard changes on item: %v", err)
+		}
+		entry := item.(*git.StatusEntry)
+		args := []string{"checkout", "--", entry.String()}
+		cmd := exec.Command("git", args...)
+		cmd.Dir = s.repository.Path()
+		if err := cmd.Run(); err != nil {
+			return err
+		}
 	case 'q':
 		s.prompt.Stop()
 	default:
 	}
 	if reqReload {
-		if err := s.reloadStatus(); err != nil {
-			return err
-		}
+		return s.reloadStatus()
 	}
 	return nil
 }
@@ -136,118 +212,7 @@ func (s *status) reloadStatus() error {
 	return nil
 }
 
-// add or reset selected entry
-func (s *status) addReset() error {
-	item, err := s.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("can't add/reset item: %v", err)
-	}
-	entry := item.(*git.StatusEntry)
-	args := []string{"add", "--", entry.String()}
-	if entry.Indexed() {
-		args = []string{"reset", "HEAD", "--", entry.String()}
-	}
-	cmd := exec.Command("git", args...)
-	cmd.Dir = s.repository.Path()
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// open hunk stagin ui
-func (s *status) hunkStage() error {
-	// defer s.prompt.writer.HideCursor()
-
-	item, err := s.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("can't hunk stage item: %v", err)
-	}
-	entry := item.(*git.StatusEntry)
-	file, err := generateDiffFile(s.repository, entry)
-	if err == nil {
-		editor, err := editor.NewEditor(file)
-		if err != nil {
-			return err
-		}
-		patches, err := editor.Run()
-		if err != nil {
-			return err
-		}
-		for _, patch := range patches {
-			if err := applyPatchCmd(s.repository, entry, patch); err != nil {
-				return err
-			}
-		}
-	} else {
-
-	}
-	return nil
-}
-
-func (s *status) doCommit() error {
-	// defer s.prompt.writer.HideCursor()
-
-	args := []string{"commit", "--edit", "--quiet"}
-	err := popGitCommand(s.repository, args)
-	if err != nil {
-		return err
-	}
-	s.repository.LoadHead()
-	args, err = lastCommitArgs(s.repository)
-	if err != nil {
-		return err
-	}
-	if err := popGitCommand(s.repository, args); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *status) doCommitAmend() error {
-	// defer s.prompt.writer.HideCursor()
-
-	args := []string{"commit", "--amend", "--quiet"}
-	err := popGitCommand(s.repository, args)
-	if err != nil {
-		return err
-	}
-	s.repository.LoadHead()
-	args, err = lastCommitArgs(s.repository)
-	if err != nil {
-		return err
-	}
-	if err := popGitCommand(s.repository, args); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *status) branchInfo(item prompt.Item) [][]term.Cell {
 	b := s.repository.Head
 	return branchInfo(b, true)
-}
-
-func (s *status) discardChanges() error {
-	// defer s.prompt.render()
-	item, err := s.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("cant't discard changes on item: %v", err)
-	}
-	entry := item.(*git.StatusEntry)
-	args := []string{"checkout", "--", entry.String()}
-	cmd := exec.Command("git", args...)
-	cmd.Dir = s.repository.Path()
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func printClean(r *git.Repository) {
-	writer := term.NewBufferedWriter(os.Stdout)
-	for _, line := range workingTreeClean(r.Head) {
-		writer.WriteCells(line)
-	}
-	writer.Flush()
 }

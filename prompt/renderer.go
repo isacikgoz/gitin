@@ -18,22 +18,22 @@ func itemText(item Item, matches []int, selected bool) []term.Cell {
 	if len(matches) == 0 {
 		return append(line, term.Cprint(item.String())...)
 	}
-	highligted := make([]term.Cell, 0)
+	highlighted := make([]term.Cell, 0)
 	for _, r := range item.String() {
-		highligted = append(highligted, term.Cell{
+		highlighted = append(highlighted, term.Cell{
 			Ch: r,
 		})
 	}
 	for _, m := range matches {
-		if m > len(highligted)-1 {
+		if m > len(highlighted)-1 {
 			continue
 		}
-		highligted[m] = term.Cell{
-			Ch:   highligted[m].Ch,
-			Attr: append(highligted[m].Attr, color.Underline),
+		highlighted[m] = term.Cell{
+			Ch:   highlighted[m].Ch,
+			Attr: append(highlighted[m].Attr, color.Underline),
 		}
 	}
-	line = append(line, highligted...)
+	line = append(line, highlighted...)
 	return line
 }
 

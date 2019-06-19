@@ -87,17 +87,3 @@ func applyPatchCmd(r *git.Repository, entry *git.StatusEntry, patch string) erro
 	}
 	return nil
 }
-
-// addAll is the wrapper of "git add ." command
-func addAll(r *git.Repository) error {
-	cmd := exec.Command("git", "add", ".")
-	cmd.Dir = r.Path()
-	return cmd.Run()
-}
-
-// resetAll is the wrapper of "git reset" command
-func resetAll(r *git.Repository) error {
-	cmd := exec.Command("git", "reset", "--mixed")
-	cmd.Dir = r.Path()
-	return cmd.Run()
-}
