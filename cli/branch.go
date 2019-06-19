@@ -11,17 +11,17 @@ import (
 	"github.com/justincampbell/timeago"
 )
 
-// Branch holds a list of items used to fill the terminal screen.
-type Branch struct {
-	Repo   *git.Repository
-	prompt *prompt.Prompt
+// branch holds a list of items used to fill the terminal screen.
+type branch struct {
+	repository *git.Repository
+	prompt     *prompt.Prompt
 }
 
 // BranchPrompt draws the screen with its list, initializing the cursor to the given position.
-func BranchPrompt(r *git.Repository, opts *prompt.Options) error {
+func BranchPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
 	branches, err := r.Branches()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("could not load branches: %v", err)
 	}
 	items := make([]prompt.Item, 0)
 	for _, branch := range branches {
@@ -29,14 +29,14 @@ func BranchPrompt(r *git.Repository, opts *prompt.Options) error {
 	}
 	list, err := prompt.NewList(items, opts.LineSize)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("could not create list: %v", err)
 	}
 	controls := make(map[string]string)
 	controls["delete branch"] = "d"
 	controls["force delete"] = "D"
 	controls["checkout"] = "enter"
 
-	b := &Branch{Repo: r}
+	b := &branch{repository: r}
 	b.prompt = prompt.Create("Branches", opts, list,
 		prompt.WithKeyHandler(b.onKey),
 		prompt.WithSelectionHandler(b.onSelect),
@@ -44,28 +44,27 @@ func BranchPrompt(r *git.Repository, opts *prompt.Options) error {
 		prompt.WithInformation(b.branchInfo),
 	)
 	b.prompt.Controls = controls
-	if err := b.prompt.Run(); err != nil {
-		return err
-	}
-	return nil
+
+	return b.prompt, nil
 }
 
-func (b *Branch) onSelect() bool {
+func (b *branch) onSelect() error {
 	item, err := b.prompt.Selection()
 	if err != nil {
-		return false
+		return nil
 	}
 	branch := item.(*git.Branch)
 	args := []string{"checkout", branch.Name}
 	cmd := exec.Command("git", args...)
-	cmd.Dir = b.Repo.Path()
+	cmd.Dir = b.repository.Path()
 	if err := cmd.Run(); err != nil {
-		return false
+		return nil // possibly dirty branch
 	}
-	return true
+	b.prompt.Stop() // quit after selection
+	return nil
 }
 
-func (b *Branch) onKey(key rune) bool {
+func (b *branch) onKey(key rune) error {
 	switch key {
 	case 'd':
 		b.deleteBranch("d")
@@ -73,12 +72,11 @@ func (b *Branch) onKey(key rune) bool {
 		b.deleteBranch("D")
 	case 'q':
 		b.prompt.Stop()
-		return true
 	}
-	return false
+	return nil
 }
 
-func (b *Branch) branchInfo(item prompt.Item) [][]term.Cell {
+func (b *branch) branchInfo(item prompt.Item) [][]term.Cell {
 	branch := item.(*git.Branch)
 	target := branch.Target()
 	grid := make([][]term.Cell, 0)
@@ -94,23 +92,23 @@ func (b *Branch) branchInfo(item prompt.Item) [][]term.Cell {
 	return grid
 }
 
-func (b *Branch) deleteBranch(mode string) error {
+func (b *branch) deleteBranch(mode string) error {
 	item, err := b.prompt.Selection()
 	if err != nil {
 		return fmt.Errorf("could not delete branch: %v", err)
 	}
 	branch := item.(*git.Branch)
 	cmd := exec.Command("git", "branch", "-"+mode, branch.Name)
-	cmd.Dir = b.Repo.Path()
+	cmd.Dir = b.repository.Path()
 	if err := cmd.Run(); err != nil {
-		return err
+		return err // possibly an unmerged branch
 	}
 	return b.reloadBranches()
 }
 
 // reloads the list
-func (b *Branch) reloadBranches() error {
-	branches, err := b.Repo.Branches()
+func (b *branch) reloadBranches() error {
+	branches, err := b.repository.Branches()
 	if err != nil {
 		return err
 	}

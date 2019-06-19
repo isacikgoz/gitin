@@ -18,8 +18,8 @@ type keyEvent struct {
 	err error
 }
 
-type keyHandlerFunc func(rune) bool
-type selectionHandlerFunc func() bool
+type keyHandlerFunc func(rune) error
+type selectionHandlerFunc func() error
 type itemRendererFunc func(Item, []int, bool) []term.Cell
 type informationRendererFunc func(Item) [][]term.Cell
 
@@ -40,6 +40,7 @@ type State struct {
 	SearchStr   string
 	SearchLabel string
 	Cursor      int
+	Scroll      int
 	ListSize    int
 }
 
@@ -65,9 +66,10 @@ type Prompt struct {
 	writer *term.BufferedWriter // initialized by prompt
 	mx     *sync.RWMutex
 
-	events chan keyEvent
-	quit   chan bool
-	hold   bool
+	events    chan keyEvent
+	interrupt chan struct{}
+	quit      chan struct{}
+	hold      bool
 }
 
 // Create returns a pointer to prompt that is ready to Run
@@ -90,7 +92,8 @@ func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt
 	p.writer = term.NewBufferedWriter(os.Stdout)
 
 	p.events = make(chan keyEvent, 20)
-	p.quit = make(chan bool)
+	p.interrupt = make(chan struct{})
+	p.quit = make(chan struct{})
 
 	for _, f := range fs {
 		f(p)
@@ -157,14 +160,16 @@ func (p *Prompt) Run() error {
 
 // Stop sends a quit signal to the main loop of the prompt
 func (p *Prompt) Stop() {
-	p.quit <- true
+	p.interrupt <- struct{}{}
 }
 
 func (p *Prompt) spawnEvents() {
 	for {
 		select {
-		case <-p.quit:
-			return
+		case <-p.interrupt:
+			p.quit <- struct{}{}
+			close(p.events)
+			break
 		default:
 			time.Sleep(10 * time.Millisecond)
 			if p.hold {
@@ -180,12 +185,15 @@ func (p *Prompt) spawnEvents() {
 func (p *Prompt) mainloop() error {
 	var err error
 	sigwinch := make(chan os.Signal, 1)
+	defer close(sigwinch)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
 	p.render()
 
 mainloop:
 	for {
 		select {
+		case <-p.quit:
+			break mainloop
 		case ev := <-p.events:
 			p.hold = true
 			if err := ev.err; err != nil {
@@ -195,11 +203,11 @@ mainloop:
 			case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
 				break mainloop
 			case term.Enter, term.NewLine:
-				if br := p.selectionHandler(); br {
+				if err = p.selectionHandler(); err != nil {
 					break mainloop
 				}
 			default:
-				if br := p.keyBindings(r); br {
+				if err = p.keyBindings(r); err != nil {
 					break mainloop
 				}
 			}
@@ -235,8 +243,7 @@ func (p *Prompt) render() {
 	p.writer.WriteCells(renderSearch(p.itemsLabel, p.inputMode, p.input))
 
 	for i := range items {
-		var output []term.Cell
-		output = append(output, p.itemRenderer(items[i], p.list.matches[items[i]], (i == idx))...)
+		output := p.itemRenderer(items[i], p.list.matches[items[i]], (i == idx))
 		p.writer.WriteCells(output)
 	}
 
@@ -250,10 +257,10 @@ func (p *Prompt) render() {
 	}
 }
 
-func (p *Prompt) keyBindings(key rune) bool {
+func (p *Prompt) keyBindings(key rune) error {
 	if p.helpMode {
 		p.helpMode = false
-		return false
+		return nil
 	}
 	switch key {
 	case term.ArrowUp:
@@ -298,7 +305,7 @@ func (p *Prompt) keyBindings(key rune) bool {
 			return p.keyHandler(key)
 		}
 	}
-	return false
+	return nil
 }
 
 func (p *Prompt) allControls() map[string]string {
@@ -313,24 +320,23 @@ func (p *Prompt) allControls() map[string]string {
 }
 
 // onKey is the default keybinding function for a prompt
-func (p *Prompt) onKey(key rune) bool {
+func (p *Prompt) onKey(key rune) error {
 	switch key {
 	case 'q':
-		p.quit <- true
-		return true
+		p.Stop()
 	default:
 	}
-	return false
+	return nil
 }
 
 // onSelect is the default selection
-func (p *Prompt) onSelect() bool {
+func (p *Prompt) onSelect() error {
 	items, idx := p.list.Items()
 	if idx == NotFound {
-		return false
+		return fmt.Errorf("could not select an item")
 	}
 	p.writer.WriteCells(term.Cprint(items[idx].String()))
-	return false
+	return nil
 }
 
 // genInfo is the default function to genereate info
@@ -340,16 +346,14 @@ func (p *Prompt) genInfo(item Item) [][]term.Cell {
 
 // State return the current replace-able vars as a struct
 func (p *Prompt) State() *State {
-	var idx int
-	if _, i := p.list.Items(); i != NotFound {
-		idx = i
-	}
+	scroll := p.list.Start()
 	return &State{
 		List:        p.list,
 		SearchMode:  p.inputMode,
 		SearchStr:   p.input,
 		SearchLabel: p.itemsLabel,
-		Cursor:      idx,
+		Cursor:      p.list.cursor,
+		Scroll:      scroll,
 		ListSize:    p.list.size,
 	}
 }
@@ -361,6 +365,7 @@ func (p *Prompt) SetState(state *State) {
 	p.input = state.SearchStr
 	p.itemsLabel = state.SearchLabel
 	p.list.SetCursor(state.Cursor)
+	p.list.SetStart(state.Scroll)
 }
 
 // ListSize returns the size of the items that is renderer each time

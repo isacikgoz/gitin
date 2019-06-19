@@ -21,23 +21,30 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	var opts prompt.Options
-	err = env.Process("gitin", &opts)
+	var o prompt.Options
+	err = env.Process("gitin", &o)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+	var p *prompt.Prompt
 
+	// cli package is for responsible to create and configure a prompt
 	switch mode {
 	case "status":
-		err = cli.StatusPrompt(r, &opts)
+		p, err = cli.StatusPrompt(r, &o)
 	case "log":
-		err = cli.LogPrompt(r, &opts)
+		p, err = cli.LogPrompt(r, &o)
 	case "branch":
-		err = cli.BranchPrompt(r, &opts)
+		p, err = cli.BranchPrompt(r, &o)
+	default:
+		return
 	}
-
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	if err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}

@@ -7,7 +7,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
 	github.com/fatih/color v1.7.0
 	github.com/isacikgoz/gia v0.2.0
-	github.com/isacikgoz/libgit2-api v0.1.3
+	github.com/isacikgoz/libgit2-api v0.1.5
 	github.com/justincampbell/bigduration v0.0.0-20160531141349-e45bf03c0666 // indirect
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d
 	github.com/kelseyhightower/envconfig v1.4.0

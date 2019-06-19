@@ -12,22 +12,22 @@ import (
 	"github.com/justincampbell/timeago"
 )
 
-// Log holds a list of items used to fill the terminal screen.
-type Log struct {
-	Repo *git.Repository
-
-	prompt   *prompt.Prompt
-	selected *git.Commit
-	oldState *prompt.State
+// log holds the repository struct and the prompt pointer. since log and prompt dependent,
+// I found the best wau to associate them with this way
+type log struct {
+	repository *git.Repository
+	prompt     *prompt.Prompt
+	selected   *git.Commit
+	oldState   *prompt.State
 }
 
 // LogPrompt draws the screen with its list, initializing the cursor to the given position.
-func LogPrompt(r *git.Repository, opts *prompt.Options) error {
+func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
 	cs, err := r.Commits()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("could not load commits: %v", err)
 	}
-	r.Branches()
+	r.Branches() // to find refs
 	r.Tags()
 	items := make([]prompt.Item, 0)
 	for _, commit := range cs {
@@ -35,14 +35,14 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) error {
 	}
 	list, err := prompt.NewList(items, opts.LineSize)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("could not create list: %v", err)
 	}
 	controls := make(map[string]string)
 	controls["show diff"] = "d"
 	controls["show stat"] = "s"
 	controls["select"] = "enter"
 
-	l := &Log{Repo: r}
+	l := &log{repository: r}
 	l.prompt = prompt.Create("Commits", opts, list,
 		prompt.WithKeyHandler(l.onKey),
 		prompt.WithSelectionHandler(l.onSelect),
@@ -50,18 +50,16 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) error {
 		prompt.WithInformation(l.logInfo),
 	)
 	l.prompt.Controls = controls
-	if err := l.prompt.Run(); err != nil {
-		return err
-	}
-	return nil
+
+	return l.prompt, nil
 }
 
 // return true to terminate
-func (l *Log) onSelect() bool {
+func (l *log) onSelect() error {
 
 	item, err := l.prompt.Selection()
 	if err != nil {
-		return false
+		return nil
 	}
 	switch item.(type) {
 	case *git.Commit:
@@ -69,7 +67,7 @@ func (l *Log) onSelect() bool {
 		l.selected = commit
 		diff, err := commit.Diff()
 		if err != nil {
-			return false
+			return nil
 		}
 		deltas := diff.Deltas()
 		newlist := make([]prompt.Item, 0)
@@ -79,7 +77,7 @@ func (l *Log) onSelect() bool {
 		l.oldState = l.prompt.State()
 		list, err := prompt.NewList(newlist, 5)
 		if err != nil {
-			return false
+			return err
 		}
 		l.prompt.SetState(&prompt.State{
 			List:        list,
@@ -91,15 +89,15 @@ func (l *Log) onSelect() bool {
 	case *git.DiffDelta:
 		l.showFileDiff()
 	}
-	return false
+	return nil
 }
 
-func (l *Log) onKey(key rune) bool {
+func (l *log) onKey(key rune) error {
 	var item prompt.Item
 	var err error
 	item, err = l.prompt.Selection()
 	if err != nil {
-		return false
+		return err
 	}
 	switch item.(type) {
 	case *git.Commit:
@@ -110,7 +108,6 @@ func (l *Log) onKey(key rune) bool {
 			l.showDiff()
 		case 'q':
 			l.prompt.Stop()
-			return true
 		}
 	case *git.DiffDelta:
 		switch key {
@@ -118,30 +115,30 @@ func (l *Log) onKey(key rune) bool {
 			l.prompt.SetState(l.oldState)
 		}
 	}
-	return false
+	return nil
 }
 
-func (l *Log) showDiff() error {
+func (l *log) showDiff() error {
 	item, err := l.prompt.Selection()
 	if err != nil {
 		return fmt.Errorf("there is no item to show diff")
 	}
 	commit := item.(*git.Commit)
 	args := []string{"show", commit.Hash}
-	return popGitCommand(l.Repo, args)
+	return popGitCommand(l.repository, args)
 }
 
-func (l *Log) showStat() error {
+func (l *log) showStat() error {
 	item, err := l.prompt.Selection()
 	if err != nil {
 		return fmt.Errorf("there is no item to show diff")
 	}
 	commit := item.(*git.Commit)
 	args := []string{"show", "--stat", commit.Hash}
-	return popGitCommand(l.Repo, args)
+	return popGitCommand(l.repository, args)
 }
 
-func (l *Log) showFileDiff() error {
+func (l *log) showFileDiff() error {
 	if l.selected == nil {
 		return nil
 	}
@@ -158,10 +155,10 @@ func (l *Log) showFileDiff() error {
 	}
 	dd := item.(*git.DiffDelta)
 	args = append(args, dd.OldFile.Path)
-	return popGitCommand(l.Repo, args)
+	return popGitCommand(l.repository, args)
 }
 
-func (l *Log) logInfo(item prompt.Item) [][]term.Cell {
+func (l *log) logInfo(item prompt.Item) [][]term.Cell {
 	grid := make([][]term.Cell, 0)
 	if item == nil {
 		return grid
@@ -175,7 +172,7 @@ func (l *Log) logInfo(item prompt.Item) [][]term.Cell {
 		cells = term.Cprint("When", color.Faint)
 		cells = append(cells, term.Cprint("   "+timeago.FromTime(commit.Author.When), color.FgWhite)...)
 		grid = append(grid, cells)
-		grid = append(grid, commitRefs(l.Repo, commit))
+		grid = append(grid, commitRefs(l.repository, commit))
 		return grid
 	case *git.DiffDelta:
 		dd := item.(*git.DiffDelta)
