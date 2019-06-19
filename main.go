@@ -12,13 +12,6 @@ import (
 	pin "gopkg.in/alecthomas/kingpin.v2"
 )
 
-// Config will be passed to screenopts
-type Config struct {
-	LineSize     int `default:"5"`
-	StartSearch  bool
-	DisableColor bool
-}
-
 func main() {
 	mode := evalArgs()
 	pwd, _ := os.Getwd()
@@ -28,25 +21,20 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	var cfg Config
-	err = env.Process("gitin", &cfg)
+	var opts prompt.Options
+	err = env.Process("gitin", &opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	opts := &prompt.Options{
-		Size:          cfg.LineSize,
-		StartInSearch: cfg.StartSearch,
-		DisableColor:  cfg.DisableColor,
-	}
 
 	switch mode {
 	case "status":
-		err = cli.StatusPrompt(r, opts)
+		err = cli.StatusPrompt(r, &opts)
 	case "log":
-		err = cli.LogPrompt(r, opts)
+		err = cli.LogPrompt(r, &opts)
 	case "branch":
-		err = cli.BranchPrompt(r, opts)
+		err = cli.BranchPrompt(r, &opts)
 	}
 
 	if err != nil {
@@ -74,7 +62,7 @@ func additionalHelp() string {
 	return `Environment Variables:
 
   GITIN_LINESIZE=<int>
-  GITIN_STARTSEARCH=<bool>
+  GITIN_STARTINSEARCH=<bool>
   GITIN_DISABLECOLOR=<bool>
 
 Press ? for controls while application is running.`

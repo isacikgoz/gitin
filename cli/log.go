@@ -33,7 +33,7 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) error {
 	for _, commit := range cs {
 		items = append(items, commit)
 	}
-	list, err := prompt.NewList(items, opts.Size)
+	list, err := prompt.NewList(items, opts.LineSize)
 	if err != nil {
 		return err
 	}
@@ -42,10 +42,8 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) error {
 	controls["show stat"] = "s"
 	controls["select"] = "enter"
 
-	opts.SearchLabel = "Commits"
 	l := &Log{Repo: r}
-	l.prompt = prompt.Create(opts,
-		list,
+	l.prompt = prompt.Create("Commits", opts, list,
 		prompt.WithKeyHandler(l.onKey),
 		prompt.WithSelectionHandler(l.onSelect),
 		prompt.WithItemRenderer(renderItem),

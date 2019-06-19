@@ -28,9 +28,8 @@ type OptionalFunc func(*Prompt)
 
 // Options is the common options for building a prompt
 type Options struct {
-	Size          int
+	LineSize      int `default:"5"`
 	StartInSearch bool
-	SearchLabel   string
 	DisableColor  bool
 }
 
@@ -57,9 +56,10 @@ type Prompt struct {
 	exitMsg  [][]term.Cell     // to be set on runtime if required
 	Controls map[string]string // to be updated if additional controls added
 
-	inputMode bool
-	helpMode  bool
-	input     string
+	inputMode  bool
+	helpMode   bool
+	itemsLabel string
+	input      string
 
 	reader *term.RuneReader     // initialized by prompt
 	writer *term.BufferedWriter // initialized by prompt
@@ -71,10 +71,11 @@ type Prompt struct {
 }
 
 // Create returns a pointer to prompt that is ready to Run
-func Create(opts *Options, list *List, fs ...OptionalFunc) *Prompt {
+func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt {
 	p := &Prompt{
-		opts: opts,
-		list: list,
+		opts:       opts,
+		list:       list,
+		itemsLabel: label,
 	}
 
 	p.keyHandler = p.onKey
@@ -231,7 +232,7 @@ func (p *Prompt) render() {
 	}
 
 	items, idx := p.list.Items()
-	p.writer.WriteCells(renderSearch(p.opts.SearchLabel, p.inputMode, p.input))
+	p.writer.WriteCells(renderSearch(p.itemsLabel, p.inputMode, p.input))
 
 	for i := range items {
 		var output []term.Cell
@@ -347,7 +348,7 @@ func (p *Prompt) State() *State {
 		List:        p.list,
 		SearchMode:  p.inputMode,
 		SearchStr:   p.input,
-		SearchLabel: p.opts.SearchLabel,
+		SearchLabel: p.itemsLabel,
 		Cursor:      idx,
 		ListSize:    p.list.size,
 	}
@@ -358,13 +359,13 @@ func (p *Prompt) SetState(state *State) {
 	p.list = state.List
 	p.inputMode = state.SearchMode
 	p.input = state.SearchStr
-	p.opts.SearchLabel = state.SearchLabel
+	p.itemsLabel = state.SearchLabel
 	p.list.SetCursor(state.Cursor)
 }
 
 // ListSize returns the size of the items that is renderer each time
 func (p *Prompt) ListSize() int {
-	return p.opts.Size
+	return p.opts.LineSize
 }
 
 // Selection returns the selected item
@@ -376,7 +377,7 @@ func (p *Prompt) Selection() (Item, error) {
 	return items[idx], nil
 }
 
-// SetExitMsg adds a rendered cell grid to be rendered after prompt is finished
+// SetExitMsg adds a rendered cell grid to be printed after prompt is finished
 func (p *Prompt) SetExitMsg(grid [][]term.Cell) {
 	p.exitMsg = grid
 }

@@ -29,7 +29,7 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) error {
 		items = append(items, entry)
 	}
 
-	list, err := prompt.NewList(items, opts.Size)
+	list, err := prompt.NewList(items, opts.LineSize)
 	if err != nil {
 		return err
 	}
@@ -43,14 +43,12 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) error {
 	controls["amend"] = "m"
 	controls["discard changes"] = "!"
 
-	opts.SearchLabel = "Files"
-
 	s := &Status{Repo: r}
 	if len(items) == 0 {
 		s.printClean()
 		return nil
 	}
-	s.prompt = prompt.Create(opts, list,
+	s.prompt = prompt.Create("Files", opts, list,
 		prompt.WithKeyHandler(s.onKey),
 		prompt.WithSelectionHandler(s.onSelect),
 		prompt.WithItemRenderer(renderItem),

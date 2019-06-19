@@ -27,7 +27,7 @@ func BranchPrompt(r *git.Repository, opts *prompt.Options) error {
 	for _, branch := range branches {
 		items = append(items, branch)
 	}
-	list, err := prompt.NewList(items, opts.Size)
+	list, err := prompt.NewList(items, opts.LineSize)
 	if err != nil {
 		return err
 	}
@@ -36,10 +36,8 @@ func BranchPrompt(r *git.Repository, opts *prompt.Options) error {
 	controls["force delete"] = "D"
 	controls["checkout"] = "enter"
 
-	opts.SearchLabel = "Branches"
 	b := &Branch{Repo: r}
-	b.prompt = prompt.Create(opts,
-		list,
+	b.prompt = prompt.Create("Branches", opts, list,
 		prompt.WithKeyHandler(b.onKey),
 		prompt.WithSelectionHandler(b.onSelect),
 		prompt.WithItemRenderer(renderItem),
