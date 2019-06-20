@@ -27,28 +27,19 @@ func BranchPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
-	controls := make(map[string]string)
-	controls["delete branch"] = "d"
-	controls["force delete"] = "D"
-	controls["checkout"] = "enter"
 
 	b := &branch{repository: r}
 	b.prompt = prompt.Create("Branches", opts, list,
-		prompt.WithKeyHandler(b.onKey),
 		prompt.WithSelectionHandler(b.onSelect),
 		prompt.WithItemRenderer(renderItem),
 		prompt.WithInformation(b.branchInfo),
 	)
-	b.prompt.Controls = controls
+	b.defineKeyBindings()
 
 	return b.prompt, nil
 }
 
-func (b *branch) onSelect() error {
-	item, err := b.prompt.Selection()
-	if err != nil {
-		return nil
-	}
+func (b *branch) onSelect(item interface{}) error {
 	branch := item.(*git.Branch)
 	args := []string{"checkout", branch.Name}
 	cmd := exec.Command("git", args...)
@@ -60,14 +51,31 @@ func (b *branch) onSelect() error {
 	return nil
 }
 
-func (b *branch) onKey(key rune) error {
-	switch key {
-	case 'd':
-		return b.deleteBranch("d")
-	case 'D':
-		return b.deleteBranch("D")
-	case 'q':
-		b.prompt.Stop()
+func (b *branch) defineKeyBindings() error {
+	keybindings := []*prompt.KeyBinding{
+		&prompt.KeyBinding{
+			Key:     'd',
+			Display: "d",
+			Desc:    "delete branch",
+			Handler: b.deleteBranch,
+		},
+		&prompt.KeyBinding{
+			Key:     'D',
+			Display: "D",
+			Desc:    "force delete branch",
+			Handler: b.forceDeleteBranch,
+		},
+		&prompt.KeyBinding{
+			Key:     'q',
+			Display: "q",
+			Desc:    "quit",
+			Handler: b.quit,
+		},
+	}
+	for _, kb := range keybindings {
+		if err := b.prompt.AddKeyBinding(kb); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -88,11 +96,15 @@ func (b *branch) branchInfo(item interface{}) [][]term.Cell {
 	return grid
 }
 
-func (b *branch) deleteBranch(mode string) error {
-	item, err := b.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("could not delete branch: %v", err)
-	}
+func (b *branch) deleteBranch(item interface{}) error {
+	return b.bareDelete(item, "d")
+}
+
+func (b *branch) forceDeleteBranch(item interface{}) error {
+	return b.bareDelete(item, "D")
+}
+
+func (b *branch) bareDelete(item interface{}, mode string) error {
 	branch := item.(*git.Branch)
 	cmd := exec.Command("git", "branch", "-"+mode, branch.Name)
 	cmd.Dir = b.repository.Path()
@@ -100,6 +112,11 @@ func (b *branch) deleteBranch(mode string) error {
 		return nil // possibly an unmerged branch, just ignore it
 	}
 	return b.reloadBranches()
+}
+
+func (b *branch) quit(item interface{}) error {
+	b.prompt.Stop()
+	return nil
 }
 
 // reloads the list

@@ -41,15 +41,19 @@ func itemText(item interface{}, matches []int, selected bool) []term.Cell {
 // returns multiline so the return value will be a 2-d slice
 func genHelp(pairs map[string]string) [][]term.Cell {
 	var grid [][]term.Cell
-	// sort keys alphabetically
+	n := map[string][]string{}
+	// sort keys alphabetically, sort by values
 	keys := make([]string, 0, len(pairs))
-	for key := range pairs {
-		keys = append(keys, key)
+	for k, v := range pairs {
+		n[v] = append(n[v], k)
+	}
+	for k := range n {
+		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
 		grid = append(grid, append(term.Cprint(fmt.Sprintf("%s: ", key), color.Faint),
-			term.Cprint(fmt.Sprintf("%s", pairs[key]), color.FgYellow)...))
+			term.Cprint(fmt.Sprintf("%s", n[key][0]), color.FgYellow)...))
 	}
 	grid = append(grid, term.Cprint("", 0))
 	grid = append(grid, term.Cprint("press any key to return.", color.Faint))

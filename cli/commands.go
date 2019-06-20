@@ -23,10 +23,3 @@ func popGitCommand(r *git.Repository, args []string) error {
 	}
 	return nil
 }
-
-type keybinding struct {
-	key     rune
-	display string
-	handler func() error
-	desc    string
-}

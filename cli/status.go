@@ -15,9 +15,8 @@ import (
 
 // status holds the repository struct and the prompt pointer.
 type status struct {
-	repository  *git.Repository
-	prompt      *prompt.Prompt
-	keybindings []*keybinding
+	repository *git.Repository
+	prompt     *prompt.Prompt
 }
 
 // StatusPrompt configures a prompt to serve as work-dir explorer prompt
@@ -42,35 +41,22 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 	s := &status{repository: r}
 
 	s.prompt = prompt.Create("Files", opts, list,
-		prompt.WithKeyHandler(s.onKey),
 		prompt.WithSelectionHandler(s.onSelect),
 		prompt.WithItemRenderer(renderItem),
 		prompt.WithInformation(s.info),
 	)
-	s.prompt.Controls = s.defineKeybindings()
+	if err := s.defineKeybindings(); err != nil {
+		return nil, err
+	}
 
 	return s.prompt, nil
 }
 
 // return err to terminate
-func (s *status) onSelect() error {
-	item, err := s.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("can't show diff: %v", err)
-	}
+func (s *status) onSelect(item interface{}) error {
 	entry := item.(*git.StatusEntry)
-	if err = popGitCommand(s.repository, fileStatArgs(entry)); err != nil {
+	if err := popGitCommand(s.repository, fileStatArgs(entry)); err != nil {
 		return nil // intentionally ignore errors here
-	}
-	return nil
-}
-
-// too much of keybindings
-func (s *status) onKey(key rune) error {
-	for _, kb := range s.keybindings {
-		if kb.key == key {
-			return kb.handler()
-		}
 	}
 	return nil
 }
@@ -80,69 +66,66 @@ func (s *status) info(item interface{}) [][]term.Cell {
 	return branchInfo(b, true)
 }
 
-func (s *status) defineKeybindings() map[string]string {
-	s.keybindings = []*keybinding{
-		&keybinding{
-			key:     ' ',
-			display: "space",
-			desc:    "add/reset entry",
-			handler: s.addResetEntry,
+func (s *status) defineKeybindings() error {
+	keybindings := []*prompt.KeyBinding{
+		&prompt.KeyBinding{
+			Key:     ' ',
+			Display: "space",
+			Desc:    "add/reset entry",
+			Handler: s.addResetEntry,
 		},
-		&keybinding{
-			key:     'p',
-			display: "p",
-			desc:    "hunk stage entry",
-			handler: s.hunkStageEntry,
+		&prompt.KeyBinding{
+			Key:     'p',
+			Display: "p",
+			Desc:    "hunk stage entry",
+			Handler: s.hunkStageEntry,
 		},
-		&keybinding{
-			key:     'c',
-			display: "c",
-			desc:    "commit",
-			handler: s.commit,
+		&prompt.KeyBinding{
+			Key:     'c',
+			Display: "c",
+			Desc:    "commit",
+			Handler: s.commit,
 		},
-		&keybinding{
-			key:     'm',
-			display: "m",
-			desc:    "amend",
-			handler: s.amend,
+		&prompt.KeyBinding{
+			Key:     'm',
+			Display: "m",
+			Desc:    "amend",
+			Handler: s.amend,
 		},
-		&keybinding{
-			key:     'a',
-			display: "a",
-			desc:    "add all",
-			handler: s.addAllEntries,
+		&prompt.KeyBinding{
+			Key:     'a',
+			Display: "a",
+			Desc:    "add all",
+			Handler: s.addAllEntries,
 		},
-		&keybinding{
-			key:     'r',
-			display: "r",
-			desc:    "reset all",
-			handler: s.resetAllEntries,
+		&prompt.KeyBinding{
+			Key:     'r',
+			Display: "r",
+			Desc:    "reset all",
+			Handler: s.resetAllEntries,
 		},
-		&keybinding{
-			key:     '!',
-			display: "!",
-			desc:    "discard changes",
-			handler: s.checkoutEntry,
+		&prompt.KeyBinding{
+			Key:     '!',
+			Display: "!",
+			Desc:    "discard changes",
+			Handler: s.checkoutEntry,
 		},
-		&keybinding{
-			key:     'q',
-			display: "q",
-			desc:    "quit",
-			handler: s.quit,
+		&prompt.KeyBinding{
+			Key:     'q',
+			Display: "q",
+			Desc:    "quit",
+			Handler: s.quit,
 		},
 	}
-	controls := make(map[string]string)
-	for _, kb := range s.keybindings {
-		controls[kb.desc] = kb.display
+	for _, kb := range keybindings {
+		if err := s.prompt.AddKeyBinding(kb); err != nil {
+			return err
+		}
 	}
-	return controls
+	return nil
 }
 
-func (s *status) addResetEntry() error {
-	item, err := s.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("can't add/reset item: %v", err)
-	}
+func (s *status) addResetEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
 	args := []string{"add", "--", entry.String()}
 	if entry.Indexed() {
@@ -151,11 +134,7 @@ func (s *status) addResetEntry() error {
 	return s.runCommandWithArgs(args)
 }
 
-func (s *status) hunkStageEntry() error {
-	item, err := s.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("can't hunk stage item: %v", err)
-	}
+func (s *status) hunkStageEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
 	file, err := generateDiffFile(s.repository, entry)
 	if err == nil {
@@ -176,11 +155,11 @@ func (s *status) hunkStageEntry() error {
 	return s.reloadStatus()
 }
 
-func (s *status) commit() error {
+func (s *status) commit(item interface{}) error {
 	return s.bareCommit("--edit")
 }
 
-func (s *status) amend() error {
+func (s *status) amend(item interface{}) error {
 	return s.bareCommit("--amend")
 }
 
@@ -201,27 +180,23 @@ func (s *status) bareCommit(arg string) error {
 	return s.reloadStatus()
 }
 
-func (s *status) addAllEntries() error {
+func (s *status) addAllEntries(item interface{}) error {
 	args := []string{"add", "."}
 	return s.runCommandWithArgs(args)
 }
 
-func (s *status) resetAllEntries() error {
+func (s *status) resetAllEntries(item interface{}) error {
 	args := []string{"reset", "--mixed"}
 	return s.runCommandWithArgs(args)
 }
 
-func (s *status) checkoutEntry() error {
-	item, err := s.prompt.Selection()
-	if err != nil {
-		return fmt.Errorf("could not discard changes on item: %v", err)
-	}
+func (s *status) checkoutEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
 	args := []string{"checkout", "--", entry.String()}
 	return s.runCommandWithArgs(args)
 }
 
-func (s *status) quit() error {
+func (s *status) quit(item interface{}) error {
 	s.prompt.Stop()
 	return nil
 }
