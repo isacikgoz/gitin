@@ -21,7 +21,7 @@ type log struct {
 	oldState   *prompt.State
 }
 
-// LogPrompt draws the screen with its list, initializing the cursor to the given position.
+// LogPrompt configures a prompt to serve as a commit prompt
 func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
 	cs, err := r.Commits()
 	if err != nil {
@@ -29,11 +29,7 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) 
 	}
 	r.Branches() // to find refs
 	r.Tags()
-	items := make([]prompt.Item, 0)
-	for _, commit := range cs {
-		items = append(items, commit)
-	}
-	list, err := prompt.NewList(items, opts.LineSize)
+	list, err := prompt.NewList(cs, opts.LineSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
@@ -70,7 +66,7 @@ func (l *log) onSelect() error {
 			return nil
 		}
 		deltas := diff.Deltas()
-		newlist := make([]prompt.Item, 0)
+		newlist := make([]interface{}, 0)
 		for _, delta := range deltas {
 			newlist = append(newlist, delta)
 		}
@@ -111,7 +107,7 @@ func (l *log) onSelect() error {
 }
 
 func (l *log) onKey(key rune) error {
-	var item prompt.Item
+	var item interface{}
 	var err error
 	item, err = l.prompt.Selection()
 	if err != nil {
@@ -149,7 +145,7 @@ func (l *log) onKey(key rune) error {
 	return nil
 }
 
-func (l *log) logInfo(item prompt.Item) [][]term.Cell {
+func (l *log) logInfo(item interface{}) [][]term.Cell {
 	grid := make([][]term.Cell, 0)
 	if item == nil {
 		return grid

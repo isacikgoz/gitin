@@ -20,8 +20,8 @@ type keyEvent struct {
 
 type keyHandlerFunc func(rune) error
 type selectionHandlerFunc func() error
-type itemRendererFunc func(Item, []int, bool) []term.Cell
-type informationRendererFunc func(Item) [][]term.Cell
+type itemRendererFunc func(interface{}, []int, bool) []term.Cell
+type informationRendererFunc func(interface{}) [][]term.Cell
 
 //OptionalFunc handles functional arguments of the prompt
 type OptionalFunc func(*Prompt)
@@ -335,12 +335,12 @@ func (p *Prompt) onSelect() error {
 	if idx == NotFound {
 		return fmt.Errorf("could not select an item")
 	}
-	p.writer.WriteCells(term.Cprint(items[idx].String()))
+	p.writer.WriteCells(term.Cprint(fmt.Sprint(items[idx])))
 	return nil
 }
 
 // genInfo is the default function to genereate info
-func (p *Prompt) genInfo(item Item) [][]term.Cell {
+func (p *Prompt) genInfo(item interface{}) [][]term.Cell {
 	return nil
 }
 
@@ -374,7 +374,7 @@ func (p *Prompt) ListSize() int {
 }
 
 // Selection returns the selected item
-func (p *Prompt) Selection() (Item, error) {
+func (p *Prompt) Selection() (interface{}, error) {
 	items, idx := p.list.Items()
 	if idx == NotFound {
 		return nil, fmt.Errorf("there is no item to be selected")

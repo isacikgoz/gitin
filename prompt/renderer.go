@@ -8,18 +8,19 @@ import (
 	"github.com/isacikgoz/gitin/term"
 )
 
-func itemText(item Item, matches []int, selected bool) []term.Cell {
+func itemText(item interface{}, matches []int, selected bool) []term.Cell {
 	var line []term.Cell
+	text := fmt.Sprint(item)
 	if selected {
 		line = append(line, term.Cprint("> ", color.FgCyan)...)
 	} else {
 		line = append(line, term.Cprint("  ", color.FgWhite)...)
 	}
 	if len(matches) == 0 {
-		return append(line, term.Cprint(item.String())...)
+		return append(line, term.Cprint(text)...)
 	}
 	highlighted := make([]term.Cell, 0)
-	for _, r := range item.String() {
+	for _, r := range text {
 		highlighted = append(highlighted, term.Cell{
 			Ch: r,
 		})

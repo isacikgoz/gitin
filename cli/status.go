@@ -17,17 +17,13 @@ type status struct {
 	prompt     *prompt.Prompt
 }
 
-// StatusPrompt draws the screen with its list, initializing the cursor to the given position.
+// StatusPrompt configures a prompt to serve as work-dir explorer prompt
 func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
 	st, err := r.LoadStatus()
 	if err != nil {
 		return nil, fmt.Errorf("could not load status: %v", err)
 	}
-	items := make([]prompt.Item, 0)
-	for _, entry := range st.Entities {
-		items = append(items, entry)
-	}
-	if len(items) == 0 {
+	if len(st.Entities) == 0 {
 		writer := term.NewBufferedWriter(os.Stdout)
 		for _, line := range workingTreeClean(r.Head) {
 			writer.WriteCells(line)
@@ -35,7 +31,7 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 		writer.Flush()
 		os.Exit(0)
 	}
-	list, err := prompt.NewList(items, opts.LineSize)
+	list, err := prompt.NewList(st.Entities, opts.LineSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
@@ -55,14 +51,14 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 		prompt.WithKeyHandler(s.onKey),
 		prompt.WithSelectionHandler(s.onSelect),
 		prompt.WithItemRenderer(renderItem),
-		prompt.WithInformation(s.branchInfo),
+		prompt.WithInformation(s.info),
 	)
 	s.prompt.Controls = controls
 
 	return s.prompt, nil
 }
 
-// return true to terminate
+// return err to terminate
 func (s *status) onSelect() error {
 	item, err := s.prompt.Selection()
 	if err != nil {
@@ -70,7 +66,6 @@ func (s *status) onSelect() error {
 	}
 	entry := item.(*git.StatusEntry)
 	if err = popGitCommand(s.repository, fileStatArgs(entry)); err != nil {
-		// return fmt.Errorf("could not run a git command: %v", err)
 		return nil // intentionally ignore errors here
 	}
 	return nil
@@ -192,18 +187,14 @@ func (s *status) reloadStatus() error {
 	if err != nil {
 		return err
 	}
-	items := make([]prompt.Item, 0)
-	for _, entry := range status.Entities {
-		items = append(items, entry)
-	}
-	if len(items) == 0 {
+	if len(status.Entities) == 0 {
 		// this is the case when the working tree is cleaned at runtime
 		s.prompt.Stop()
 		s.prompt.SetExitMsg(workingTreeClean(s.repository.Head))
 		return nil
 	}
 	state := s.prompt.State()
-	list, err := prompt.NewList(items, state.ListSize)
+	list, err := prompt.NewList(status.Entities, state.ListSize)
 	if err != nil {
 		return err
 	}
@@ -212,7 +203,7 @@ func (s *status) reloadStatus() error {
 	return nil
 }
 
-func (s *status) branchInfo(item prompt.Item) [][]term.Cell {
+func (s *status) info(item interface{}) [][]term.Cell {
 	b := s.repository.Head
 	return branchInfo(b, true)
 }

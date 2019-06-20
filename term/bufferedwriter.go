@@ -1,6 +1,6 @@
-// This is a modified version of promptui's screenbuffer. The original version can
-// be found at https://github.com/manifoldco/promptui
-
+// Package term is influenced by https://github.com/AlecAivazis/survey and
+// https://github.com/manifoldco/promptui it might contain some code snippets from those
+// A little copying is better than a little dependency. - Go proverbs.
 package term
 
 import (

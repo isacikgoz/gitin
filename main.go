@@ -17,16 +17,12 @@ func main() {
 	pwd, _ := os.Getwd()
 
 	r, err := git.Open(pwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
+	exitIfError(err)
+
 	var o prompt.Options
 	err = env.Process("gitin", &o)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
+	exitIfError(err)
+
 	var p *prompt.Prompt
 
 	// cli package is for responsible to create and configure a prompt
@@ -40,11 +36,15 @@ func main() {
 	default:
 		return
 	}
-	if err != nil {
+	exitIfError(err)
+	if err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	if err := p.Run(); err != nil {
+}
+
+func exitIfError(err error) {
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}

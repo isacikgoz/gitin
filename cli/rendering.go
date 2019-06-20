@@ -1,15 +1,15 @@
 package cli
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/fatih/color"
-	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
 	git "github.com/isacikgoz/libgit2-api"
 )
 
-func renderItem(item prompt.Item, matches []int, selected bool) []term.Cell {
+func renderItem(item interface{}, matches []int, selected bool) []term.Cell {
 	var line []term.Cell
 	if selected {
 		line = append(line, term.Cprint("> ", color.FgCyan)...)
@@ -34,7 +34,7 @@ func renderItem(item prompt.Item, matches []int, selected bool) []term.Cell {
 		line = append(line, stautsText(dd.DeltaStatusString()[:1])...)
 		line = append(line, highLightedText(matches, color.FgWhite, dd.String())...)
 	default:
-		line = append(line, highLightedText(matches, color.FgWhite, item.String())...)
+		line = append(line, highLightedText(matches, color.FgWhite, fmt.Sprint(item))...)
 	}
 	return line
 }

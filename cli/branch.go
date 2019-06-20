@@ -17,17 +17,13 @@ type branch struct {
 	prompt     *prompt.Prompt
 }
 
-// BranchPrompt draws the screen with its list, initializing the cursor to the given position.
+// BranchPrompt configures a prompt to serve as a branch prompt
 func BranchPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
 	branches, err := r.Branches()
 	if err != nil {
 		return nil, fmt.Errorf("could not load branches: %v", err)
 	}
-	items := make([]prompt.Item, 0)
-	for _, branch := range branches {
-		items = append(items, branch)
-	}
-	list, err := prompt.NewList(items, opts.LineSize)
+	list, err := prompt.NewList(branches, opts.LineSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
@@ -76,7 +72,7 @@ func (b *branch) onKey(key rune) error {
 	return nil
 }
 
-func (b *branch) branchInfo(item prompt.Item) [][]term.Cell {
+func (b *branch) branchInfo(item interface{}) [][]term.Cell {
 	branch := item.(*git.Branch)
 	target := branch.Target()
 	grid := make([][]term.Cell, 0)
@@ -112,12 +108,8 @@ func (b *branch) reloadBranches() error {
 	if err != nil {
 		return err
 	}
-	items := make([]prompt.Item, 0)
-	for _, branch := range branches {
-		items = append(items, branch)
-	}
 	state := b.prompt.State()
-	list, err := prompt.NewList(items, state.ListSize)
+	list, err := prompt.NewList(branches, state.ListSize)
 	if err != nil {
 		return fmt.Errorf("could not reload branches: %v", err)
 	}
