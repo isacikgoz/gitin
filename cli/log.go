@@ -15,10 +15,11 @@ import (
 // log holds the repository struct and the prompt pointer. since log and prompt dependent,
 // I found the best wau to associate them with this way
 type log struct {
-	repository *git.Repository
-	prompt     *prompt.Prompt
-	selected   *git.Commit
-	oldState   *prompt.State
+	repository  *git.Repository
+	prompt      *prompt.Prompt
+	selected    *git.Commit
+	oldState    *prompt.State
+	keybindings []*keybinding
 }
 
 // LogPrompt configures a prompt to serve as a commit prompt
@@ -33,10 +34,6 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) 
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
-	controls := make(map[string]string)
-	controls["show diff"] = "d"
-	controls["show stat"] = "s"
-	controls["select"] = "enter"
 
 	l := &log{repository: r}
 	l.prompt = prompt.Create("Commits", opts, list,
@@ -45,7 +42,7 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) 
 		prompt.WithItemRenderer(renderItem),
 		prompt.WithInformation(l.logInfo),
 	)
-	l.prompt.Controls = controls
+	l.prompt.Controls = l.defineKeybindings()
 
 	return l.prompt, nil
 }
@@ -81,7 +78,6 @@ func (l *log) onSelect() error {
 			SearchStr:   "",
 			SearchLabel: "Files",
 		})
-		// l.prompt.opts.SearchLabel = "Files"
 	case *git.DiffDelta:
 		if l.selected == nil {
 			return nil
@@ -107,40 +103,50 @@ func (l *log) onSelect() error {
 }
 
 func (l *log) onKey(key rune) error {
-	var item interface{}
-	var err error
-	item, err = l.prompt.Selection()
+	for _, kb := range l.keybindings {
+		if kb.key == key {
+			return kb.handler()
+		}
+	}
+	return nil
+}
+
+func (l *log) commitStat() error {
+	item, err := l.prompt.Selection()
+	if err != nil {
+		return fmt.Errorf("there is no item to show diff")
+	}
+	commit, ok := item.(*git.Commit)
+	if !ok {
+		return nil
+	}
+	args := []string{"show", "--stat", commit.Hash}
+	return popGitCommand(l.repository, args)
+}
+
+func (l *log) commitDiff() error {
+	item, err := l.prompt.Selection()
+	if err != nil {
+		return fmt.Errorf("there is no item to show diff")
+	}
+	commit, ok := item.(*git.Commit)
+	if !ok {
+		return nil
+	}
+	args := []string{"show", commit.Hash}
+	return popGitCommand(l.repository, args)
+}
+
+func (l *log) quit() error {
+	item, err := l.prompt.Selection()
 	if err != nil {
 		return err
 	}
 	switch item.(type) {
 	case *git.Commit:
-		switch key {
-		case 's':
-			item, err := l.prompt.Selection()
-			if err != nil {
-				return fmt.Errorf("there is no item to show diff")
-			}
-			commit := item.(*git.Commit)
-			args := []string{"show", "--stat", commit.Hash}
-			return popGitCommand(l.repository, args)
-		case 'd':
-			item, err := l.prompt.Selection()
-			if err != nil {
-				return fmt.Errorf("there is no item to show diff")
-			}
-			commit := item.(*git.Commit)
-			args := []string{"show", commit.Hash}
-			return popGitCommand(l.repository, args)
-
-		case 'q':
-			l.prompt.Stop()
-		}
+		l.prompt.Stop()
 	case *git.DiffDelta:
-		switch key {
-		case 'q':
-			l.prompt.SetState(l.oldState)
-		}
+		l.prompt.SetState(l.oldState)
 	}
 	return nil
 }
@@ -192,6 +198,34 @@ func (l *log) logInfo(item interface{}) [][]term.Cell {
 		grid = append(grid, cells)
 	}
 	return grid
+}
+
+func (l *log) defineKeybindings() map[string]string {
+	l.keybindings = []*keybinding{
+		&keybinding{
+			key:     's',
+			display: "s",
+			desc:    "show stat",
+			handler: l.commitStat,
+		},
+		&keybinding{
+			key:     'd',
+			display: "d",
+			desc:    "show diff",
+			handler: l.commitDiff,
+		},
+		&keybinding{
+			key:     'q',
+			display: "q",
+			desc:    "quit",
+			handler: l.quit,
+		},
+	}
+	controls := make(map[string]string)
+	for _, kb := range l.keybindings {
+		controls[kb.desc] = kb.display
+	}
+	return controls
 }
 
 func commitRefs(r *git.Repository, c *git.Commit) []term.Cell {
