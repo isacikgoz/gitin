@@ -63,8 +63,9 @@ Commands:
 Environment Variables:
 
   GITIN_LINESIZE=<int>
-  GITIN_STARTINSEARCH=<bool>
+  GITIN_STARTINSEARCH=<bool
   GITIN_DISABLECOLOR=<bool>
+  GITIN_VIMKEYS=<bool>
 
 Press ? for controls while application is running.
 
@@ -75,6 +76,7 @@ Press ? for controls while application is running.
 - To set the line size `export GITIN_LINESIZE=5`
 - To set always start in search mode `GITIN_STARTSEARCH=true`
 - To disable colors `GITIN_DISABLECOLOR=true`
+- To disable h,j,k,l for nav `GITIN_VIMKEYS=false`
 
 ## Development Requirements
 
