@@ -217,7 +217,7 @@ mainloop:
 			case term.Enter, term.NewLine:
 				items, idx := p.list.Items()
 				if idx == NotFound {
-					continue
+					break
 				}
 				if err = p.selectionHandler(items[idx]); err != nil {
 					break mainloop

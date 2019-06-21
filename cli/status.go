@@ -156,11 +156,13 @@ func (s *status) hunkStageEntry(item interface{}) error {
 }
 
 func (s *status) commit(item interface{}) error {
-	return s.bareCommit("--edit")
+	s.bareCommit("--edit") // why ignore err? simply to return status screen
+	return nil
 }
 
 func (s *status) amend(item interface{}) error {
-	return s.bareCommit("--amend")
+	s.bareCommit("--amend")
+	return nil
 }
 
 func (s *status) bareCommit(arg string) error {
@@ -192,6 +194,9 @@ func (s *status) resetAllEntries(item interface{}) error {
 
 func (s *status) checkoutEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
+	if entry.EntryType == git.StatusEntryTypeUntracked {
+		return nil // you can't checkout untracked items
+	}
 	args := []string{"checkout", "--", entry.String()}
 	return s.runCommandWithArgs(args)
 }
