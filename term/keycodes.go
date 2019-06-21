@@ -8,6 +8,7 @@ const (
 	ArrowDown  = rune(KeyCtrlN)
 	Space      = ' '
 	Enter      = '\r'
+	NewLine    = '\n'
 	Backspace  = rune(KeyCtrlH)
 	Backspace2 = rune(KeyDEL)
 )

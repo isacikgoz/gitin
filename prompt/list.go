@@ -1,56 +1,58 @@
 // This is a modified version of promptui's list. The original version can
 // be found at https://github.com/manifoldco/promptui
-
+// A little copying is better than a little dependency. - Go proverbs.
 package prompt
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/sahilm/fuzzy"
 )
 
-// Item is to create a simple interface for list items
-type Item interface {
-	String() string
-}
+type interfaceSource []interface{}
 
-type interfaceSource []Item
-
-func (is interfaceSource) String(i int) string { return is[i].String() }
+func (is interfaceSource) String(i int) string { return fmt.Sprint(is[i]) }
 
 func (is interfaceSource) Len() int { return len(is) }
 
-// NotFound is an index returned when no item was selected. This could
-// happen due to a search without results.
+// NotFound is an index returned when no item was selected.
 const NotFound = -1
 
 // List holds a collection of items that can be displayed with an N number of
 // visible items. The list can be moved up, down by one item of time or an
 // entire page (ie: visible size). It keeps track of the current selected item.
 type List struct {
-	items   []Item
-	scope   []Item
-	matches map[Item][]int
+	items   []interface{}
+	scope   []interface{}
+	matches map[interface{}][]int
 	cursor  int // cursor holds the index of the current selected item
 	size    int // size is the number of visible options
 	start   int
 	find    string
 }
 
-// NewList creates and initializes a list of searchable items. The items attribute must be a slice type with a
-// size greater than 0. Error will be returned if those two conditions are not met.
-func NewList(items []Item, size int) (*List, error) {
+// NewList creates and initializes a list of searchable items. The items attribute must be a slice type.
+func NewList(items interface{}, size int) (*List, error) {
 	if size < 1 {
 		return nil, fmt.Errorf("list size %d must be greater than 0", size)
 	}
+	if items == nil || reflect.TypeOf(items).Kind() != reflect.Slice {
+		return nil, fmt.Errorf("items %v is not a slice", items)
+	}
 
-	return &List{size: size, items: items, scope: items}, nil
+	slice := reflect.ValueOf(items)
+	values := make([]interface{}, slice.Len())
+
+	for i := range values {
+		item := slice.Index(i)
+		values[i] = item.Interface()
+	}
+	return &List{size: size, items: values, scope: values}, nil
 }
 
-// Prev moves the visible list back one item. If the selected item is out of
-// view, the new select item becomes the last visible item. If the list is
-// already at the top, nothing happens.
+// Prev moves the visible list back one item.
 func (l *List) Prev() {
 	if l.cursor > 0 {
 		l.cursor--
@@ -61,8 +63,7 @@ func (l *List) Prev() {
 	}
 }
 
-// Search allows the list to be filtered by a given term. The list must
-// implement the searcher function signature for this functionality to work.
+// Search allows the list to be filtered by a given term.
 func (l *List) Search(term string) {
 	term = strings.Trim(term, " ")
 	l.cursor = 0
@@ -71,8 +72,7 @@ func (l *List) Search(term string) {
 	l.search(term)
 }
 
-// CancelSearch stops the current search and returns the list to its
-// original order.
+// CancelSearch stops the current search and returns the list to its original order.
 func (l *List) CancelSearch() {
 	l.cursor = 0
 	l.start = 0
@@ -84,9 +84,9 @@ func (l *List) search(term string) {
 		l.scope = l.items
 		return
 	}
-	l.matches = make(map[Item][]int)
+	l.matches = make(map[interface{}][]int)
 	results := fuzzy.FindFrom(term, interfaceSource(l.items))
-	l.scope = make([]Item, 0)
+	l.scope = make([]interface{}, 0)
 	for _, r := range results {
 		item := l.items[r.Index]
 		l.scope = append(l.scope, item)
@@ -99,8 +99,7 @@ func (l *List) Start() int {
 	return l.start
 }
 
-// SetStart sets the current scroll position. Values out of bounds will be
-// clamped.
+// SetStart sets the current scroll position. Values out of bounds will be clamped.
 func (l *List) SetStart(i int) {
 	if i < 0 {
 		i = 0
@@ -112,8 +111,8 @@ func (l *List) SetStart(i int) {
 	}
 }
 
-// SetCursor sets the position of the cursor in the list. Values out of bounds
-// will be clamped.
+// SetCursor sets the position of the cursor in the list. Values out of bounds will
+// be clamped.
 func (l *List) SetCursor(i int) {
 	max := len(l.scope) - 1
 	if i >= max {
@@ -131,9 +130,7 @@ func (l *List) SetCursor(i int) {
 	}
 }
 
-// Next moves the visible list forward one item. If the selected item is out of
-// view, the new select item becomes the first visible item. If the list is
-// already at the bottom, nothing happens.
+// Next moves the visible list forward one item.
 func (l *List) Next() {
 	max := len(l.scope) - 1
 
@@ -147,9 +144,7 @@ func (l *List) Next() {
 }
 
 // PageUp moves the visible list backward by x items. Where x is the size of the
-// visible items on the list. The selected item becomes the first visible item.
-// If the list is already at the bottom, the selected item becomes the last
-// visible item.
+// visible items on the list.
 func (l *List) PageUp() {
 	start := l.start - l.size
 	if start < 0 {
@@ -166,8 +161,7 @@ func (l *List) PageUp() {
 }
 
 // PageDown moves the visible list forward by x items. Where x is the size of
-// the visible items on the list. The selected item becomes the first visible
-// item.
+// the visible items on the list.
 func (l *List) PageDown() {
 	start := l.start + l.size
 	max := len(l.scope) - l.size
@@ -201,10 +195,8 @@ func (l *List) CanPageUp() bool {
 	return l.start > 0
 }
 
-// Index returns the index of the item currently selected inside the searched list. If no item is selected,
-// the NotFound (-1) index is returned.
+// Index returns the index of the item currently selected inside the searched list.
 func (l *List) Index() int {
-	// defer recoverFromPanic()
 	if len(l.scope) <= 0 {
 		return 0
 	}
@@ -219,15 +211,10 @@ func (l *List) Index() int {
 	return NotFound
 }
 
-func recoverFromPanic() {
-	if r := recover(); r != nil {
-	}
-}
-
 // Items returns a slice equal to the size of the list with the current visible
 // items and the index of the active item in this list.
-func (l *List) Items() ([]Item, int) {
-	var result []Item
+func (l *List) Items() ([]interface{}, int) {
+	var result []interface{}
 	max := len(l.scope)
 	end := l.start + l.size
 

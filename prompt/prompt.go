@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -17,56 +18,131 @@ type keyEvent struct {
 	err error
 }
 
-type onKey func(rune) bool
-type onSelect func() bool
-type grid func(Item) [][]term.Cell
+// KeyBinding is used for mapping a key to a function
+type KeyBinding struct {
+	Key     rune
+	Display string
+	Handler func(interface{}) error
+	Desc    string
+}
+
+type keyHandlerFunc func(rune) error
+type selectionHandlerFunc func(interface{}) error
+type itemRendererFunc func(interface{}, []int, bool) []term.Cell
+type informationRendererFunc func(interface{}) [][]term.Cell
+
+//OptionalFunc handles functional arguments of the prompt
+type OptionalFunc func(*Prompt)
 
 // Options is the common options for building a prompt
 type Options struct {
-	Size          int
+	LineSize      int `default:"5"`
 	StartInSearch bool
-	SearchLabel   string
 	DisableColor  bool
+	VimKeys       bool `default:"true"`
 }
 
-type promptState struct {
-	list       *List
-	searchMode bool
-	searchStr  string
-	cursor     int
-	scroll     int
+// State holds the changeable vars of the prompt
+type State struct {
+	List        *List
+	SearchMode  bool
+	SearchStr   string
+	SearchLabel string
+	Cursor      int
+	Scroll      int
+	ListSize    int
 }
 
-type prompt struct {
-	list      *List
-	keys      onKey
-	selection onSelect
-	info      grid
-	exitMsg   [][]term.Cell
-	controls  map[string]string
-	inputMode bool
-	helpMode  bool
-	input     string
-	reader    *term.RuneReader
-	writer    *term.BufferedWriter
-	mx        *sync.RWMutex
-	opts      *Options
+// Prompt is a interactive prompt for command-line
+type Prompt struct {
+	list        *List
+	opts        *Options
+	keyBindings []*KeyBinding
 
-	events chan keyEvent
-	quit   chan bool
-	hold   bool
+	keyHandler          keyHandlerFunc
+	selectionHandler    selectionHandlerFunc
+	itemRenderer        itemRendererFunc
+	informationRenderer informationRendererFunc
+
+	exitMsg  [][]term.Cell     // to be set on runtime if required
+	Controls map[string]string // to be updated if additional controls added
+
+	vim        bool
+	inputMode  bool
+	helpMode   bool
+	itemsLabel string
+	input      string
+
+	reader *term.RuneReader     // initialized by prompt
+	writer *term.BufferedWriter // initialized by prompt
+	mx     *sync.RWMutex
+
+	events    chan keyEvent
+	interrupt chan struct{}
+	quit      chan struct{}
+	hold      bool
 }
 
-func (p *prompt) start() error {
+// Create returns a pointer to prompt that is ready to Run
+func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt {
+	p := &Prompt{
+		opts:       opts,
+		list:       list,
+		itemsLabel: label,
+	}
+
+	p.keyHandler = p.onKey
+	p.selectionHandler = p.onSelect
+	p.itemRenderer = itemText
+	p.informationRenderer = p.genInfo
+
 	var mx sync.RWMutex
 	p.mx = &mx
+	p.vim = opts.VimKeys
 
 	p.reader = term.NewRuneReader(os.Stdin)
 	p.writer = term.NewBufferedWriter(os.Stdout)
 
 	p.events = make(chan keyEvent, 20)
-	p.quit = make(chan bool)
+	p.interrupt = make(chan struct{})
+	p.quit = make(chan struct{})
 
+	for _, f := range fs {
+		f(p)
+	}
+	return p
+}
+
+// WithKeyHandler adds a keyHandler to the prompt
+func WithKeyHandler(f keyHandlerFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.keyHandler = f
+	}
+}
+
+// WithSelectionHandler adds a selection handler to the prompt
+func WithSelectionHandler(f selectionHandlerFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.selectionHandler = f
+	}
+}
+
+// WithItemRenderer to add your own implementation on rendering an Item
+func WithItemRenderer(f itemRendererFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.itemRenderer = f
+	}
+}
+
+// WithInformation adds additional information below to the prompt
+func WithInformation(f informationRendererFunc) OptionalFunc {
+	return func(p *Prompt) {
+		p.informationRenderer = f
+	}
+}
+
+// Run as name implies starts the prompt until it quits
+func (p *Prompt) Run() error {
 	// disable echo and hide cursor
 	if err := term.Init(os.Stdin, os.Stdout); err != nil {
 		return err
@@ -80,23 +156,9 @@ func (p *prompt) start() error {
 	}
 
 	// start input loop
-	go func() {
-		for {
-			select {
-			case <-p.quit:
-				return
-			default:
-				time.Sleep(10 * time.Millisecond)
-				if p.hold {
-					continue
-				}
-				r, _, err := p.reader.ReadRune()
-				p.events <- keyEvent{ch: r, err: err}
-			}
-		}
-	}()
+	go p.spawnEvents()
 
-	if err := p.innerRun(); err != nil {
+	if err := p.mainloop(); err != nil {
 		return err
 	}
 
@@ -108,16 +170,42 @@ func (p *prompt) start() error {
 	return nil
 }
 
+// Stop sends a quit signal to the main loop of the prompt
+func (p *Prompt) Stop() {
+	p.interrupt <- struct{}{}
+}
+
+func (p *Prompt) spawnEvents() {
+	for {
+		select {
+		case <-p.interrupt:
+			p.quit <- struct{}{}
+			close(p.events)
+			break
+		default:
+			time.Sleep(10 * time.Millisecond)
+			if p.hold {
+				continue
+			}
+			r, _, err := p.reader.ReadRune()
+			p.events <- keyEvent{ch: r, err: err}
+		}
+	}
+}
+
 // this is the main loop for reading input channel
-func (p *prompt) innerRun() error {
+func (p *Prompt) mainloop() error {
 	var err error
 	sigwinch := make(chan os.Signal, 1)
+	defer close(sigwinch)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
 	p.render()
 
 mainloop:
 	for {
 		select {
+		case <-p.quit:
+			break mainloop
 		case ev := <-p.events:
 			p.hold = true
 			if err := ev.err; err != nil {
@@ -126,8 +214,16 @@ mainloop:
 			switch r := ev.ch; r {
 			case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
 				break mainloop
+			case term.Enter, term.NewLine:
+				items, idx := p.list.Items()
+				if idx == NotFound {
+					break
+				}
+				if err = p.selectionHandler(items[idx]); err != nil {
+					break mainloop
+				}
 			default:
-				if br := p.assignKey(r); br {
+				if err = p.onKey(r); err != nil {
 					break mainloop
 				}
 			}
@@ -144,7 +240,7 @@ mainloop:
 }
 
 // render function draws screen's list to terminal
-func (p *prompt) render() {
+func (p *Prompt) render() {
 	// lock screen mutex
 	p.mx.Lock()
 	defer func() {
@@ -160,18 +256,16 @@ func (p *prompt) render() {
 	}
 
 	items, idx := p.list.Items()
-	p.writer.WriteCells(renderSearch(p.opts.SearchLabel, p.inputMode, p.input))
+	p.writer.WriteCells(renderSearch(p.itemsLabel, p.inputMode, p.input))
 
-	// print each entry in the list
 	for i := range items {
-		var output []term.Cell
-		output = append(output, renderItem(items[i], p.list.matches[items[i]], (i == idx))...)
+		output := p.itemRenderer(items[i], p.list.matches[items[i]], (i == idx))
 		p.writer.WriteCells(output)
 	}
 
 	p.writer.WriteCells(nil) // add an empty line
 	if idx != NotFound {
-		for _, line := range p.info(items[idx]) {
+		for _, line := range p.informationRenderer(items[idx]) {
 			p.writer.WriteCells(line)
 		}
 	} else {
@@ -179,14 +273,19 @@ func (p *prompt) render() {
 	}
 }
 
-func (p *prompt) assignKey(key rune) bool {
+// AddKeyBinding adds a key-function map to prompt
+func (p *Prompt) AddKeyBinding(b *KeyBinding) error {
+	p.keyBindings = append(p.keyBindings, b)
+	return nil
+}
+
+// default key handling function
+func (p *Prompt) onKey(key rune) error {
 	if p.helpMode {
 		p.helpMode = false
-		return false
+		return nil
 	}
 	switch key {
-	case term.Enter, '\n':
-		return p.selection()
 	case term.ArrowUp:
 		p.list.Prev()
 	case term.ArrowDown:
@@ -198,7 +297,6 @@ func (p *prompt) assignKey(key rune) bool {
 	default:
 		if key == '/' {
 			p.inputMode = !p.inputMode
-			// p.input = ""
 		} else if p.inputMode {
 			switch key {
 			case term.Backspace, term.Backspace2:
@@ -214,31 +312,81 @@ func (p *prompt) assignKey(key rune) bool {
 			p.list.Search(p.input)
 		} else if key == '?' {
 			p.helpMode = !p.helpMode
-		} else if key == 'h' || key == 'j' || key == 'k' || key == 'l' {
-			switch key {
-			case 'k':
-				p.list.Prev()
-			case 'j':
-				p.list.Next()
-			case 'h':
-				p.list.PageDown()
-			case 'l':
-				p.list.PageUp()
-			}
+		} else if p.vim && key == 'k' {
+			p.list.Prev()
+		} else if p.vim && key == 'j' {
+			p.list.Next()
+		} else if p.vim && key == 'h' {
+			p.list.PageDown()
+		} else if p.vim && key == 'l' {
+			p.list.PageUp()
 		} else {
-			return p.keys(key)
+			items, idx := p.list.Items()
+			if idx == NotFound {
+				return nil
+			}
+			for _, kb := range p.keyBindings {
+				if kb.Key == key {
+					return kb.Handler(items[idx])
+				}
+			}
 		}
 	}
-	return false
+	return nil
 }
 
-func (p *prompt) allControls() map[string]string {
+func (p *Prompt) allControls() map[string]string {
 	controls := make(map[string]string)
-	controls["navigation"] = "← ↓ ↑ → (h,j,k,l)"
-	controls["quit app"] = "q"
-	controls["toggle search"] = "/"
-	for k, v := range p.controls {
-		controls[k] = v
+	controls["← ↓ ↑ → (h,j,k,l)"] = "navigation"
+	controls["/"] = "toggle search"
+	for _, kb := range p.keyBindings {
+		controls[kb.Display] = kb.Desc
 	}
 	return controls
+}
+
+// onSelect is the default selection
+func (p *Prompt) onSelect(item interface{}) error {
+	p.SetExitMsg([][]term.Cell{[]term.Cell{}, term.Cprint(fmt.Sprint(item))})
+	p.Stop()
+	return nil
+}
+
+// genInfo is the default function to genereate info
+func (p *Prompt) genInfo(item interface{}) [][]term.Cell {
+	return nil
+}
+
+// State return the current replace-able vars as a struct
+func (p *Prompt) State() *State {
+	scroll := p.list.Start()
+	return &State{
+		List:        p.list,
+		SearchMode:  p.inputMode,
+		SearchStr:   p.input,
+		SearchLabel: p.itemsLabel,
+		Cursor:      p.list.cursor,
+		Scroll:      scroll,
+		ListSize:    p.list.size,
+	}
+}
+
+// SetState replaces the state of the prompt
+func (p *Prompt) SetState(state *State) {
+	p.list = state.List
+	p.inputMode = state.SearchMode
+	p.input = state.SearchStr
+	p.itemsLabel = state.SearchLabel
+	p.list.SetCursor(state.Cursor)
+	p.list.SetStart(state.Scroll)
+}
+
+// ListSize returns the size of the items that is renderer each time
+func (p *Prompt) ListSize() int {
+	return p.opts.LineSize
+}
+
+// SetExitMsg adds a rendered cell grid to be printed after prompt is finished
+func (p *Prompt) SetExitMsg(grid [][]term.Cell) {
+	p.exitMsg = grid
 }
