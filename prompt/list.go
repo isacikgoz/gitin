@@ -49,7 +49,12 @@ func NewList(items interface{}, size int) (*List, error) {
 		item := slice.Index(i)
 		values[i] = item.Interface()
 	}
-	return &List{size: size, items: values, scope: values}, nil
+
+	return &List{
+		size:  size,
+		items: values,
+		scope: values,
+	}, nil
 }
 
 // Prev moves the visible list back one item.
