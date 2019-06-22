@@ -347,7 +347,7 @@ func (p *Prompt) allControls() map[string]string {
 
 // onSelect is the default selection
 func (p *Prompt) onSelect(item interface{}) error {
-	p.SetExitMsg([][]term.Cell{[]term.Cell{}, term.Cprint(fmt.Sprint(item))})
+	p.SetExitMsg([][]term.Cell{term.Cprint(fmt.Sprint(item))})
 	p.Stop()
 	return nil
 }
@@ -355,6 +355,15 @@ func (p *Prompt) onSelect(item interface{}) error {
 // genInfo is the default function to genereate info
 func (p *Prompt) genInfo(item interface{}) [][]term.Cell {
 	return nil
+}
+
+// Selection returns the selected item
+func (p *Prompt) Selection() (interface{}, error) {
+	items, idx := p.list.Items()
+	if idx == NotFound {
+		return nil, fmt.Errorf("item not found")
+	}
+	return items[idx], nil
 }
 
 // State return the current replace-able vars as a struct
