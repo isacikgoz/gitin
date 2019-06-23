@@ -1,7 +1,6 @@
 package prompt
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -59,15 +58,12 @@ type Prompt struct {
 	opts        *Options
 	keyBindings []*KeyBinding
 
-	keyHandler          keyHandlerFunc
 	selectionHandler    selectionHandlerFunc
 	itemRenderer        itemRendererFunc
 	informationRenderer informationRendererFunc
 
-	exitMsg  [][]term.Cell     // to be set on runtime if required
-	Controls map[string]string // to be updated if additional controls added
+	exitMsg [][]term.Cell // to be set on runtime if required
 
-	vim        bool
 	inputMode  bool
 	helpMode   bool
 	itemsLabel string
@@ -86,38 +82,21 @@ type Prompt struct {
 // Create returns a pointer to prompt that is ready to Run
 func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt {
 	p := &Prompt{
-		opts:       opts,
-		list:       list,
-		itemsLabel: label,
+		opts:         opts,
+		list:         list,
+		itemsLabel:   label,
+		itemRenderer: itemText,
+		reader:       term.NewRuneReader(os.Stdin),
+		writer:       term.NewBufferedWriter(os.Stdout),
+		events:       make(chan keyEvent, 20),
+		interrupt:    make(chan struct{}),
+		quit:         make(chan struct{}),
 	}
-
-	p.keyHandler = p.onKey
-	p.selectionHandler = p.onSelect
-	p.itemRenderer = itemText
-	p.informationRenderer = p.genInfo
-
-	var mx sync.RWMutex
-	p.mx = &mx
-	p.vim = opts.VimKeys
-
-	p.reader = term.NewRuneReader(os.Stdin)
-	p.writer = term.NewBufferedWriter(os.Stdout)
-
-	p.events = make(chan keyEvent, 20)
-	p.interrupt = make(chan struct{})
-	p.quit = make(chan struct{})
 
 	for _, f := range fs {
 		f(p)
 	}
 	return p
-}
-
-// WithKeyHandler adds a keyHandler to the prompt
-func WithKeyHandler(f keyHandlerFunc) OptionalFunc {
-	return func(p *Prompt) {
-		p.keyHandler = f
-	}
 }
 
 // WithSelectionHandler adds a selection handler to the prompt
@@ -148,9 +127,11 @@ func (p *Prompt) Run() error {
 		return err
 	}
 	defer term.Close()
+
 	if p.opts.DisableColor {
 		term.DisableColor()
 	}
+
 	if p.opts.StartInSearch {
 		p.inputMode = true
 	}
@@ -158,9 +139,15 @@ func (p *Prompt) Run() error {
 	// start input loop
 	go p.spawnEvents()
 
+	p.render()
+
 	if err := p.mainloop(); err != nil {
 		return err
 	}
+
+	// reset cursor position and remove buffer
+	p.writer.Reset()
+	p.writer.ClearScreen()
 
 	for _, cells := range p.exitMsg {
 		p.writer.WriteCells(cells)
@@ -183,10 +170,13 @@ func (p *Prompt) spawnEvents() {
 			close(p.events)
 			break
 		default:
+			// TODO(arslan): remove this
 			time.Sleep(10 * time.Millisecond)
+
 			if p.hold {
 				continue
 			}
+
 			r, _, err := p.reader.ReadRune()
 			p.events <- keyEvent{ch: r, err: err}
 		}
@@ -195,54 +185,50 @@ func (p *Prompt) spawnEvents() {
 
 // this is the main loop for reading input channel
 func (p *Prompt) mainloop() error {
-	var err error
 	sigwinch := make(chan os.Signal, 1)
 	defer close(sigwinch)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
-	p.render()
 
-mainloop:
 	for {
 		select {
 		case <-p.quit:
-			break mainloop
+			return nil
+		case <-sigwinch:
+			p.render()
 		case ev := <-p.events:
 			p.hold = true
 			if err := ev.err; err != nil {
 				return err
 			}
+
 			switch r := ev.ch; r {
 			case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
-				break mainloop
+				return nil
 			case term.Enter, term.NewLine:
 				items, idx := p.list.Items()
 				if idx == NotFound {
 					break
 				}
-				if err = p.selectionHandler(items[idx]); err != nil {
-					break mainloop
+
+				if err := p.selectionHandler(items[idx]); err != nil {
+					return err
 				}
 			default:
-				if err = p.onKey(r); err != nil {
-					break mainloop
+				if err := p.onKey(r); err != nil {
+					return err
 				}
 			}
+
 			p.render()
 			p.hold = false
-		case <-sigwinch:
-			p.render()
 		}
 	}
-	// reset cursor position and remove buffer
-	p.writer.Reset()
-	p.writer.ClearScreen()
-	return err
 }
 
 // render function draws screen's list to terminal
 func (p *Prompt) render() {
-	// lock screen mutex
 	p.mx.Lock()
+
 	defer func() {
 		p.writer.Flush()
 		p.mx.Unlock()
@@ -285,6 +271,7 @@ func (p *Prompt) onKey(key rune) error {
 		p.helpMode = false
 		return nil
 	}
+
 	switch key {
 	case term.ArrowUp:
 		p.list.Prev()
@@ -295,6 +282,7 @@ func (p *Prompt) onKey(key rune) error {
 	case term.ArrowRight:
 		p.list.PageUp()
 	default:
+
 		if key == '/' {
 			p.inputMode = !p.inputMode
 		} else if p.inputMode {
@@ -312,19 +300,21 @@ func (p *Prompt) onKey(key rune) error {
 			p.list.Search(p.input)
 		} else if key == '?' {
 			p.helpMode = !p.helpMode
-		} else if p.vim && key == 'k' {
+		} else if p.opts.VimKeys && key == 'k' {
+			// refactor vim keys
 			p.list.Prev()
-		} else if p.vim && key == 'j' {
+		} else if p.opts.VimKeys && key == 'j' {
 			p.list.Next()
-		} else if p.vim && key == 'h' {
+		} else if p.opts.VimKeys && key == 'h' {
 			p.list.PageDown()
-		} else if p.vim && key == 'l' {
+		} else if p.opts.VimKeys && key == 'l' {
 			p.list.PageUp()
 		} else {
 			items, idx := p.list.Items()
 			if idx == NotFound {
 				return nil
 			}
+
 			for _, kb := range p.keyBindings {
 				if kb.Key == key {
 					return kb.Handler(items[idx])
@@ -332,6 +322,7 @@ func (p *Prompt) onKey(key rune) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -343,27 +334,6 @@ func (p *Prompt) allControls() map[string]string {
 		controls[kb.Display] = kb.Desc
 	}
 	return controls
-}
-
-// onSelect is the default selection
-func (p *Prompt) onSelect(item interface{}) error {
-	p.SetExitMsg([][]term.Cell{term.Cprint(fmt.Sprint(item))})
-	p.Stop()
-	return nil
-}
-
-// genInfo is the default function to genereate info
-func (p *Prompt) genInfo(item interface{}) [][]term.Cell {
-	return nil
-}
-
-// Selection returns the selected item
-func (p *Prompt) Selection() (interface{}, error) {
-	items, idx := p.list.Items()
-	if idx == NotFound {
-		return nil, fmt.Errorf("item not found")
-	}
-	return items[idx], nil
 }
 
 // State return the current replace-able vars as a struct

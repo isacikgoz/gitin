@@ -36,11 +36,9 @@ func main() {
 	default:
 		return
 	}
+
 	exitIfError(err)
-	if err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
+	exitIfError(p.Run())
 }
 
 func exitIfError(err error) {
