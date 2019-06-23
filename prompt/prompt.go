@@ -88,6 +88,7 @@ func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt
 		itemRenderer: itemText,
 		reader:       term.NewRuneReader(os.Stdin),
 		writer:       term.NewBufferedWriter(os.Stdout),
+		mx:           &sync.RWMutex{},
 		events:       make(chan keyEvent, 20),
 		interrupt:    make(chan struct{}),
 		quit:         make(chan struct{}),
