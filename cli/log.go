@@ -58,12 +58,12 @@ func (l *log) onSelect(item interface{}) error {
 			return nil
 		}
 		deltas := diff.Deltas()
-		newlist := make([]interface{}, 0)
-		for _, delta := range deltas {
-			newlist = append(newlist, delta)
+		if len(deltas) <= 0 {
+			return nil
 		}
+
 		l.oldState = l.prompt.State()
-		list, err := prompt.NewList(newlist, 5)
+		list, err := prompt.NewList(deltas, 5)
 		if err != nil {
 			return err
 		}

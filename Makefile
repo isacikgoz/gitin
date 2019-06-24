@@ -15,7 +15,7 @@ GOPATH_DIR?=$(shell go env GOPATH | cut -d: -f1)
 GOBIN_DIR:=$(GOPATH_DIR)/bin
 
 GIT2GO_VERSION=27
-GIT2GO_DIR:=$(GOPATH_DIR)/src/gopkg.in/libgit2/git2go.v$(GIT2GO_VERSION)
+GIT2GO_DIR:=$(GOPATH_DIR)/src/github.com/libgit2/git2go
 LIBGIT2_DIR=$(GIT2GO_DIR)/vendor/libgit2
 GIT2GO_PATCH=patch/git2go.v$(GIT2GO_VERSION).patch
 
