@@ -74,7 +74,7 @@ Press ? for controls while application is running.
 ## Configure
 
 - To set the line size `export GITIN_LINESIZE=5`
-- To set always start in search mode `GITIN_STARTSEARCH=true`
+- To set always start in search mode `GITIN_STARTINSEARCH=true`
 - To disable colors `GITIN_DISABLECOLOR=true`
 - To disable h,j,k,l for nav `GITIN_VIMKEYS=false`
 
