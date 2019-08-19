@@ -6,7 +6,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/term"
-	git "github.com/isacikgoz/libgit2-api"
+	"github.com/isacikgoz/gitin/git"
 )
 
 func renderItem(item interface{}, matches []int, selected bool) []term.Cell {

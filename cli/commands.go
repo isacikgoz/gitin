@@ -4,7 +4,7 @@ import (
 	"os"
 	"os/exec"
 
-	git "github.com/isacikgoz/libgit2-api"
+	"github.com/isacikgoz/gitin/git"
 )
 
 func popGitCommand(r *git.Repository, args []string) error {

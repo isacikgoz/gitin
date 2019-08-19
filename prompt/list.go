@@ -1,5 +1,5 @@
-// This is a modified version of promptui's list. The original version can
-// be found at https://github.com/manifoldco/promptui
+// Package prompt is a slightly modified version of promptui's list. The original
+// version can be found at https://github.com/manifoldco/promptui
 // A little copying is better than a little dependency. - Go proverbs.
 package prompt
 
