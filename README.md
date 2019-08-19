@@ -1,4 +1,4 @@
-![](https://img.shields.io/travis/com/isacikgoz/gitin.svg?style=flat) ![](https://img.shields.io/github/downloads/isacikgoz/gitin/total.svg?style=flat) ![](https://img.shields.io/github/release-pre/isacikgoz/gitin.svg?style=flat)
+![](https://img.shields.io/travis/com/isacikgoz/gitin.svg?style=flat) ![](https://img.shields.io/github/release-pre/isacikgoz/gitin.svg?style=flat)
 
 # gitin
 
@@ -74,7 +74,7 @@ Press ? for controls while application is running.
 ## Configure
 
 - To set the line size `export GITIN_LINESIZE=5`
-- To set always start in search mode `GITIN_STARTSEARCH=true`
+- To set always start in search mode `GITIN_STARTINSEARCH=true`
 - To disable colors `GITIN_DISABLECOLOR=true`
 - To disable h,j,k,l for nav `GITIN_VIMKEYS=false`
 
