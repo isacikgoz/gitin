@@ -140,15 +140,17 @@ func (p *Prompt) Run() error {
 	// start input loop
 	go p.spawnEvents()
 
-	p.render()
+	p.render() // start with an initial render
 
-	if err := p.mainloop(); err != nil {
-		return err
-	}
+	err := p.mainloop()
 
 	// reset cursor position and remove buffer
 	p.writer.Reset()
 	p.writer.ClearScreen()
+
+	if err != nil {
+		return err
+	}
 
 	for _, cells := range p.exitMsg {
 		p.writer.WriteCells(cells)
@@ -172,6 +174,7 @@ func (p *Prompt) spawnEvents() {
 			break
 		default:
 			// TODO(arslan): remove this
+			// (isacikgoz): it saves from still reading input while it
 			time.Sleep(10 * time.Millisecond)
 
 			if p.hold {

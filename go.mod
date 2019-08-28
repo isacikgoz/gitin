@@ -7,14 +7,13 @@ require (
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
 	github.com/fatih/color v1.7.0
 	github.com/isacikgoz/gia v0.2.0
-	github.com/isacikgoz/libgit2-api v0.1.7
 	github.com/justincampbell/bigduration v0.0.0-20160531141349-e45bf03c0666 // indirect
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/nsf/termbox-go v0.0.0-20190325093121-288510b9734e
 	github.com/sahilm/fuzzy v0.1.0
 	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/waigani/diffparser v0.0.0-20190426062500-1f7065f429b5
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+	gopkg.in/libgit2/git2go.v27 v27.0.0-20190813173601-94786f9c8fbc
 )

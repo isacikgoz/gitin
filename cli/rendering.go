@@ -6,7 +6,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/term"
-	git "github.com/isacikgoz/libgit2-api"
+	"github.com/isacikgoz/gitin/git"
 )
 
 func renderItem(item interface{}, matches []int, selected bool) []term.Cell {
@@ -16,23 +16,20 @@ func renderItem(item interface{}, matches []int, selected bool) []term.Cell {
 	} else {
 		line = append(line, term.Cprint("  ", color.FgWhite)...)
 	}
-	switch item.(type) {
+	switch i := item.(type) {
 	case *git.StatusEntry:
 		attr := color.FgRed
-		entry := item.(*git.StatusEntry)
-		if entry.Indexed() {
+		if i.Indexed() {
 			attr = color.FgGreen
 		}
-		line = append(line, stautsText(entry.StatusEntryString()[:1])...)
-		line = append(line, highLightedText(matches, attr, entry.String())...)
+		line = append(line, stautsText(i.StatusEntryString()[:1])...)
+		line = append(line, highLightedText(matches, attr, i.String())...)
 	case *git.Commit:
-		commit := item.(*git.Commit)
-		line = append(line, stautsText(commit.Hash[:7])...)
-		line = append(line, highLightedText(matches, color.FgWhite, commit.String())...)
+		line = append(line, stautsText(i.Hash[:7])...)
+		line = append(line, highLightedText(matches, color.FgWhite, i.String())...)
 	case *git.DiffDelta:
-		dd := item.(*git.DiffDelta)
-		line = append(line, stautsText(dd.DeltaStatusString()[:1])...)
-		line = append(line, highLightedText(matches, color.FgWhite, dd.String())...)
+		line = append(line, stautsText(i.DeltaStatusString()[:1])...)
+		line = append(line, highLightedText(matches, color.FgWhite, i.String())...)
 	default:
 		line = append(line, highLightedText(matches, color.FgWhite, fmt.Sprint(item))...)
 	}

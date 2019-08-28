@@ -7,9 +7,9 @@ import (
 	"os/exec"
 
 	"github.com/isacikgoz/gia/editor"
+	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
-	git "github.com/isacikgoz/libgit2-api"
 	"github.com/waigani/diffparser"
 )
 

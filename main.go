@@ -6,8 +6,8 @@ import (
 
 	"github.com/isacikgoz/gitin/cli"
 	"github.com/isacikgoz/gitin/prompt"
+	"github.com/isacikgoz/gitin/git"
 
-	git "github.com/isacikgoz/libgit2-api"
 	env "github.com/kelseyhightower/envconfig"
 	pin "gopkg.in/alecthomas/kingpin.v2"
 )

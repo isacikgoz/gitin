@@ -8,8 +8,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
-	git "github.com/isacikgoz/libgit2-api"
 	"github.com/justincampbell/timeago"
+	"github.com/isacikgoz/gitin/git"
 )
 
 // log holds the repository struct and the prompt pointer. since log and prompt dependent,
