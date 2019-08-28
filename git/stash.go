@@ -3,7 +3,7 @@ package git
 import (
 	"fmt"
 
-	lib "github.com/libgit2/git2go"
+	lib "gopkg.in/libgit2/git2go.v27"
 )
 
 // StashedItem is a change that stashed into the repository

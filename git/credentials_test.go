@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	lib "github.com/libgit2/git2go"
+	lib "gopkg.in/libgit2/git2go.v27"
 )
 
 func TestDefaultAuthCallbackFunc(t *testing.T) {

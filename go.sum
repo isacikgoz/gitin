@@ -53,6 +53,8 @@ gopkg.in/alecthomas/kingpin.v2 v2.2.6 h1:jMFz6MfLP0/4fUyZle81rXUoxOBFi19VUFKVDOQ
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
 gopkg.in/check.v1 v1.0.0-20160105164936-4f90aeace3a2 h1:+j1SppRob9bAgoYmsdW9NNBdKZfgYuWpqnYHv78Qt8w=
 gopkg.in/check.v1 v1.0.0-20160105164936-4f90aeace3a2/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/libgit2/git2go.v27 v27.0.0-20190813173601-94786f9c8fbc h1:zg+gIxDUQID5HUOlOfMyJd9Bxa5laNVh1KcH/jnXj40=
+gopkg.in/libgit2/git2go.v27 v27.0.0-20190813173601-94786f9c8fbc/go.mod h1:lKrzYfERNvPdRbevxLdKadsT0XwHJ10JC05CXIQgmWc=
 gopkg.in/mgo.v2 v2.0.0-20150529124711-01ee097136da h1:k2jXxOPVI4OLmisXza2wym08Pz6x+ky/f71oJBuA8zg=
 gopkg.in/mgo.v2 v2.0.0-20150529124711-01ee097136da/go.mod h1:yeKp02qBN3iKW1OzL3MGk2IdtZzaj7SFntXj72NppTA=
 gopkg.in/yaml.v2 v2.0.0-20160715033755-e4d366fc3c79 h1:mENkfeXGmLV7lIyBeNdwYWdONek7pH9yHaHMgZyvIWE=

@@ -1,7 +1,7 @@
 package git
 
 import (
-	lib "github.com/libgit2/git2go"
+	lib "gopkg.in/libgit2/git2go.v27"
 )
 
 // FetchOptions provides common options for fetch command

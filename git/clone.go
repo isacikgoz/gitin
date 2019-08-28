@@ -1,7 +1,7 @@
 package git
 
 import (
-	lib "github.com/libgit2/git2go"
+	lib "gopkg.in/libgit2/git2go.v27"
 )
 
 // CloneOptions are mostly used git clone options from a remote

@@ -11,9 +11,9 @@ require (
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/libgit2/git2go v0.0.0-20190618093925-b2e2b2f71bb4
 	github.com/sahilm/fuzzy v0.1.0
 	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/waigani/diffparser v0.0.0-20190426062500-1f7065f429b5
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+	gopkg.in/libgit2/git2go.v27 v27.0.0-20190813173601-94786f9c8fbc
 )
