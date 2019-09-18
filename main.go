@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/isacikgoz/gitin/cli"
-	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/git"
+	"github.com/isacikgoz/gitin/prompt"
 
 	env "github.com/kelseyhightower/envconfig"
 	pin "gopkg.in/alecthomas/kingpin.v2"
@@ -54,7 +54,7 @@ func evalArgs() string {
 	pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 	pin.Command("branch", "Show list of branches.")
 
-	pin.Version("gitin version 0.2.2")
+	pin.Version("gitin version 0.2.3")
 
 	pin.UsageTemplate(pin.DefaultUsageTemplate + additionalHelp() + "\n")
 	pin.CommandLine.HelpFlag.Short('h')
