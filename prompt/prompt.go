@@ -27,7 +27,7 @@ type KeyBinding struct {
 
 type keyHandlerFunc func(rune) error
 type selectionHandlerFunc func(interface{}) error
-type itemRendererFunc func(interface{}, []int, bool) []term.Cell
+type itemRendererFunc func(interface{}, []int, bool) [][]term.Cell
 type informationRendererFunc func(interface{}) [][]term.Cell
 
 //OptionalFunc handles functional arguments of the prompt
@@ -250,7 +250,9 @@ func (p *Prompt) render() {
 
 	for i := range items {
 		output := p.itemRenderer(items[i], p.list.matches[items[i]], (i == idx))
-		p.writer.WriteCells(output)
+		for _, l := range output {
+			p.writer.WriteCells(l)
+		}
 	}
 
 	p.writer.WriteCells(nil) // add an empty line

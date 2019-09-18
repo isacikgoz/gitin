@@ -8,7 +8,7 @@ import (
 	"github.com/isacikgoz/gitin/term"
 )
 
-func itemText(item interface{}, matches []int, selected bool) []term.Cell {
+func itemText(item interface{}, matches []int, selected bool) [][]term.Cell {
 	var line []term.Cell
 	text := fmt.Sprint(item)
 	if selected {
@@ -17,7 +17,7 @@ func itemText(item interface{}, matches []int, selected bool) []term.Cell {
 		line = append(line, term.Cprint("  ", color.FgWhite)...)
 	}
 	if len(matches) == 0 {
-		return append(line, term.Cprint(text)...)
+		return [][]term.Cell{append(line, term.Cprint(text)...)}
 	}
 	highlighted := make([]term.Cell, 0)
 	for _, r := range text {
@@ -35,7 +35,7 @@ func itemText(item interface{}, matches []int, selected bool) []term.Cell {
 		}
 	}
 	line = append(line, highlighted...)
-	return line
+	return [][]term.Cell{line}
 }
 
 // returns multiline so the return value will be a 2-d slice

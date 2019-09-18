@@ -5,11 +5,11 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
-	"github.com/isacikgoz/gitin/term"
 	"github.com/isacikgoz/gitin/git"
+	"github.com/isacikgoz/gitin/term"
 )
 
-func renderItem(item interface{}, matches []int, selected bool) []term.Cell {
+func renderItem(item interface{}, matches []int, selected bool) [][]term.Cell {
 	var line []term.Cell
 	if selected {
 		line = append(line, term.Cprint("> ", color.FgCyan)...)
@@ -33,7 +33,7 @@ func renderItem(item interface{}, matches []int, selected bool) []term.Cell {
 	default:
 		line = append(line, highLightedText(matches, color.FgWhite, fmt.Sprint(item))...)
 	}
-	return line
+	return [][]term.Cell{line}
 }
 
 func stautsText(text string) []term.Cell {
