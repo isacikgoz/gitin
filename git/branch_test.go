@@ -7,8 +7,8 @@ import (
 
 func TestBranches(t *testing.T) {
 	repo, err := testCloneFromLocal("commit")
-	defer os.RemoveAll(repo.path) // clean up
 	checkFatal(t, err)
+	defer os.RemoveAll(repo.path) // clean up
 
 	_, err = repo.Branches()
 	if err != nil {

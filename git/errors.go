@@ -1,30 +1,33 @@
 package git
 
-import (
-	"errors"
-)
+// Error is the errors from the git package
+type Error string
+
+func (e Error) Error() string {
+	return string(e)
+}
 
 var (
 	// ErrAuthenticationRequired as the name implies
-	ErrAuthenticationRequired = errors.New("authentication required")
+	ErrAuthenticationRequired Error = "authentication required"
 	// ErrAuthenticationType means that given credentials cannot be used for given repository url
-	ErrAuthenticationType = errors.New("authentication method is not valid")
+	ErrAuthenticationType Error = "authentication method is not valid"
 	// ErrClone is a generic clone error
-	ErrClone = errors.New("cannot clone repo")
+	ErrClone Error = "cannot clone repo"
 	// ErrCannotOpenRepo is returned when the repo couldn't be loaded from filesystem
-	ErrCannotOpenRepo = errors.New("cannot load repository")
-	// ErrCreateCallbackFail is reuterned when an error occurred while creating callbacks
-	ErrCreateCallbackFail = errors.New("cannot create default callbacks")
+	ErrCannotOpenRepo Error = "cannot load repository"
+	// ErrCreateCallbackFail is returned when an error occurred while creating callbacks
+	ErrCreateCallbackFail Error = "cannot create default callbacks"
 	// ErrNoRemoteName if the remote name is empty while fetching
-	ErrNoRemoteName = errors.New("remote name not specified")
+	ErrNoRemoteName Error = "remote name not specified"
 	// ErrNotValidRemoteName is returned if the given remote name is not found
-	ErrNotValidRemoteName = errors.New("not a valid remote name")
+	ErrNotValidRemoteName Error = "not a valid remote name"
 	// ErrAlreadyUpToDate if the repo is up-to-date
-	ErrAlreadyUpToDate = errors.New("already up-to-date")
+	ErrAlreadyUpToDate Error = "already up-to-date"
 	// ErrFastForwardOnly if the merge can be made by fast-forward
-	ErrFastForwardOnly = errors.New("fast-forward only")
+	ErrFastForwardOnly Error = "fast-forward only"
 	// ErrBranchNotFound is returned when the given ref can't found
-	ErrBranchNotFound = errors.New("cannot locate remote-tracking branch")
+	ErrBranchNotFound Error = "cannot locate remote-tracking branch"
 	// ErrEntryNotIndexed is returned when the entry is not indexed
-	ErrEntryNotIndexed = errors.New("entry is not indexed")
+	ErrEntryNotIndexed Error = "entry is not indexed"
 )

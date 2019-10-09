@@ -3,12 +3,14 @@ package git
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 func TestClone(t *testing.T) {
 	dirs := make([]string, 0)
 	wd, _ := os.Getwd()
+	wd = filepath.Dir(wd)
 	for i := 0; i < 2; i++ {
 		dir, err := ioutil.TempDir("", "temp-clone-dir")
 		checkFatal(t, err)

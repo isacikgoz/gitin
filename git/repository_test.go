@@ -3,6 +3,7 @@ package git
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 )
@@ -27,6 +28,7 @@ func TestOpen(t *testing.T) {
 func testCloneFromLocal(name string) (*Repository, error) {
 	wd, _ := os.Getwd()
 	creds := &CredentialsAsPlainText{}
+	wd = filepath.Dir(wd)
 	dir, err := ioutil.TempDir("", "temp-"+name+"-dir")
 	if err != nil {
 		return nil, err
