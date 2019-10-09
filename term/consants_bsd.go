@@ -2,9 +2,9 @@
 
 package term
 
-import "syscall"
+import "golang.org/x/sys/unix"
 
 const (
-	ioctlReadTermios  = syscall.TIOCGETA
-	ioctlWriteTermios = syscall.TIOCSETA
+	ioctlReadTermios  = unix.TIOCGETA
+	ioctlWriteTermios = unix.TIOCSETA
 )
