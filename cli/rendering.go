@@ -30,6 +30,16 @@ func renderItem(item interface{}, matches []int, selected bool) [][]term.Cell {
 	case *git.DiffDelta:
 		line = append(line, stautsText(i.DeltaStatusString()[:1])...)
 		line = append(line, highLightedText(matches, color.FgWhite, i.String())...)
+	case *git.Branch:
+		attr := color.FgWhite
+		headIndicator := ""
+		if i.Head {
+			attr = color.FgGreen
+			headIndicator = " *"
+		} else if i.IsRemote() {
+			attr = color.FgRed
+		}
+		line = append(line, highLightedText(matches, attr, i.String() + headIndicator)...)
 	default:
 		line = append(line, highLightedText(matches, color.FgWhite, fmt.Sprint(item))...)
 	}
