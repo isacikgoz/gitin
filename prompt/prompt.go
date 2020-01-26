@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"sync"
@@ -73,10 +74,8 @@ type Prompt struct {
 	writer *term.BufferedWriter // initialized by prompt
 	mx     *sync.RWMutex
 
-	events    chan keyEvent
-	interrupt chan struct{}
-	quit      chan struct{}
-	hold      bool
+	events chan keyEvent
+	quit   chan struct{}
 }
 
 // Create returns a pointer to prompt that is ready to Run
@@ -90,8 +89,7 @@ func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt
 		writer:       term.NewBufferedWriter(os.Stdout),
 		mx:           &sync.RWMutex{},
 		events:       make(chan keyEvent, 20),
-		interrupt:    make(chan struct{}),
-		quit:         make(chan struct{}),
+		quit:         make(chan struct{}, 1),
 	}
 
 	for _, f := range fs {
@@ -122,7 +120,7 @@ func WithInformation(f informationRendererFunc) OptionalFunc {
 }
 
 // Run as name implies starts the prompt until it quits
-func (p *Prompt) Run() error {
+func (p *Prompt) Run(ctx context.Context) error {
 	// disable echo and hide cursor
 	if err := term.Init(os.Stdin, os.Stdout); err != nil {
 		return err
@@ -136,9 +134,10 @@ func (p *Prompt) Run() error {
 	if p.opts.StartInSearch {
 		p.inputMode = true
 	}
-
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	// start input loop
-	go p.spawnEvents()
+	go p.spawnEvents(ctx)
 
 	p.render() // start with an initial render
 
@@ -162,26 +161,19 @@ func (p *Prompt) Run() error {
 
 // Stop sends a quit signal to the main loop of the prompt
 func (p *Prompt) Stop() {
-	p.interrupt <- struct{}{}
+	p.quit <- struct{}{}
 }
 
-func (p *Prompt) spawnEvents() {
+func (p *Prompt) spawnEvents(ctx context.Context) {
 	for {
 		select {
-		case <-p.interrupt:
-			p.quit <- struct{}{}
-			close(p.events)
-			break
+		case <-ctx.Done():
+			return
 		default:
-			// TODO(arslan): remove this
-			// (isacikgoz): it saves from still reading input while it
 			time.Sleep(10 * time.Millisecond)
-
-			if p.hold {
-				continue
-			}
-
+			p.mx.Lock()
 			r, _, err := p.reader.ReadRune()
+			p.mx.Unlock()
 			p.events <- keyEvent{ch: r, err: err}
 		}
 	}
@@ -200,7 +192,7 @@ func (p *Prompt) mainloop() error {
 		case <-sigwinch:
 			p.render()
 		case ev := <-p.events:
-			p.hold = true
+			p.mx.Lock()
 			if err := ev.err; err != nil {
 				return err
 			}
@@ -224,18 +216,17 @@ func (p *Prompt) mainloop() error {
 			}
 
 			p.render()
-			p.hold = false
+			p.mx.Unlock()
 		}
 	}
 }
 
 // render function draws screen's list to terminal
 func (p *Prompt) render() {
-	p.mx.Lock()
 
 	defer func() {
 		p.writer.Flush()
-		p.mx.Unlock()
+
 	}()
 
 	if p.helpMode {

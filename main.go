@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"context"
 	"os"
 
 	"github.com/isacikgoz/gitin/cli"
@@ -38,7 +39,8 @@ func main() {
 	}
 
 	exitIfError(err)
-	exitIfError(p.Run())
+	ctx := context.Background()
+	exitIfError(p.Run(ctx))
 }
 
 func exitIfError(err error) {
