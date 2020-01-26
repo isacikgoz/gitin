@@ -4,7 +4,7 @@ GITIN_BUILD_DATETIME=$(shell date '+%Y-%m-%d %H:%M:%S %Z')
 GOCMD=go
 
 BINARY?=gitin
-GITIN_SOURCE_DIR=.
+GITIN_SOURCE_DIR=cmd/gitin/main.go
 GITIN_BUILD_FLAGS=--tags static
 
 GITIN_DIR:=$(dir $(realpath $(lastword $(MAKEFILE_LIST))))
