@@ -1,7 +1,7 @@
 package git
 
 import (
-	lib "gopkg.in/libgit2/git2go.v27"
+	lib "github.com/libgit2/git2go/v30"
 )
 
 // MergeOptions defines common options for merge operation

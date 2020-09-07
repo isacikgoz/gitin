@@ -80,15 +80,15 @@ Press ? for controls while application is running.
 
 ## Development Requirements
 
-- Requires gitlib2 v27 and `git2go`. See the project homepages for more information about build instructions. For gitin you can simply;
+- Requires gitlib2 v30 and `git2go`. See the project homepages for more information about build instructions. For gitin you can simply;
   - macOS:
-    1. install libgit2 via `brew install libgit2` (consider that libgit2.v27 is required)
+    1. install libgit2 via `brew install libgit2` (consider that libgit2.v30 is required)
   - Linux and macOS(if you want to build your own):
-    1. download git2go; `go get -d gopkg.in/libgit2/git2go.v27`
+    1. download git2go; `go get -d github.com/libgit2/git2go/v30`
     2. make sure you have `cmake`, `pkg-config` and `libssl-dev` installed
-    3. `cd` into `$GOPATH/src/gopkg.in/libgit2/git2go.v27`
+    3. `cd` into `$GOPATH/pkg/mod/github.com/libgit2/git2go/v30@v30.0.9` (you might need to chmod -R `v30@v30.0.9` directory)
     4. initialize submodules by running `git submodule update --init`
-    5. change the libigt2 version to your version (in this case its 0.27) in the install script (e.g. `nano script/install-libgit2.sh` or `vim script/install-libgit2.sh`) and change `LG2VER` to 0.27.0
+    5. change the libigt2 version to your version (in this case its 0.30) in the install script (e.g. `nano script/install-libgit2.sh` or `vim script/install-libgit2.sh`) and change `LG2VER` to 0.30.0
     6. run the script `./script/install-libgit2.sh`
 - After these you can download it with `go get github.com/isacikgoz/gitin`
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin` and start hacking

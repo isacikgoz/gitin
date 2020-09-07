@@ -3,8 +3,8 @@ package git
 import (
 	"os"
 	"testing"
-
-	lib "gopkg.in/libgit2/git2go.v27"
+	
+	lib "github.com/libgit2/git2go/v30"
 )
 
 func TestDefaultAuthCallbackFunc(t *testing.T) {

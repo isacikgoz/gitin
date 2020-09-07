@@ -4,7 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	lib "gopkg.in/libgit2/git2go.v27"
+	lib "github.com/libgit2/git2go/v30"
 )
 
 // Repository is the wrapper and main interface to git repository

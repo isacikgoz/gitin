@@ -1,7 +1,7 @@
 package git
 
 import (
-	lib "gopkg.in/libgit2/git2go.v27"
+	lib "github.com/libgit2/git2go/v30"
 )
 
 // CredType defines the credentials type for authentication with remote
@@ -65,7 +65,7 @@ func (c *CredentialsAsSSHAgent) Type() CredType {
 
 func defaultRemoteCallbacks(opts OptionsWithCreds) lib.RemoteCallbacks {
 	rcb := lib.RemoteCallbacks{}
-	rcb.CredentialsCallback = opts.authCallbackFunc
+	// rcb.CredentialsCallback = opts.authCallbackFunc
 	rcb.CertificateCheckCallback = opts.certCheckCallbackFunc
 	return rcb
 }
@@ -81,8 +81,11 @@ func defaultAuthCallback(opts OptionsWithCreds, url string, uname string, credTy
 		switch cr.(type) {
 		case *CredentialsAsPlainText:
 			credentials := cr.(*CredentialsAsPlainText)
-			errCode, cred := lib.NewCredUserpassPlaintext(credentials.UserName, credentials.Password)
-			return lib.ErrorCode(errCode), &cred
+			cred, err := lib.NewCredUserpassPlaintext(credentials.UserName, credentials.Password)
+			if err != nil {
+				return lib.ErrorCode(1), nil
+			}
+			return lib.ErrorCode(0), cred
 		default:
 			return lib.ErrAuth, nil
 		}
@@ -90,8 +93,11 @@ func defaultAuthCallback(opts OptionsWithCreds, url string, uname string, credTy
 		switch cr.(type) {
 		case *CredentialsAsSSHKey:
 			credentials := cr.(*CredentialsAsSSHKey)
-			errCode, cred := lib.NewCredSshKey(credentials.UserName, credentials.PublicKeyPath, credentials.PrivateKeyPath, credentials.Passphrase)
-			return lib.ErrorCode(errCode), &cred
+			cred, err := lib.NewCredSshKey(credentials.UserName, credentials.PublicKeyPath, credentials.PrivateKeyPath, credentials.Passphrase)
+			if err != nil {
+				return lib.ErrorCode(1), nil
+			}
+			return lib.ErrorCode(0), cred
 		default:
 			return lib.ErrAuth, nil
 		}
@@ -99,8 +105,11 @@ func defaultAuthCallback(opts OptionsWithCreds, url string, uname string, credTy
 		switch cr.(type) {
 		case *CredentialsAsSSHAgent:
 			credentials := cr.(*CredentialsAsSSHAgent)
-			errCode, cred := lib.NewCredSshKeyFromAgent(credentials.UserName)
-			return lib.ErrorCode(errCode), &cred
+			cred, err := lib.NewCredSshKeyFromAgent(credentials.UserName)
+			if err != nil {
+				return lib.ErrorCode(1), nil
+			}
+			return lib.ErrorCode(0), cred
 		default:
 			return lib.ErrAuth, nil
 		}

@@ -3,7 +3,7 @@ package git
 import (
 	"strings"
 
-	lib "gopkg.in/libgit2/git2go.v27"
+	lib "github.com/libgit2/git2go/v30"
 )
 
 // Branch is a wrapper of lib.Branch object
