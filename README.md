@@ -24,10 +24,9 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 
 - Linux and macOS are supported, Windows is not at the moment.
 - Download latest release from [here](https://github.com/isacikgoz/gitin/releases)
-- **Or**, manually download it with `go get -d github.com/isacikgoz/gitin`
+- **Or**, manually download it with `go get -d github.com/isacikgoz/gitin/cmd/gitin`
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
-- make would expect a built libgit2 library to make a static link. So, when you run `make` command, you should be able to build libgit2 at your `$GOPATH/pkg/mod/gopkg.in/libgit2/git2go.../vendor/libgit2/build` directory. This issue has been shown up after go modules.
-- build with `make install` (`cmake` and `pkg-config` are required)
+- build with `make install` (`cmake` and `pkg-config` are required, also note that git2go will be cloned and built)
 
 ### Mac/Linux using brew
 
@@ -80,18 +79,10 @@ Press ? for controls while application is running.
 
 ## Development Requirements
 
-- Requires gitlib2 v30 and `git2go`. See the project homepages for more information about build instructions. For gitin you can simply;
-  - macOS:
-    1. install libgit2 via `brew install libgit2` (consider that libgit2.v30 is required)
-  - Linux and macOS(if you want to build your own):
-    1. download git2go; `go get -d github.com/libgit2/git2go/v30`
-    2. make sure you have `cmake`, `pkg-config` and `libssl-dev` installed
-    3. `cd` into `$GOPATH/pkg/mod/github.com/libgit2/git2go/v30@v30.0.9` (you might need to chmod -R `v30@v30.0.9` directory)
-    4. initialize submodules by running `git submodule update --init`
-    5. change the libigt2 version to your version (in this case its 0.30) in the install script (e.g. `nano script/install-libgit2.sh` or `vim script/install-libgit2.sh`) and change `LG2VER` to 0.30.0
-    6. run the script `./script/install-libgit2.sh`
-- After these you can download it with `go get github.com/isacikgoz/gitin`
-- `cd` into `$GOPATH/src/github.com/isacikgoz/gitin` and start hacking
+- **Running with static linking is highly recommended.**
+- Clone the project and `cd` into it.
+- Run `make build-libgit2` (this will satisfy the replace rule in the `go.mod` file)
+- You can run the project with `go run --tags static cmd/gitin/main.go --help` command
 
 ## Contribution
 

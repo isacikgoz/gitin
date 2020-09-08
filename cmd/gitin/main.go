@@ -56,7 +56,7 @@ func evalArgs() string {
 	pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 	pin.Command("branch", "Show list of branches.")
 
-	pin.Version("gitin version 0.2.4")
+	pin.Version("gitin version 0.2.5")
 
 	pin.UsageTemplate(pin.DefaultUsageTemplate + additionalHelp() + "\n")
 	pin.CommandLine.HelpFlag.Short('h')

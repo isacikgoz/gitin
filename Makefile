@@ -1,6 +1,3 @@
-GITIN_VERSION=$(shell git describe --long --tags --dirty --always --match=v*.*.* 2>/dev/null || echo 'Unknown')
-GITIN_BUILD_DATETIME=$(shell date '+%Y-%m-%d %H:%M:%S %Z')
-
 GOCMD=go
 
 BINARY?=gitin
@@ -12,7 +9,8 @@ GOPATH_DIR?=$(shell go env GOPATH | cut -d: -f1)
 GOBIN_DIR:=$(GOPATH_DIR)/bin
 
 GIT2GO_VERSION=30
-GIT2GO_DIR:=$(GOPATH_DIR)/pkg/mod/github.com/libgit2/git2go/v30@v30.0.9
+PARENT_DIR=$(realpath $(GITIN_DIR)../)
+GIT2GO_DIR:=$(PARENT_DIR)/git2go
 LIBGIT2_DIR=$(GIT2GO_DIR)/vendor/libgit2
 GIT2GO_PATCH=patch/git2go.v$(GIT2GO_VERSION).patch
 
@@ -36,9 +34,19 @@ install: $(BINARY)
 	install -m755 $(BINARY) $(GOBIN_DIR)
 
 .PHONY: update
-update:
-	git submodule -q foreach --recursive git reset -q --hard
-	git submodule update --init --recursive
+update: check-git2go
+	git clone https://github.com/libgit2/git2go.git $(GIT2GO_DIR)
+	cd $(GIT2GO_DIR) && git checkout v30.0.9
+	cd $(GIT2GO_DIR) && git submodule -q foreach --recursive git reset -q --hard
+	cd $(GIT2GO_DIR) && git submodule update --init --recursive
+
+check-git2go:
+	@if [ -d "$(GIT2GO_DIR)" ]; then \
+		echo "$(GIT2GO_DIR) will be deleted, are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]; \
+		if [ $$ans = y ] || [ $$ans = Y ]  ; then \
+			rm -rf $(GIT2GO_DIR); \
+		fi; \
+	fi; \
 
 .PHONY: apply-patches
 apply-patches: update
