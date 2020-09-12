@@ -201,6 +201,7 @@ func (p *Prompt) mainloop() error {
 
 				switch r := ev.ch; r {
 				case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
+					p.Stop()
 					return nil
 				case term.Enter, term.NewLine:
 					items, idx := p.list.Items()
