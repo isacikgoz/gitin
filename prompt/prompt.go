@@ -169,8 +169,7 @@ func (p *Prompt) spawnEvents(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			time.Sleep(10 * time.Millisecond)
+		case <-time.After(10 * time.Millisecond):
 			p.mx.Lock()
 			r, _, err := p.reader.ReadRune()
 			p.mx.Unlock()
@@ -192,31 +191,36 @@ func (p *Prompt) mainloop() error {
 		case <-sigwinch:
 			p.render()
 		case ev := <-p.events:
-			p.mx.Lock()
-			if err := ev.err; err != nil {
+			if err := func() error {
+				p.mx.Lock()
+				defer p.mx.Unlock()
+
+				if err := ev.err; err != nil {
+					return err
+				}
+
+				switch r := ev.ch; r {
+				case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
+					return nil
+				case term.Enter, term.NewLine:
+					items, idx := p.list.Items()
+					if idx == NotFound {
+						break
+					}
+
+					if err := p.selectionHandler(items[idx]); err != nil {
+						return err
+					}
+				default:
+					if err := p.onKey(r); err != nil {
+						return err
+					}
+				}
+				p.render()
+				return nil
+			}(); err != nil {
 				return err
 			}
-
-			switch r := ev.ch; r {
-			case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
-				return nil
-			case term.Enter, term.NewLine:
-				items, idx := p.list.Items()
-				if idx == NotFound {
-					break
-				}
-
-				if err := p.selectionHandler(items[idx]); err != nil {
-					return err
-				}
-			default:
-				if err := p.onKey(r); err != nil {
-					return err
-				}
-			}
-
-			p.render()
-			p.mx.Unlock()
 		}
 	}
 }
