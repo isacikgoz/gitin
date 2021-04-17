@@ -44,7 +44,7 @@ type Options struct {
 
 // State holds the changeable vars of the prompt
 type State struct {
-	List        *List
+	List        List
 	SearchMode  bool
 	SearchStr   string
 	SearchLabel string
@@ -55,7 +55,7 @@ type State struct {
 
 // Prompt is a interactive prompt for command-line
 type Prompt struct {
-	list        *List
+	list        List
 	opts        *Options
 	keyBindings []*KeyBinding
 
@@ -74,12 +74,13 @@ type Prompt struct {
 	writer *term.BufferedWriter // initialized by prompt
 	mx     *sync.RWMutex
 
-	events chan keyEvent
-	quit   chan struct{}
+	events  chan keyEvent
+	quit    chan struct{}
+	newItem chan struct{}
 }
 
 // Create returns a pointer to prompt that is ready to Run
-func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt {
+func Create(label string, opts *Options, list List, fs ...OptionalFunc) *Prompt {
 	p := &Prompt{
 		opts:         opts,
 		list:         list,
@@ -90,6 +91,7 @@ func Create(label string, opts *Options, list *List, fs ...OptionalFunc) *Prompt
 		mx:           &sync.RWMutex{},
 		events:       make(chan keyEvent, 20),
 		quit:         make(chan struct{}, 1),
+		newItem:      make(chan struct{}),
 	}
 
 	for _, f := range fs {
@@ -190,6 +192,8 @@ func (p *Prompt) mainloop() error {
 			return nil
 		case <-sigwinch:
 			p.render()
+		case <-p.list.Update():
+			p.render()
 		case ev := <-p.events:
 			if err := func() error {
 				p.mx.Lock()
@@ -245,7 +249,7 @@ func (p *Prompt) render() {
 	p.writer.WriteCells(renderSearch(p.itemsLabel, p.inputMode, p.input))
 
 	for i := range items {
-		output := p.itemRenderer(items[i], p.list.matches[items[i]], (i == idx))
+		output := p.itemRenderer(items[i], p.list.Matches()[items[i]], (i == idx))
 		for _, l := range output {
 			p.writer.WriteCells(l)
 		}
@@ -346,9 +350,9 @@ func (p *Prompt) State() *State {
 		SearchMode:  p.inputMode,
 		SearchStr:   p.input,
 		SearchLabel: p.itemsLabel,
-		Cursor:      p.list.cursor,
+		Cursor:      p.list.Cursor(),
 		Scroll:      scroll,
-		ListSize:    p.list.size,
+		ListSize:    p.list.Size(),
 	}
 }
 

@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
 	"github.com/justincampbell/timeago"
-	"github.com/isacikgoz/gitin/git"
 )
 
 // log holds the repository struct and the prompt pointer. since log and prompt dependent,
@@ -23,13 +23,21 @@ type log struct {
 
 // LogPrompt configures a prompt to serve as a commit prompt
 func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
-	cs, err := r.Commits()
+	commits, err := r.CommitsChan(0)
 	if err != nil {
 		return nil, fmt.Errorf("could not load commits: %v", err)
 	}
 	r.Branches() // to find refs
 	r.Tags()
-	list, err := prompt.NewList(cs, opts.LineSize)
+	items := make(chan interface{})
+	go func() {
+		for c := range commits {
+			items <- c
+		}
+		close(items)
+	}()
+
+	list, err := prompt.NewAsyncList(items, opts.LineSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}

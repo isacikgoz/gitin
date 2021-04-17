@@ -20,10 +20,10 @@ func (is interfaceSource) Len() int { return len(is) }
 // NotFound is an index returned when no item was selected.
 const NotFound = -1
 
-// List holds a collection of items that can be displayed with an N number of
+// SyncList holds a collection of items that can be displayed with an N number of
 // visible items. The list can be moved up, down by one item of time or an
 // entire page (ie: visible size). It keeps track of the current selected item.
-type List struct {
+type SyncList struct {
 	items   []interface{}
 	scope   []interface{}
 	matches map[interface{}][]int
@@ -34,7 +34,7 @@ type List struct {
 }
 
 // NewList creates and initializes a list of searchable items. The items attribute must be a slice type.
-func NewList(items interface{}, size int) (*List, error) {
+func NewList(items interface{}, size int) (*SyncList, error) {
 	if size < 1 {
 		return nil, fmt.Errorf("list size %d must be greater than 0", size)
 	}
@@ -50,7 +50,7 @@ func NewList(items interface{}, size int) (*List, error) {
 		values[i] = item.Interface()
 	}
 
-	return &List{
+	return &SyncList{
 		size:  size,
 		items: values,
 		scope: values,
@@ -58,7 +58,7 @@ func NewList(items interface{}, size int) (*List, error) {
 }
 
 // Prev moves the visible list back one item.
-func (l *List) Prev() {
+func (l *SyncList) Prev() {
 	if l.cursor > 0 {
 		l.cursor--
 	}
@@ -69,7 +69,7 @@ func (l *List) Prev() {
 }
 
 // Search allows the list to be filtered by a given term.
-func (l *List) Search(term string) {
+func (l *SyncList) Search(term string) {
 	term = strings.Trim(term, " ")
 	l.cursor = 0
 	l.start = 0
@@ -78,13 +78,13 @@ func (l *List) Search(term string) {
 }
 
 // CancelSearch stops the current search and returns the list to its original order.
-func (l *List) CancelSearch() {
+func (l *SyncList) CancelSearch() {
 	l.cursor = 0
 	l.start = 0
 	l.scope = l.items
 }
 
-func (l *List) search(term string) {
+func (l *SyncList) search(term string) {
 	if len(term) == 0 {
 		l.scope = l.items
 		return
@@ -100,12 +100,12 @@ func (l *List) search(term string) {
 }
 
 // Start returns the current render start position of the list.
-func (l *List) Start() int {
+func (l *SyncList) Start() int {
 	return l.start
 }
 
 // SetStart sets the current scroll position. Values out of bounds will be clamped.
-func (l *List) SetStart(i int) {
+func (l *SyncList) SetStart(i int) {
 	if i < 0 {
 		i = 0
 	}
@@ -118,7 +118,7 @@ func (l *List) SetStart(i int) {
 
 // SetCursor sets the position of the cursor in the list. Values out of bounds will
 // be clamped.
-func (l *List) SetCursor(i int) {
+func (l *SyncList) SetCursor(i int) {
 	max := len(l.scope) - 1
 	if i >= max {
 		i = max
@@ -136,7 +136,7 @@ func (l *List) SetCursor(i int) {
 }
 
 // Next moves the visible list forward one item.
-func (l *List) Next() {
+func (l *SyncList) Next() {
 	max := len(l.scope) - 1
 
 	if l.cursor < max {
@@ -150,7 +150,7 @@ func (l *List) Next() {
 
 // PageUp moves the visible list backward by x items. Where x is the size of the
 // visible items on the list.
-func (l *List) PageUp() {
+func (l *SyncList) PageUp() {
 	start := l.start - l.size
 	if start < 0 {
 		l.start = 0
@@ -167,7 +167,7 @@ func (l *List) PageUp() {
 
 // PageDown moves the visible list forward by x items. Where x is the size of
 // the visible items on the list.
-func (l *List) PageDown() {
+func (l *SyncList) PageDown() {
 	start := l.start + l.size
 	max := len(l.scope) - l.size
 
@@ -190,18 +190,18 @@ func (l *List) PageDown() {
 }
 
 // CanPageDown returns whether a list can still PageDown().
-func (l *List) CanPageDown() bool {
+func (l *SyncList) CanPageDown() bool {
 	max := len(l.scope)
 	return l.start+l.size < max
 }
 
 // CanPageUp returns whether a list can still PageUp().
-func (l *List) CanPageUp() bool {
+func (l *SyncList) CanPageUp() bool {
 	return l.start > 0
 }
 
 // Index returns the index of the item currently selected inside the searched list.
-func (l *List) Index() int {
+func (l *SyncList) Index() int {
 	if len(l.scope) <= 0 {
 		return 0
 	}
@@ -218,7 +218,7 @@ func (l *List) Index() int {
 
 // Items returns a slice equal to the size of the list with the current visible
 // items and the index of the active item in this list.
-func (l *List) Items() ([]interface{}, int) {
+func (l *SyncList) Items() ([]interface{}, int) {
 	var result []interface{}
 	max := len(l.scope)
 	end := l.start + l.size
@@ -238,4 +238,20 @@ func (l *List) Items() ([]interface{}, int) {
 	}
 
 	return result, active
+}
+
+func (l *SyncList) Size() int {
+	return l.size
+}
+
+func (l *SyncList) Cursor() int {
+	return l.cursor
+}
+
+func (l *SyncList) Matches() map[interface{}][]int {
+	return l.matches
+}
+
+func (l *SyncList) Update() chan struct{} {
+	return nil
 }
