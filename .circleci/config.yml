@@ -1,0 +1,21 @@
+version: 2
+jobs:
+  build:
+    working_directory: /go/src/github.com/isacikgoz/gitin
+    docker:
+      - image: circleci/golang:1.16.0
+    steps:
+      - checkout
+      - run:
+          name: build-libgit2
+          command:
+            export GITIN_FORCE_INSTALL=YES && make make build-libgit2
+      - run:
+          name: install
+          command:
+            go install --tags "static" ./cmd/gitin
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build

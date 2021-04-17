@@ -41,7 +41,7 @@ update: check-git2go
 	cd $(GIT2GO_DIR) && git submodule update --init --recursive
 
 check-git2go:
-	@if [ "$(FORCE)" == "YES" ]; then \
+	@if [ "$(GITIN_FORCE_INSTALL)" == "YES" ]; then \
 		echo "removing by force"; \
 		rm -rf $(GIT2GO_DIR); \
 	elif [ -d "$(GIT2GO_DIR)" ]; then  \

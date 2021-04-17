@@ -1,8 +1,0 @@
-language: go
-
-go:
-  - "1.16"
-install:
-  - export FORCE=YES
-  - make build-libgit2
-  - go install --tags "static" ./cmd/gitin
