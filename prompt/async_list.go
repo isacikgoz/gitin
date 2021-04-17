@@ -16,6 +16,7 @@ type AsyncList struct {
 	itemsChan chan interface{}
 	items     []interface{}
 	scope     []interface{}
+	buffer    []interface{}
 	matches   map[interface{}][]int
 	cursor    int // cursor holds the index of the current selected item
 	size      int // size is the number of visible options
@@ -30,6 +31,7 @@ func NewAsyncList(items chan interface{}, size int) (*AsyncList, error) {
 	if size < 1 {
 		return nil, fmt.Errorf("list size %d must be greater than 0", size)
 	}
+
 	if items == nil || reflect.TypeOf(items).Kind() != reflect.Chan {
 		return nil, fmt.Errorf("items %v is not a chan", items)
 	}
@@ -42,34 +44,49 @@ func NewAsyncList(items chan interface{}, size int) (*AsyncList, error) {
 		scope:     is,
 		mx:        sync.Mutex{},
 		update:    make(chan struct{}),
+		buffer:    make([]interface{}, 0),
 	}
 
 	go func() {
-		flush := 0
-		done := false
+		var flush int
 		for val := range items {
-			list.addItem(val)
-			if flush > 200 {
-				list.update <- struct{}{}
-				flush = 0
+			list.addBuffer(val)
+			if flush < 4096 {
+				flush++
+				continue
 			}
-			if flush < size && !done {
-				list.scope = append(list.scope, val)
-				if flush == size {
-					done = true
-				}
-			}
-			flush++
+			list.flushBuffer()
+			flush = 0
 		}
-		list.update <- struct{}{}
+		list.flushBuffer()
 	}()
 
 	return list, nil
 }
-func (l *AsyncList) addItem(item interface{}) {
-	if item != nil {
-		l.items = append(l.items, item)
+
+func (l *AsyncList) flushBuffer() {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+
+	if len(l.buffer) == 0 {
+		return
 	}
+
+	l.items = append(l.items, l.buffer...)
+	l.scope = append(l.scope, l.buffer...)
+
+	// update for the first iteration of flushing the buffer
+	// then, a user input will trigger a re-rendering operation
+	if l.update != nil {
+		l.update <- struct{}{}
+	}
+	l.update = nil
+
+	l.buffer = make([]interface{}, 0)
+}
+
+func (l *AsyncList) addBuffer(items ...interface{}) {
+	l.buffer = append(l.buffer, items...)
 }
 
 // Prev moves the visible list back one item.
@@ -85,6 +102,9 @@ func (l *AsyncList) Prev() {
 
 // Search allows the list to be filtered by a given term.
 func (l *AsyncList) Search(term string) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+
 	term = strings.Trim(term, " ")
 	l.cursor = 0
 	l.start = 0
@@ -104,6 +124,7 @@ func (l *AsyncList) search(term string) {
 		l.scope = l.items
 		return
 	}
+
 	l.matches = make(map[interface{}][]int)
 	results := fuzzy.FindFrom(term, interfaceSource(l.items))
 	l.scope = make([]interface{}, 0)
