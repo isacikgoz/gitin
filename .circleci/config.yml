@@ -9,7 +9,7 @@ jobs:
       - run:
           name: build-libgit2
           command:
-            export GITIN_FORCE_INSTALL=YES && make make build-libgit2
+            export GITIN_FORCE_INSTALL=YES && make build-libgit2
       - run:
           name: install
           command:
