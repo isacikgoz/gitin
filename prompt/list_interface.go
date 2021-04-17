@@ -1,6 +1,6 @@
 package prompt
 
-type ListInterface interface {
+type List interface {
 	// Next moves the visible list forward one item
 	Next()
 

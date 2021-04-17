@@ -44,7 +44,7 @@ type Options struct {
 
 // State holds the changeable vars of the prompt
 type State struct {
-	List        ListInterface
+	List        List
 	SearchMode  bool
 	SearchStr   string
 	SearchLabel string
@@ -55,7 +55,7 @@ type State struct {
 
 // Prompt is a interactive prompt for command-line
 type Prompt struct {
-	list        ListInterface
+	list        List
 	opts        *Options
 	keyBindings []*KeyBinding
 
@@ -80,7 +80,7 @@ type Prompt struct {
 }
 
 // Create returns a pointer to prompt that is ready to Run
-func Create(label string, opts *Options, list ListInterface, fs ...OptionalFunc) *Prompt {
+func Create(label string, opts *Options, list List, fs ...OptionalFunc) *Prompt {
 	p := &Prompt{
 		opts:         opts,
 		list:         list,
@@ -228,18 +228,6 @@ func (p *Prompt) mainloop() error {
 			}
 		}
 	}
-}
-
-func (p *Prompt) UpdateList(list *List) error {
-	defer func() {
-		p.newItem <- struct{}{}
-	}()
-	p.mx.Lock()
-	defer p.mx.Unlock()
-
-	p.list = list
-
-	return nil
 }
 
 // render function draws screen's list to terminal
