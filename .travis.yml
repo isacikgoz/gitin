@@ -1,6 +1,7 @@
 language: go
 
 go:
-  - "1.12"
+  - "1.16"
 before_install:
-  - go get -d github.com/isacikgoz/gitin
+  - make update
+  - go get -d github.com/isacikgoz/gitin/cmd/gitin

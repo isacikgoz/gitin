@@ -1,6 +1,6 @@
 module github.com/isacikgoz/gitin
 
-go 1.12
+go 1.16
 
 replace github.com/libgit2/git2go/v30 => ../git2go
 
