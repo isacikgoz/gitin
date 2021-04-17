@@ -59,6 +59,37 @@ func (r *Repository) Commits() ([]*Commit, error) {
 	return buffer, err
 }
 
+// Commits returns commits as channel with given size
+func (r *Repository) CommitsChan(size int) (chan *Commit, error) {
+	head, err := r.essence.Head()
+	if err != nil {
+		return nil, err
+	}
+	walk, err := r.essence.Walk()
+	if err != nil {
+		return nil, err
+	}
+	if err := walk.Push(head.Target()); err != nil {
+		return nil, err
+	}
+	buffer := make(chan *Commit, size)
+
+	go func() {
+		defer walk.Free()
+		defer close(buffer)
+		err = walk.Iterate(func(commit *lib.Commit) bool {
+			buffer <- unpackRawCommit(r, commit)
+
+			return true
+		})
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	return buffer, nil
+}
+
 func unpackRawCommit(repo *Repository, raw *lib.Commit) *Commit {
 	oid := raw.AsObject().Id()
 
