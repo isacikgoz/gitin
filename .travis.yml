@@ -2,6 +2,7 @@ language: go
 
 go:
   - "1.16"
-before_install:
-  - make update
-  - go get -d github.com/isacikgoz/gitin/cmd/gitin
+install:
+  - export FORCE=YES
+  - make build-libgit2
+  - go install --tags "static" ./cmd/gitin

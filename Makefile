@@ -41,7 +41,10 @@ update: check-git2go
 	cd $(GIT2GO_DIR) && git submodule update --init --recursive
 
 check-git2go:
-	@if [ -d "$(GIT2GO_DIR)" ]; then \
+	@if [ "$(FORCE)" == "YES" ]; then \
+		echo "removing by force"; \
+		rm -rf $(GIT2GO_DIR); \
+	elif [ -d "$(GIT2GO_DIR)" ]; then  \
 		echo "$(GIT2GO_DIR) will be deleted, are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]; \
 		if [ $$ans = y ] || [ $$ans = Y ]  ; then \
 			rm -rf $(GIT2GO_DIR); \
