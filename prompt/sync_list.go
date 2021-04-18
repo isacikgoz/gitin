@@ -4,11 +4,13 @@
 package prompt
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
-	"github.com/sahilm/fuzzy"
+	"github.com/isacikgoz/fuzzy"
 )
 
 type interfaceSource []interface{}
@@ -90,7 +92,15 @@ func (l *SyncList) search(term string) {
 		return
 	}
 	l.matches = make(map[interface{}][]int)
-	results := fuzzy.FindFrom(term, interfaceSource(l.items))
+	matches := fuzzy.FindFrom(context.Background(), term, interfaceSource(l.items))
+
+	results := make([]fuzzy.Match, 0)
+	for match := range matches {
+		results = append(results, match)
+	}
+
+	sort.Stable(fuzzy.Sortable(results))
+
 	l.scope = make([]interface{}, 0)
 	for _, r := range results {
 		item := l.items[r.Index]
@@ -248,8 +258,8 @@ func (l *SyncList) Cursor() int {
 	return l.cursor
 }
 
-func (l *SyncList) Matches() map[interface{}][]int {
-	return l.matches
+func (l *SyncList) Matches(item interface{}) []int {
+	return l.matches[item]
 }
 
 func (l *SyncList) Update() chan struct{} {

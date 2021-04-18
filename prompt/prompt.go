@@ -232,7 +232,6 @@ func (p *Prompt) mainloop() error {
 
 // render function draws screen's list to terminal
 func (p *Prompt) render() {
-
 	defer func() {
 		p.writer.Flush()
 
@@ -249,7 +248,7 @@ func (p *Prompt) render() {
 	p.writer.WriteCells(renderSearch(p.itemsLabel, p.inputMode, p.input))
 
 	for i := range items {
-		output := p.itemRenderer(items[i], p.list.Matches()[items[i]], (i == idx))
+		output := p.itemRenderer(items[i], p.list.Matches(items[i]), (i == idx))
 		for _, l := range output {
 			p.writer.WriteCells(l)
 		}
