@@ -1,9 +1,8 @@
 version: 2
 jobs:
   build:
-    working_directory: /go/src/github.com/isacikgoz/gitin
-    docker:
-      - image: circleci/golang:1.16.0
+    machine:
+      image: ubuntu-2004:202101-01
     steps:
       - checkout
       - run:
