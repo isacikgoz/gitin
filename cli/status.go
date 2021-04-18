@@ -108,7 +108,7 @@ func (s *status) defineKeybindings() error {
 			Key:     '!',
 			Display: "!",
 			Desc:    "discard changes",
-			Handler: s.checkoutEntry,
+			Handler: s.discardEntry,
 		},
 		&prompt.KeyBinding{
 			Key:     'q',
@@ -192,12 +192,14 @@ func (s *status) resetAllEntries(item interface{}) error {
 	return s.runCommandWithArgs(args)
 }
 
-func (s *status) checkoutEntry(item interface{}) error {
+func (s *status) discardEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
+	var args []string
 	if entry.EntryType == git.StatusEntryTypeUntracked {
-		return nil // you can't checkout untracked items
+		args = []string{"clean", "--force", entry.String()}
+	} else {
+		args = []string{"checkout", "--", entry.String()}
 	}
-	args := []string{"checkout", "--", entry.String()}
 	return s.runCommandWithArgs(args)
 }
 
