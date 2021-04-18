@@ -45,7 +45,7 @@ type List interface {
 	Items() ([]interface{}, int)
 
 	// Matches returns the matched items against a search term
-	Matches() map[interface{}][]int
+	Matches(key interface{}) []int
 
 	// Cursor is the current cursor position
 	Cursor() int

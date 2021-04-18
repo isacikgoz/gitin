@@ -1,12 +1,15 @@
 package prompt
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
-	"github.com/sahilm/fuzzy"
+	"github.com/isacikgoz/fuzzy"
 )
 
 // AsyncList holds a collection of items that can be displayed with an N number of
@@ -17,13 +20,62 @@ type AsyncList struct {
 	items     []interface{}
 	scope     []interface{}
 	buffer    []interface{}
-	matches   map[interface{}][]int
+	matches   sync.Map
 	cursor    int // cursor holds the index of the current selected item
 	size      int // size is the number of visible options
 	start     int
 	find      string
 	mx        sync.Mutex
 	update    chan struct{}
+	ctx       *searchContext
+}
+
+type searchContext struct {
+	ctx      context.Context
+	cancel   func()
+	buffer   []fuzzy.Match
+	progress int32
+}
+
+func newSearchContext(c context.Context) *searchContext {
+	ctx, cancel := context.WithCancel(c)
+	return &searchContext{
+		ctx:    ctx,
+		cancel: cancel,
+		buffer: make([]fuzzy.Match, 0),
+	}
+}
+
+func (c *searchContext) addBuffer(items ...fuzzy.Match) {
+	c.buffer = append(c.buffer, items...)
+}
+
+func (c *searchContext) getBuffer() []fuzzy.Match {
+	return c.buffer
+}
+
+func (c *searchContext) clearBuffer() {
+	c.buffer = make([]fuzzy.Match, 0)
+	return
+}
+
+func (c *searchContext) searchInProgress() bool {
+	return atomic.LoadInt32(&c.progress) != 0
+}
+
+func (c *searchContext) stopSearch() {
+	if atomic.LoadInt32(&c.progress) == 0 {
+		return
+	}
+
+	c.cancel()
+	c.clearBuffer()
+	return
+}
+
+func (c *searchContext) startSearch() bool {
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+	return atomic.CompareAndSwapInt32(&c.progress, 0, 1)
 }
 
 // NewAsyncList creates and initializes a list of searchable items. The items attribute must be a slice type.
@@ -45,6 +97,7 @@ func NewAsyncList(items chan interface{}, size int) (*AsyncList, error) {
 		mx:        sync.Mutex{},
 		update:    make(chan struct{}),
 		buffer:    make([]interface{}, 0),
+		ctx:       newSearchContext(context.Background()),
 	}
 
 	go func() {
@@ -75,12 +128,12 @@ func (l *AsyncList) flushBuffer() {
 	l.items = append(l.items, l.buffer...)
 	l.scope = append(l.scope, l.buffer...)
 
-	// update for the first iteration of flushing the buffer
-	// then, a user input will trigger a re-rendering operation
-	if l.update != nil {
-		l.update <- struct{}{}
-	}
-	l.update = nil
+	// // update for the first iteration of flushing the buffer
+	// // then, a user input will trigger a re-rendering operation
+	// if l.update != nil {
+	l.update <- struct{}{}
+	// }
+	// l.update = nil
 
 	l.buffer = make([]interface{}, 0)
 }
@@ -119,20 +172,59 @@ func (l *AsyncList) CancelSearch() {
 	l.scope = l.items
 }
 
+func (l *AsyncList) flushToScope(ctx *searchContext, fireUpdate bool) {
+	defer ctx.clearBuffer()
+
+	sort.Stable(fuzzy.Sortable(ctx.buffer))
+	for _, match := range ctx.buffer {
+		item := l.items[match.Index]
+		l.scope = append(l.scope, item)
+		l.matches.Store(item, match.MatchedIndexes)
+	}
+	if fireUpdate && l.update != nil {
+		l.update <- struct{}{}
+	}
+}
+
 func (l *AsyncList) search(term string) {
 	if len(term) == 0 {
 		l.scope = l.items
 		return
 	}
 
-	l.matches = make(map[interface{}][]int)
-	results := fuzzy.FindFrom(term, interfaceSource(l.items))
+	l.ctx.stopSearch()
+	l.matches = sync.Map{}
 	l.scope = make([]interface{}, 0)
-	for _, r := range results {
-		item := l.items[r.Index]
-		l.scope = append(l.scope, item)
-		l.matches[item] = r.MatchedIndexes
-	}
+
+	l.ctx.startSearch()
+	results := fuzzy.FindFrom(context.Background(), term, interfaceSource(l.items))
+
+	go func() {
+		var flush int
+		var done bool
+		for result := range results {
+			if !l.ctx.searchInProgress() {
+				break
+			}
+			l.ctx.addBuffer(result)
+
+			if !done && flush == l.size {
+				l.flushToScope(l.ctx, true)
+				done = true
+				continue
+			}
+
+			if flush < 16384 {
+				flush++
+				continue
+			}
+
+			l.flushToScope(l.ctx, false)
+			flush = 0
+		}
+		l.flushToScope(l.ctx, true)
+		l.ctx.clearBuffer()
+	}()
 }
 
 // Start returns the current render start position of the list.
@@ -284,8 +376,12 @@ func (l *AsyncList) Cursor() int {
 	return l.cursor
 }
 
-func (l *AsyncList) Matches() map[interface{}][]int {
-	return l.matches
+func (l *AsyncList) Matches(key interface{}) []int {
+	v, ok := l.matches.Load(key)
+	if !ok {
+		return make([]int, 0)
+	}
+	return v.([]int)
 }
 
 func (l *AsyncList) Update() chan struct{} {
