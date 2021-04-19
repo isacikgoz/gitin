@@ -7,75 +7,30 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/isacikgoz/fuzzy"
 )
+
+const updateAfterItemCount = 8192
 
 // AsyncList holds a collection of items that can be displayed with an N number of
 // visible items. The list can be moved up, down by one item of time or an
 // entire page (ie: visible size). It keeps track of the current selected item.
 type AsyncList struct {
+	items   []interface{}
+	scope   []interface{}
+	buffer  []interface{}
+	matches sync.Map
+	cursor  int // cursor holds the index of the current selected item
+	size    int // size is the number of visible options
+	start   int
+	find    string
+
+	// Async specific fields
 	itemsChan chan interface{}
-	items     []interface{}
-	scope     []interface{}
-	buffer    []interface{}
-	matches   sync.Map
-	cursor    int // cursor holds the index of the current selected item
-	size      int // size is the number of visible options
-	start     int
-	find      string
 	mx        sync.Mutex
 	update    chan struct{}
 	ctx       *searchContext
-}
-
-type searchContext struct {
-	ctx      context.Context
-	cancel   func()
-	buffer   []fuzzy.Match
-	progress int32
-}
-
-func newSearchContext(c context.Context) *searchContext {
-	ctx, cancel := context.WithCancel(c)
-	return &searchContext{
-		ctx:    ctx,
-		cancel: cancel,
-		buffer: make([]fuzzy.Match, 0),
-	}
-}
-
-func (c *searchContext) addBuffer(items ...fuzzy.Match) {
-	c.buffer = append(c.buffer, items...)
-}
-
-func (c *searchContext) getBuffer() []fuzzy.Match {
-	return c.buffer
-}
-
-func (c *searchContext) clearBuffer() {
-	c.buffer = make([]fuzzy.Match, 0)
-	return
-}
-
-func (c *searchContext) searchInProgress() bool {
-	return atomic.LoadInt32(&c.progress) != 0
-}
-
-func (c *searchContext) stopSearch() {
-	if atomic.LoadInt32(&c.progress) == 0 {
-		return
-	}
-
-	c.cancel()
-	c.clearBuffer()
-	return
-}
-
-func (c *searchContext) startSearch() bool {
-	c.ctx, c.cancel = context.WithCancel(context.Background())
-	return atomic.CompareAndSwapInt32(&c.progress, 0, 1)
 }
 
 // NewAsyncList creates and initializes a list of searchable items. The items attribute must be a slice type.
@@ -88,12 +43,11 @@ func NewAsyncList(items chan interface{}, size int) (*AsyncList, error) {
 		return nil, fmt.Errorf("items %v is not a chan", items)
 	}
 
-	is := make([]interface{}, 0)
 	list := &AsyncList{
 		size:      size,
-		items:     is,
+		items:     make([]interface{}, 0),
 		itemsChan: items,
-		scope:     is,
+		scope:     make([]interface{}, 0),
 		mx:        sync.Mutex{},
 		update:    make(chan struct{}),
 		buffer:    make([]interface{}, 0),
@@ -104,7 +58,7 @@ func NewAsyncList(items chan interface{}, size int) (*AsyncList, error) {
 		var flush int
 		for val := range items {
 			list.addBuffer(val)
-			if flush < 4096 {
+			if flush < updateAfterItemCount {
 				flush++
 				continue
 			}
@@ -126,14 +80,11 @@ func (l *AsyncList) flushBuffer() {
 	}
 
 	l.items = append(l.items, l.buffer...)
-	l.scope = append(l.scope, l.buffer...)
+	if !l.ctx.searchInProgress() {
+		l.scope = append(l.scope, l.buffer...)
+	}
 
-	// // update for the first iteration of flushing the buffer
-	// // then, a user input will trigger a re-rendering operation
-	// if l.update != nil {
 	l.update <- struct{}{}
-	// }
-	// l.update = nil
 
 	l.buffer = make([]interface{}, 0)
 }
@@ -177,7 +128,7 @@ func (l *AsyncList) flushToScope(ctx *searchContext, fireUpdate bool) {
 
 	sort.Stable(fuzzy.Sortable(ctx.buffer))
 	for _, match := range ctx.buffer {
-		item := l.items[match.Index]
+		item := l.items[match.Index] // TODO: use a temp index
 		l.scope = append(l.scope, item)
 		l.matches.Store(item, match.MatchedIndexes)
 	}
@@ -196,7 +147,7 @@ func (l *AsyncList) search(term string) {
 	l.matches = sync.Map{}
 	l.scope = make([]interface{}, 0)
 
-	l.ctx.startSearch()
+	l.ctx.startSearch(context.Background())
 	results := fuzzy.FindFrom(context.Background(), term, interfaceSource(l.items))
 
 	go func() {
@@ -208,13 +159,14 @@ func (l *AsyncList) search(term string) {
 			}
 			l.ctx.addBuffer(result)
 
+			// for the visible items, do not wait for the buffer
 			if !done && flush == l.size {
 				l.flushToScope(l.ctx, true)
 				done = true
 				continue
 			}
 
-			if flush < 16384 {
+			if flush < updateAfterItemCount {
 				flush++
 				continue
 			}
@@ -222,6 +174,7 @@ func (l *AsyncList) search(term string) {
 			l.flushToScope(l.ctx, false)
 			flush = 0
 		}
+
 		l.flushToScope(l.ctx, true)
 		l.ctx.clearBuffer()
 	}()
@@ -237,11 +190,13 @@ func (l *AsyncList) SetStart(i int) {
 	if i < 0 {
 		i = 0
 	}
+
 	if i > l.cursor {
 		l.start = l.cursor
-	} else {
-		l.start = i
+		return
 	}
+
+	l.start = i
 }
 
 // SetCursor sets the position of the cursor in the list. Values out of bounds will
@@ -251,6 +206,7 @@ func (l *AsyncList) SetCursor(i int) {
 	if i >= max {
 		i = max
 	}
+
 	if i < 0 {
 		i = 0
 	}
