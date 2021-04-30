@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 
@@ -124,12 +123,14 @@ func (l *AsyncList) CancelSearch() {
 }
 
 func (l *AsyncList) flushToScope(ctx *searchContext, fireUpdate bool) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+
 	defer ctx.clearBuffer()
 
-	sort.Stable(fuzzy.Sortable(ctx.buffer))
 	for _, match := range ctx.buffer {
-		item := l.items[match.Index] // TODO: use a temp index
-		l.scope = append(l.scope, item)
+		item := l.items[match.Index]    // TODO: use a temp index
+		l.scope = append(l.scope, item) // TODO: sort items
 		l.matches.Store(item, match.MatchedIndexes)
 	}
 	if fireUpdate && l.update != nil {
@@ -285,7 +286,11 @@ func (l *AsyncList) CanPageUp() bool {
 }
 
 // Index returns the index of the item currently selected inside the searched list.
+// TODO: Convert items to map?
 func (l *AsyncList) Index() int {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+
 	if len(l.scope) <= 0 {
 		return 0
 	}
@@ -303,6 +308,9 @@ func (l *AsyncList) Index() int {
 // Items returns a slice equal to the size of the list with the current visible
 // items and the index of the active item in this list.
 func (l *AsyncList) Items() ([]interface{}, int) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+
 	var result []interface{}
 	max := len(l.scope)
 	end := l.start + l.size

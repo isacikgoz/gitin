@@ -2,6 +2,8 @@ package prompt
 
 import (
 	"context"
+	"sort"
+	"sync"
 	"sync/atomic"
 
 	"github.com/isacikgoz/fuzzy"
@@ -12,6 +14,7 @@ type searchContext struct {
 	cancel   func()
 	buffer   []fuzzy.Match
 	progress int32
+	mx       sync.Mutex
 }
 
 func newSearchContext(c context.Context) *searchContext {
@@ -20,11 +23,16 @@ func newSearchContext(c context.Context) *searchContext {
 		ctx:    ctx,
 		cancel: cancel,
 		buffer: make([]fuzzy.Match, 0),
+		mx:     sync.Mutex{},
 	}
 }
 
 func (c *searchContext) addBuffer(items ...fuzzy.Match) {
+	c.mx.Lock()
+	defer c.mx.Unlock()
+
 	c.buffer = append(c.buffer, items...)
+	sort.Stable(fuzzy.Sortable(c.buffer))
 }
 
 func (c *searchContext) getBuffer() []fuzzy.Match {
@@ -32,8 +40,10 @@ func (c *searchContext) getBuffer() []fuzzy.Match {
 }
 
 func (c *searchContext) clearBuffer() {
+	c.mx.Lock()
+	defer c.mx.Unlock()
+
 	c.buffer = make([]fuzzy.Match, 0)
-	return
 }
 
 func (c *searchContext) searchInProgress() bool {
