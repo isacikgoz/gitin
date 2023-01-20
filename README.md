@@ -1,4 +1,4 @@
-![](https://img.shields.io/circleci/build/github/isacikgoz/gitin/master) ![](https://img.shields.io/github/release-pre/isacikgoz/gitin.svg?style=flat)
+![](https://img.shields.io/github/actions/workflow/status/isacikgoz/gitin/build.yml) ![](https://img.shields.io/github/release-pre/isacikgoz/gitin.svg?style=flat)
 
 # gitin
 
