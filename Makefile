@@ -59,7 +59,7 @@ apply-patches: update
 
 .PHONY: static
 static: build-libgit2
-	$(GOCMD) build $(GITIN_STATIC_BUILD_FLAGS) -o $(BINARY) $(GITIN_SOURCE_DIR)
+	$(GOCMD) build $(GITIN_BUILD_FLAGS) -o $(BINARY) $(GITIN_SOURCE_DIR)
 
 .PHONY: clean
 clean:
