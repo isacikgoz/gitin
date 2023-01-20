@@ -22,7 +22,7 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 
 ## Installation
 
-- Linux and macOS are supported, Windows is not at the moment.
+- Linux and macOS are supported.
 - Download latest release from [here](https://github.com/isacikgoz/gitin/releases)
 - **Or**, manually download it with `go get -d github.com/isacikgoz/gitin/cmd/gitin`
 - `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
