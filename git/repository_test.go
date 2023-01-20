@@ -1,9 +1,7 @@
 package git
 
 import (
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 )
@@ -23,23 +21,6 @@ func TestOpen(t *testing.T) {
 			t.Errorf("input: %s\n error: %s", test.input, err.Error())
 		}
 	}
-}
-
-func testCloneFromLocal(name string) (*Repository, error) {
-	wd, _ := os.Getwd()
-	creds := &CredentialsAsPlainText{}
-	wd = filepath.Dir(wd)
-	dir, err := ioutil.TempDir("", "temp-"+name+"-dir")
-	if err != nil {
-		return nil, err
-	}
-	repo, err := Clone(dir, wd, &CloneOptions{
-		Credentials: creds,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return repo, nil
 }
 
 // got form got2go tests, seems useful

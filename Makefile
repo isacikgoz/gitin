@@ -8,7 +8,7 @@ GITIN_DIR:=$(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 GOPATH_DIR?=$(shell go env GOPATH | cut -d: -f1)
 GOBIN_DIR:=$(GOPATH_DIR)/bin
 
-GIT2GO_VERSION=30
+GIT2GO_VERSION=33
 PARENT_DIR=$(realpath $(GITIN_DIR)../)
 GIT2GO_DIR:=$(PARENT_DIR)/git2go
 LIBGIT2_DIR=$(GIT2GO_DIR)/vendor/libgit2

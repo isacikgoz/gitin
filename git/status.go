@@ -1,7 +1,7 @@
 package git
 
 import (
-	lib "github.com/libgit2/git2go/v30"
+	lib "github.com/libgit2/git2go/v33"
 )
 
 // State is the current state of the repository
