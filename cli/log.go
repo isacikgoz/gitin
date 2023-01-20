@@ -58,7 +58,7 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) 
 // return true to terminate
 func (l *log) onSelect(item interface{}) error {
 	switch item.(type) {
-	case *git.Commit:
+	case *git.Commit: // nolint:typecheck
 		commit := item.(*git.Commit)
 		l.selected = commit
 		diff, err := commit.Diff()
@@ -121,7 +121,7 @@ func (l *log) commitDiff(item interface{}) error {
 
 func (l *log) quit(item interface{}) error {
 	switch item.(type) {
-	case *git.Commit:
+	case *git.Commit: // nolint: typecheck
 		l.prompt.Stop()
 	case *git.DiffDelta:
 		l.prompt.SetState(l.oldState)
@@ -135,7 +135,7 @@ func (l *log) logInfo(item interface{}) [][]term.Cell {
 		return grid
 	}
 	switch item.(type) {
-	case *git.Commit:
+	case *git.Commit: // nolint: typecheck
 		commit := item.(*git.Commit)
 		cells := term.Cprint("Author ", color.Faint)
 		cells = append(cells, term.Cprint(commit.Author.Name+" <"+commit.Author.Email+">", color.FgWhite)...)

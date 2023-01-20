@@ -53,7 +53,7 @@ func genHelp(pairs map[string]string) [][]term.Cell {
 	sort.Strings(keys)
 	for _, key := range keys {
 		grid = append(grid, append(term.Cprint(fmt.Sprintf("%s: ", key), color.Faint),
-			term.Cprint(fmt.Sprintf("%s", n[key][0]), color.FgYellow)...))
+			term.Cprint(n[key][0], color.FgYellow)...))
 	}
 	grid = append(grid, term.Cprint("", 0))
 	grid = append(grid, term.Cprint("press any key to return.", color.Faint))

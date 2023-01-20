@@ -26,12 +26,11 @@ type KeyBinding struct {
 	Desc    string
 }
 
-type keyHandlerFunc func(rune) error
 type selectionHandlerFunc func(interface{}) error
 type itemRendererFunc func(interface{}, []int, bool) [][]term.Cell
 type informationRendererFunc func(interface{}) [][]term.Cell
 
-//OptionalFunc handles functional arguments of the prompt
+// OptionalFunc handles functional arguments of the prompt
 type OptionalFunc func(*Prompt)
 
 // Options is the common options for building a prompt
@@ -147,16 +146,16 @@ func (p *Prompt) Run(ctx context.Context) error {
 
 	// reset cursor position and remove buffer
 	p.writer.Reset()
-	p.writer.ClearScreen()
+	_ = p.writer.ClearScreen()
 
 	if err != nil {
 		return err
 	}
 
 	for _, cells := range p.exitMsg {
-		p.writer.WriteCells(cells)
+		_, _ = p.writer.WriteCells(cells)
 	}
-	p.writer.Flush()
+	_ = p.writer.Flush()
 
 	return nil
 }
@@ -239,28 +238,28 @@ func (p *Prompt) render() {
 
 	if p.helpMode {
 		for _, line := range genHelp(p.allControls()) {
-			p.writer.WriteCells(line)
+			_, _ = p.writer.WriteCells(line)
 		}
 		return
 	}
 
 	items, idx := p.list.Items()
-	p.writer.WriteCells(renderSearch(p.itemsLabel, p.inputMode, p.input))
+	_, _ = p.writer.WriteCells(renderSearch(p.itemsLabel, p.inputMode, p.input))
 
 	for i := range items {
 		output := p.itemRenderer(items[i], p.list.Matches(items[i]), (i == idx))
 		for _, l := range output {
-			p.writer.WriteCells(l)
+			_, _ = p.writer.WriteCells(l)
 		}
 	}
 
-	p.writer.WriteCells(nil) // add an empty line
+	_, _ = p.writer.WriteCells(nil) // add an empty line
 	if idx != NotFound {
 		for _, line := range p.informationRenderer(items[idx]) {
-			p.writer.WriteCells(line)
+			_, _ = p.writer.WriteCells(line)
 		}
 	} else {
-		p.writer.WriteCells(term.Cprint("Not found.", color.FgRed))
+		_, _ = p.writer.WriteCells(term.Cprint("Not found.", color.FgRed))
 	}
 }
 

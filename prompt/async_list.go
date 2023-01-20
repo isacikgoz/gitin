@@ -50,13 +50,8 @@ func (c *searchContext) addBuffer(items ...fuzzy.Match) {
 	c.buffer = append(c.buffer, items...)
 }
 
-func (c *searchContext) getBuffer() []fuzzy.Match {
-	return c.buffer
-}
-
 func (c *searchContext) clearBuffer() {
 	c.buffer = make([]fuzzy.Match, 0)
-	return
 }
 
 func (c *searchContext) searchInProgress() bool {
@@ -70,7 +65,6 @@ func (c *searchContext) stopSearch() {
 
 	c.cancel()
 	c.clearBuffer()
-	return
 }
 
 func (c *searchContext) startSearch() bool {
