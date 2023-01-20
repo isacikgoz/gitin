@@ -17,7 +17,7 @@ func renderItem(item interface{}, matches []int, selected bool) [][]term.Cell {
 		line = append(line, term.Cprint("  ", color.FgWhite)...)
 	}
 	switch i := item.(type) {
-	case *git.StatusEntry:
+	case *git.StatusEntry: // nolint: typecheck
 		attr := color.FgRed
 		if i.Indexed() {
 			attr = color.FgGreen
@@ -39,7 +39,7 @@ func renderItem(item interface{}, matches []int, selected bool) [][]term.Cell {
 		} else if i.IsRemote() {
 			attr = color.FgRed
 		}
-		line = append(line, highLightedText(matches, attr, i.String() + headIndicator)...)
+		line = append(line, highLightedText(matches, attr, i.String()+headIndicator)...)
 	default:
 		line = append(line, highLightedText(matches, color.FgWhite, fmt.Sprint(item))...)
 	}

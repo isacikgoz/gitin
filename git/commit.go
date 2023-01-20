@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	lib "github.com/libgit2/git2go/v30"
+	lib "github.com/libgit2/git2go/v33"
 )
 
 // Commit is the wrapper of actual lib.Commit object

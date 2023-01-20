@@ -1,4 +1,6 @@
+//go:build !windows
 // +build !windows
+
 // This is a modified version of survey's runereader. The original version can
 // be found at https://github.com/AlecAivazis/survey
 
@@ -59,11 +61,11 @@ func (rr *RuneReader) ReadRune() (rune, int, error) {
 			return rune(KeyCtrlQ), 1, nil
 		case '3': // Delete Button
 			// discard the following '~' key from buffer
-			state.reader.Discard(1)
+			_, _ = state.reader.Discard(1)
 			return rune(KeyCtrlR), 1, nil
 		default:
 			// discard the following '~' key from buffer
-			state.reader.Discard(1)
+			_, _ = state.reader.Discard(1)
 			return rune(KeyCtrlSpace), 1, nil
 		}
 	}

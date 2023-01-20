@@ -18,7 +18,6 @@ type BufferedWriter struct {
 	buf      *bytes.Buffer
 	lineWrap bool
 	reset    bool
-	flush    bool
 	cursor   int
 	height   int
 }
@@ -179,10 +178,10 @@ func (b *BufferedWriter) ClearScreen() error {
 
 // ShowCursor writes to os.Stdout that to show cursor
 func (b *BufferedWriter) ShowCursor() {
-	b.w.Write([]byte(showCursor))
+	_, _ = b.w.Write([]byte(showCursor))
 }
 
 // HideCursor writes to os.Stdout that to hide cursor
 func (b *BufferedWriter) HideCursor() {
-	b.w.Write([]byte(hideCursor))
+	_, _ = b.w.Write([]byte(hideCursor))
 }
