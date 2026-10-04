@@ -18,6 +18,14 @@ type branch struct {
 
 // BranchPrompt configures a prompt to serve as a branch prompt
 func BranchPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
+	b, err := newBranch(r, opts)
+	if err != nil {
+		return nil, err
+	}
+	return b.prompt, nil
+}
+
+func newBranch(r *git.Repository, opts *prompt.Options) (*branch, error) {
 	branches, err := r.Branches()
 	if err != nil {
 		return nil, fmt.Errorf("could not load branches: %v", err)
@@ -37,7 +45,7 @@ func BranchPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 		return nil, err
 	}
 
-	return b.prompt, nil
+	return b, nil
 }
 
 func (b *branch) onSelect(item interface{}) error {

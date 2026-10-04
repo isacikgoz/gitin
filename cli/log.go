@@ -25,6 +25,14 @@ type log struct {
 // LogPrompt configures a prompt to serve as a commit prompt. Commits are
 // loaded in the background until ctx is cancelled.
 func LogPrompt(ctx context.Context, r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
+	l, err := newLog(ctx, r, opts)
+	if err != nil {
+		return nil, err
+	}
+	return l.prompt, nil
+}
+
+func newLog(ctx context.Context, r *git.Repository, opts *prompt.Options) (*log, error) {
 	commits, wait := r.Commits(ctx)
 	// git log keeps streaming commits while the refs are loaded
 	refs, err := r.Refs()
@@ -58,10 +66,9 @@ func LogPrompt(ctx context.Context, r *git.Repository, opts *prompt.Options) (*p
 		}
 	}()
 
-	return l.prompt, nil
+	return l, nil
 }
 
-// return true to terminate
 func (l *log) onSelect(item interface{}) error {
 	switch item := item.(type) {
 	case *git.Commit:

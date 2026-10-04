@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/isacikgoz/gia/editor"
@@ -20,19 +19,29 @@ type status struct {
 	branch     *git.Branch
 }
 
-// StatusPrompt configures a prompt to serve as work-dir explorer prompt
+// StatusPrompt configures a prompt to serve as work-dir explorer prompt. If
+// the working tree is clean, it prints that and returns no prompt.
 func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
+	s, err := newStatus(r, opts)
+	if err != nil || s == nil {
+		return nil, err
+	}
+	return s.prompt, nil
+}
+
+func newStatus(r *git.Repository, opts *prompt.Options) (*status, error) {
 	st, err := r.LoadStatus()
 	if err != nil {
 		return nil, fmt.Errorf("could not load status: %v", err)
 	}
 	if len(st.Entities) == 0 {
-		writer := term.NewBufferedWriter(os.Stdout)
+		writer := term.NewBufferedWriter(stdout)
 		for _, line := range workingTreeClean(st.Branch) {
-			_, _ = writer.WriteCells(line)
+			if _, err := writer.WriteCells(line); err != nil {
+				return nil, err
+			}
 		}
-		_ = writer.Flush()
-		os.Exit(0)
+		return nil, writer.Flush()
 	}
 	list, err := prompt.NewList(st.Entities, opts.LineSize)
 	if err != nil {
@@ -50,7 +59,7 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 		return nil, err
 	}
 
-	return s.prompt, nil
+	return s, nil
 }
 
 func (s *status) onSelect(item interface{}) error {

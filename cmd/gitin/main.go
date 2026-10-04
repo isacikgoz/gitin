@@ -45,6 +45,9 @@ func main() {
 	}
 
 	exitIfError(err)
+	if p == nil {
+		return // nothing to show, e.g. the working tree is clean
+	}
 	if err := p.Run(ctx); err != nil {
 		cancel()
 		exitIfError(err)
