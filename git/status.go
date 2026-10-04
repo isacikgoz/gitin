@@ -1,25 +1,9 @@
 package git
 
 import (
-	lib "github.com/libgit2/git2go/v33"
-)
-
-// State is the current state of the repository
-type State int
-
-// The different states for a repo
-const (
-	StateUnknown State = iota
-	StateNone
-	StateMerge
-	StateRevert
-	StateCherrypick
-	StateBisect
-	StateRebase
-	StateRebaseInteractive
-	StateRebaseMerge
-	StateApplyMailbox
-	StateApplyMailboxOrRebase
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 // DeltaStatus ondicates a files status in a diff
@@ -39,6 +23,28 @@ const (
 	DeltaUnreadable
 	DeltaConflicted
 )
+
+// deltaStatusFromCode maps a status letter of "git diff --raw" to a DeltaStatus
+func deltaStatusFromCode(code byte) DeltaStatus {
+	switch code {
+	case 'A':
+		return DeltaAdded
+	case 'D':
+		return DeltaDeleted
+	case 'M':
+		return DeltaModified
+	case 'R':
+		return DeltaRenamed
+	case 'C':
+		return DeltaCopied
+	case 'T':
+		return DeltaTypeChange
+	case 'U':
+		return DeltaConflicted
+	default:
+		return DeltaUnreadable
+	}
+}
 
 // IndexType describes the different stages a status entry can be in
 type IndexType int
@@ -65,45 +71,39 @@ const (
 	StatusEntryTypeConflicted
 )
 
-var indexTypeMap = map[lib.Status]IndexType{
-	lib.StatusIndexNew | lib.StatusIndexModified | lib.StatusIndexDeleted | lib.StatusIndexRenamed | lib.StatusIndexTypeChange: IndexTypeStaged,
-	lib.StatusWtModified | lib.StatusWtDeleted | lib.StatusWtTypeChange | lib.StatusWtRenamed:                                  IndexTypeUnstaged,
-	lib.StatusWtNew:      IndexTypeUntracked,
-	lib.StatusConflicted: IndexTypeConflicted,
-}
-
-var statusEntryTypeMap = map[lib.Status]StatusEntryType{
-	lib.StatusIndexNew:        StatusEntryTypeNew,
-	lib.StatusIndexModified:   StatusEntryTypeModified,
-	lib.StatusWtModified:      StatusEntryTypeModified,
-	lib.StatusIndexDeleted:    StatusEntryTypeDeleted,
-	lib.StatusWtDeleted:       StatusEntryTypeDeleted,
-	lib.StatusIndexRenamed:    StatusEntryTypeRenamed,
-	lib.StatusWtRenamed:       StatusEntryTypeRenamed,
-	lib.StatusIndexTypeChange: StatusEntryTypeTypeChange,
-	lib.StatusWtTypeChange:    StatusEntryTypeTypeChange,
-	lib.StatusWtNew:           StatusEntryTypeUntracked,
-	lib.StatusConflicted:      StatusEntryTypeConflicted,
+// statusEntryTypeFromCode maps a status letter of "git status --porcelain" to a StatusEntryType
+func statusEntryTypeFromCode(code byte) StatusEntryType {
+	switch code {
+	case 'A':
+		return StatusEntryTypeNew
+	case 'D':
+		return StatusEntryTypeDeleted
+	case 'R':
+		return StatusEntryTypeRenamed
+	case 'T':
+		return StatusEntryTypeTypeChange
+	default:
+		return StatusEntryTypeModified
+	}
 }
 
 // StatusEntry contains data for a single status entry
 type StatusEntry struct {
 	index     IndexType
 	EntryType StatusEntryType
-	diffDelta *DiffDelta
+	path      string
 }
 
 // Status contains all git status data
 type Status struct {
-	State    State
+	// Branch is the checked out branch compared to its upstream
+	Branch   *Branch
 	Entities []*StatusEntry
 }
 
-// Diff is the wrapper for a diff content acquired from repo
+// Diff is the list of files changed by a commit
 type Diff struct {
 	deltas []*DiffDelta
-	stats  []string
-	patchs []string
 }
 
 // Deltas returns the actual changes with file info
@@ -111,13 +111,15 @@ func (d *Diff) Deltas() []*DiffDelta {
 	return d.deltas
 }
 
-// DiffDelta holds delta status, file changes and the actual patchs
+// DiffDelta holds delta status, file changes and the number of changed lines
 type DiffDelta struct {
-	Status  DeltaStatus
-	OldFile *DiffFile
-	NewFile *DiffFile
-	Patch   string
-	Commit  *Commit
+	Status    DeltaStatus
+	OldFile   *DiffFile
+	NewFile   *DiffFile
+	Additions int
+	Deletions int
+	Binary    bool
+	Commit    *Commit
 }
 
 // DiffFile the file that has been changed
@@ -132,72 +134,94 @@ func (d *DiffDelta) String() string {
 
 // LoadStatus simply emulates a "git status" and returns the result
 func (r *Repository) LoadStatus() (*Status, error) {
-	// this returns err does it matter?
-	statusOptions := &lib.StatusOptions{
-		Show:  lib.StatusShowIndexAndWorkdir,
-		Flags: lib.StatusOptIncludeUntracked,
-	}
-	statusList, err := r.essence.StatusList(statusOptions)
+	// like "git status", this refreshes the index so later calls are fast
+	out, err := r.Output("status", "--porcelain=v2", "-z", "--branch", "--untracked-files=normal", "--no-renames")
 	if err != nil {
 		return nil, err
 	}
-	defer statusList.Free()
+	return parseStatus(out)
+}
 
-	count, err := statusList.EntryCount()
-	if err != nil {
-		return nil, err
-	}
-	entities := make([]*StatusEntry, 0)
-	s := &Status{
-		State:    State(r.essence.State()),
-		Entities: entities,
-	}
-	for i := 0; i < count; i++ {
-		statusEntry, err := statusList.ByIndex(i)
-		if err != nil {
-			return nil, err
-		}
-		if statusEntry.Status <= 0 {
+func parseStatus(out []byte) (*Status, error) {
+	s := &Status{Branch: &Branch{refType: RefTypeHEAD, Head: true}}
+	records := strings.Split(string(out), "\x00")
+	tracking := false
+	for i := 0; i < len(records); i++ {
+		record := records[i]
+		if record == "" {
 			continue
 		}
-		s.addToStatus(statusEntry)
+		switch record[0] {
+		case '#':
+			s.Branch.parseHeader(record)
+			tracking = tracking || strings.HasPrefix(record, "# branch.ab ")
+		case '1', '2', 'u':
+			fields := map[byte]int{'1': 9, '2': 10, 'u': 11}[record[0]]
+			f := strings.SplitN(record, " ", fields)
+			if len(f) != fields || len(f[1]) != 2 {
+				return nil, fmt.Errorf("unexpected status record %q", record)
+			}
+			xy, path := f[1], f[fields-1]
+			if record[0] == '2' {
+				i++ // the original path of a rename follows as its own record
+			}
+			if record[0] == 'u' {
+				s.add(IndexTypeConflicted, StatusEntryTypeConflicted, path)
+				continue
+			}
+			if xy[0] != '.' {
+				s.add(IndexTypeStaged, statusEntryTypeFromCode(xy[0]), path)
+			}
+			if xy[1] != '.' {
+				s.add(IndexTypeUnstaged, statusEntryTypeFromCode(xy[1]), path)
+			}
+		case '?':
+			s.add(IndexTypeUntracked, StatusEntryTypeUntracked, record[2:])
+		}
+	}
+	// an upstream that no longer exists has no ahead/behind counts
+	if !tracking {
+		s.Branch.Upstream = nil
 	}
 	return s, nil
 }
 
-func (s *Status) addToStatus(raw lib.StatusEntry) {
-	for rawStatus, indexType := range indexTypeMap {
-		set := raw.Status & rawStatus
+func (s *Status) add(index IndexType, entryType StatusEntryType, path string) {
+	s.Entities = append(s.Entities, &StatusEntry{index: index, EntryType: entryType, path: path})
+}
 
-		if set > 0 {
-			var dd lib.DiffDelta
-			if indexType == IndexTypeStaged {
-				dd = raw.HeadToIndex
+// parseHeader reads the "# branch.*" headers of "git status --porcelain=v2 --branch"
+func (b *Branch) parseHeader(header string) {
+	key, value, _ := strings.Cut(strings.TrimPrefix(header, "# "), " ")
+	switch key {
+	case "branch.oid":
+		if value != "(initial)" {
+			b.Hash = value
+		}
+	case "branch.head":
+		if value == "(detached)" {
+			b.Detached = true
+		} else {
+			b.Name = value
+			b.FullName = "refs/heads/" + value
+		}
+	case "branch.upstream":
+		b.Upstream = &Branch{Name: value, isRemote: true, refType: RefTypeBranch}
+	case "branch.ab":
+		for _, n := range strings.Fields(value) {
+			v, _ := strconv.Atoi(n[1:])
+			if n[0] == '+' {
+				b.Ahead = v
 			} else {
-				dd = raw.IndexToWorkdir
+				b.Behind = v
 			}
-			d := &DiffDelta{
-				Status: DeltaStatus(dd.Status),
-				NewFile: &DiffFile{
-					Path: dd.NewFile.Path,
-				},
-				OldFile: &DiffFile{
-					Path: dd.OldFile.Path,
-				},
-			}
-			e := &StatusEntry{
-				index:     indexType,
-				EntryType: statusEntryTypeMap[set],
-				diffDelta: d,
-			}
-			s.Entities = append(s.Entities, e)
 		}
 	}
 }
 
 // Indexed true if entry added to index
 func (e *StatusEntry) String() string {
-	return e.diffDelta.OldFile.Path
+	return e.path
 }
 
 // Indexed true if entry added to index
@@ -225,35 +249,6 @@ func (e *StatusEntry) StatusEntryString() string {
 	default:
 		return "Unknown"
 	}
-}
-
-// AddToIndex is the wrapper of "git add /path/to/file" command
-func (r *Repository) AddToIndex(e *StatusEntry) error {
-	index, err := r.essence.Index()
-	if err != nil {
-		return err
-	}
-	if err := index.AddByPath(e.diffDelta.OldFile.Path); err != nil {
-		return err
-	}
-	defer index.Free()
-	return index.Write()
-}
-
-// RemoveFromIndex is the wrapper of "git reset path/to/file" command
-func (r *Repository) RemoveFromIndex(e *StatusEntry) error {
-	if !e.Indexed() {
-		return ErrEntryNotIndexed
-	}
-	index, err := r.essence.Index()
-	if err != nil {
-		return err
-	}
-	if err := index.RemoveByPath(e.diffDelta.OldFile.Path); err != nil {
-		return err
-	}
-	defer index.Free()
-	return index.Write()
 }
 
 // DeltaStatusString retruns delta status as string

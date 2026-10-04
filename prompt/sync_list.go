@@ -13,12 +13,6 @@ import (
 	"github.com/isacikgoz/fuzzy"
 )
 
-type interfaceSource []interface{}
-
-func (is interfaceSource) String(i int) string { return fmt.Sprint(is[i]) }
-
-func (is interfaceSource) Len() int { return len(is) }
-
 // NotFound is an index returned when no item was selected.
 const NotFound = -1
 
@@ -27,6 +21,7 @@ const NotFound = -1
 // entire page (ie: visible size). It keeps track of the current selected item.
 type SyncList struct {
 	items   []interface{}
+	texts   []string // texts[i] is the searchable text of items[i]
 	scope   []interface{}
 	matches map[interface{}][]int
 	cursor  int // cursor holds the index of the current selected item
@@ -46,15 +41,17 @@ func NewList(items interface{}, size int) (*SyncList, error) {
 
 	slice := reflect.ValueOf(items)
 	values := make([]interface{}, slice.Len())
+	texts := make([]string, slice.Len())
 
 	for i := range values {
-		item := slice.Index(i)
-		values[i] = item.Interface()
+		values[i] = slice.Index(i).Interface()
+		texts[i] = fmt.Sprint(values[i])
 	}
 
 	return &SyncList{
 		size:  size,
 		items: values,
+		texts: texts,
 		scope: values,
 	}, nil
 }
@@ -92,7 +89,7 @@ func (l *SyncList) search(term string) {
 		return
 	}
 	l.matches = make(map[interface{}][]int)
-	matches := fuzzy.FindFrom(context.Background(), term, interfaceSource(l.items))
+	matches := fuzzy.Find(context.Background(), term, l.texts)
 
 	results := make([]fuzzy.Match, 0)
 	for match := range matches {

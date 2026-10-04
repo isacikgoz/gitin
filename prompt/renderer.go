@@ -16,25 +16,17 @@ func itemText(item interface{}, matches []int, selected bool) [][]term.Cell {
 	} else {
 		line = append(line, term.Cprint("  ", color.FgWhite)...)
 	}
-	if len(matches) == 0 {
-		return [][]term.Cell{append(line, term.Cprint(text)...)}
-	}
-	highlighted := make([]term.Cell, 0)
-	for _, r := range text {
-		highlighted = append(highlighted, term.Cell{
-			Ch: r,
-		})
-	}
+	matched := make(map[int]bool, len(matches))
 	for _, m := range matches {
-		if m > len(highlighted)-1 {
-			continue
-		}
-		highlighted[m] = term.Cell{
-			Ch:   highlighted[m].Ch,
-			Attr: append(highlighted[m].Attr, color.Underline),
-		}
+		matched[m] = true // byte offsets in text
 	}
-	line = append(line, highlighted...)
+	for i, r := range text {
+		cell := term.Cell{Ch: r}
+		if matched[i] {
+			cell.Attr = []color.Attribute{color.Underline}
+		}
+		line = append(line, cell)
+	}
 	return [][]term.Cell{line}
 }
 

@@ -1,12 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
+	"strings"
 
-	"github.com/isacikgoz/gia/editor"
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
@@ -17,28 +15,39 @@ import (
 type status struct {
 	repository *git.Repository
 	prompt     *prompt.Prompt
+	branch     *git.Branch
 }
 
-// StatusPrompt configures a prompt to serve as work-dir explorer prompt
+// StatusPrompt configures a prompt to serve as work-dir explorer prompt. If
+// the working tree is clean, it prints that and returns no prompt.
 func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
+	s, err := newStatus(r, opts)
+	if err != nil || s == nil {
+		return nil, err
+	}
+	return s.prompt, nil
+}
+
+func newStatus(r *git.Repository, opts *prompt.Options) (*status, error) {
 	st, err := r.LoadStatus()
 	if err != nil {
 		return nil, fmt.Errorf("could not load status: %v", err)
 	}
 	if len(st.Entities) == 0 {
-		writer := term.NewBufferedWriter(os.Stdout)
-		for _, line := range workingTreeClean(r.Head) {
-			writer.WriteCells(line)
+		writer := term.NewBufferedWriter(stdout)
+		for _, line := range workingTreeClean(st.Branch) {
+			if _, err := writer.WriteCells(line); err != nil {
+				return nil, err
+			}
 		}
-		writer.Flush()
-		os.Exit(0)
+		return nil, writer.Flush()
 	}
 	list, err := prompt.NewList(st.Entities, opts.LineSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
 
-	s := &status{repository: r}
+	s := &status{repository: r, branch: st.Branch}
 
 	s.prompt = prompt.Create("Files", opts, list,
 		prompt.WithSelectionHandler(s.onSelect),
@@ -49,68 +58,67 @@ func StatusPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 		return nil, err
 	}
 
-	return s.prompt, nil
+	return s, nil
 }
 
-// return err to terminate
 func (s *status) onSelect(item interface{}) error {
 	entry := item.(*git.StatusEntry)
-	if err := popGitCommand(s.repository, fileStatArgs(entry)); err != nil {
-		return nil // intentionally ignore errors here
+	err := popGitCommand(s.repository, fileStatArgs(entry))
+	if entry.EntryType == git.StatusEntryTypeUntracked && git.ExitCode(err) == 1 {
+		return nil // "git diff --no-index" exits with 1 when the files differ
 	}
-	return nil
+	return err
 }
 
 func (s *status) info(item interface{}) [][]term.Cell {
-	b := s.repository.Head
-	return branchInfo(b, true)
+	return branchInfo(s.branch, true)
 }
 
 func (s *status) defineKeybindings() error {
 	keybindings := []*prompt.KeyBinding{
-		&prompt.KeyBinding{
+		{
 			Key:     ' ',
 			Display: "space",
 			Desc:    "add/reset entry",
 			Handler: s.addResetEntry,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'p',
 			Display: "p",
 			Desc:    "hunk stage entry",
 			Handler: s.hunkStageEntry,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'c',
 			Display: "c",
 			Desc:    "commit",
 			Handler: s.commit,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'm',
 			Display: "m",
 			Desc:    "amend",
 			Handler: s.amend,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'a',
 			Display: "a",
 			Desc:    "add all",
 			Handler: s.addAllEntries,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'r',
 			Display: "r",
 			Desc:    "reset all",
 			Handler: s.resetAllEntries,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     '!',
 			Display: "!",
 			Desc:    "discard changes",
 			Handler: s.discardEntry,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'q',
 			Display: "q",
 			Desc:    "quit",
@@ -129,75 +137,69 @@ func (s *status) addResetEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
 	args := []string{"add", "--", entry.String()}
 	if entry.Indexed() {
-		args = []string{"reset", "HEAD", "--", entry.String()}
+		// unlike "reset HEAD", this also works before the first commit
+		args = []string{"reset", "--quiet", "--", entry.String()}
 	}
 	return s.runCommandWithArgs(args)
 }
 
 func (s *status) hunkStageEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
-	file, err := generateDiffFile(s.repository, entry)
-	if err == nil {
-		editor, err := editor.NewEditor(file)
-		if err != nil {
+	diff, err := entryDiff(s.repository, entry)
+	if err != nil {
+		return err
+	}
+	if _, err := parseDiffFile(diff, entry.String()); err != nil {
+		return err
+	}
+	patches, err := runHunkEditor(diff)
+	if err != nil {
+		return err
+	}
+	for _, patch := range patches {
+		if err := applyPatchCmd(s.repository, entry, patch); err != nil {
 			return err
-		}
-		patches, err := editor.Run()
-		if err != nil {
-			return err
-		}
-		for _, patch := range patches {
-			if err := applyPatchCmd(s.repository, entry, patch); err != nil {
-				return err
-			}
 		}
 	}
 	return s.reloadStatus()
 }
 
 func (s *status) commit(item interface{}) error {
-	s.bareCommit("--edit") // why ignore err? simply to return status screen
-	return nil
+	return s.bareCommit("--edit")
 }
 
 func (s *status) amend(item interface{}) error {
-	s.bareCommit("--amend")
-	return nil
+	return s.bareCommit("--amend")
 }
 
 func (s *status) bareCommit(arg string) error {
-	args := []string{"commit", arg, "--quiet"}
-	err := popGitCommand(s.repository, args)
-	if err != nil {
-		return err
+	if err := popGitCommand(s.repository, []string{"commit", arg, "--quiet"}); err != nil {
+		return err // e.g. a hook rejected the commit or the message was empty
 	}
-	s.repository.LoadHead()
-	args, err = lastCommitArgs(s.repository)
-	if err != nil {
+	if err := popGitCommand(s.repository, []string{"show", "--stat", "HEAD"}); err != nil {
 		return err
-	}
-	if err := popGitCommand(s.repository, args); err != nil {
-		return fmt.Errorf("failed to commit: %v", err)
 	}
 	return s.reloadStatus()
 }
 
 func (s *status) addAllEntries(item interface{}) error {
-	args := []string{"add", "."}
-	return s.runCommandWithArgs(args)
+	return s.runCommandWithArgs([]string{"add", "--all"})
 }
 
 func (s *status) resetAllEntries(item interface{}) error {
-	args := []string{"reset", "--mixed"}
-	return s.runCommandWithArgs(args)
+	return s.runCommandWithArgs([]string{"reset", "--quiet", "--mixed"})
 }
 
 func (s *status) discardEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
 	var args []string
-	if entry.EntryType == git.StatusEntryTypeUntracked {
-		args = []string{"clean", "--force", entry.String()}
-	} else {
+	switch {
+	case entry.Indexed():
+		return errors.New("staged changes are not discarded, press space to unstage them first")
+	case entry.EntryType == git.StatusEntryTypeUntracked:
+		// -d removes untracked directories with older git versions as well
+		args = []string{"clean", "-d", "--force", "--", entry.String()}
+	default:
 		args = []string{"checkout", "--", entry.String()}
 	}
 	return s.runCommandWithArgs(args)
@@ -209,25 +211,23 @@ func (s *status) quit(item interface{}) error {
 }
 
 func (s *status) runCommandWithArgs(args []string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = s.repository.Path()
-	if err := cmd.Run(); err != nil {
-		return nil //ignore command errors for now
+	if err := runGitCommand(s.repository, args); err != nil {
+		return err
 	}
 	return s.reloadStatus()
 }
 
 // reloads the list
 func (s *status) reloadStatus() error {
-	s.repository.LoadHead()
 	status, err := s.repository.LoadStatus()
 	if err != nil {
 		return err
 	}
+	s.branch = status.Branch
 	if len(status.Entities) == 0 {
 		// this is the case when the working tree is cleaned at runtime
 		s.prompt.Stop()
-		s.prompt.SetExitMsg(workingTreeClean(s.repository.Head))
+		s.prompt.SetExitMsg(workingTreeClean(s.branch))
 		return nil
 	}
 	state := s.prompt.State()
@@ -242,61 +242,62 @@ func (s *status) reloadStatus() error {
 
 // fileStatArgs returns git command args for getting diff
 func fileStatArgs(e *git.StatusEntry) []string {
-	var args []string
-	if e.Indexed() {
-		args = []string{"diff", "--cached", e.String()}
-	} else if e.EntryType == git.StatusEntryTypeUntracked {
-		args = []string{"diff", "--no-index", "/dev/null", e.String()}
-	} else {
-		args = []string{"diff", "--", e.String()}
+	switch {
+	case e.Indexed():
+		return []string{"diff", "--cached", "--", e.String()}
+	case e.EntryType == git.StatusEntryTypeUntracked:
+		return []string{"diff", "--no-index", "--", "/dev/null", e.String()}
+	default:
+		return []string{"diff", "--", e.String()}
 	}
-	return args
-}
-
-// lastCommitArgs returns the args for show stat
-func lastCommitArgs(r *git.Repository) ([]string, error) {
-	r.LoadStatus()
-	head := r.Head
-	if head == nil {
-		return nil, fmt.Errorf("can't get HEAD")
-	}
-	hash := string(head.Target().Hash)
-	args := []string{"show", "--stat", hash}
-	return args, nil
 }
 
 func generateDiffFile(r *git.Repository, entry *git.StatusEntry) (*diffparser.DiffFile, error) {
-	args := fileStatArgs(entry)
-	cmd := exec.Command("git", args...)
-	cmd.Dir = r.Path()
-	out, err := cmd.CombinedOutput()
+	diff, err := entryDiff(r, entry)
 	if err != nil {
 		return nil, err
 	}
+	return parseDiffFile(diff, entry.String())
+}
+
+// entryDiff returns the diff of an entry as a patch for "git apply",
+// whatever the user's diff settings are
+func entryDiff(r *git.Repository, entry *git.StatusEntry) ([]byte, error) {
+	args := fileStatArgs(entry)
+	args = append([]string{args[0], "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/"}, args[1:]...)
+	out, err := r.Output(args...)
+	if entry.EntryType == git.StatusEntryTypeUntracked && git.ExitCode(err) == 1 {
+		err = nil // "git diff --no-index" exits with 1 when the files differ
+	}
+	return out, err
+}
+
+// parseDiffFile parses the diff of a single file with at least one hunk
+func parseDiffFile(out []byte, name string) (*diffparser.DiffFile, error) {
 	diff, err := diffparser.Parse(string(out))
 	if err != nil {
 		return nil, err
 	}
-	return diff.Files[0], nil
+	// e.g. binary files and mode changes have no hunks
+	if len(diff.Files) == 0 || len(diff.Files[0].Hunks) == 0 {
+		return nil, fmt.Errorf("%s has no changes to stage by hunk", name)
+	}
+	file := diff.Files[0]
+	// diffparser drops header lines such as "new file mode" and the file
+	// names after them, "git apply" needs the header exactly as git wrote it
+	if i := strings.Index(string(out), "\n@@"); i >= 0 {
+		file.DiffHeader = string(out[:i])
+	}
+	return file, nil
 }
 
 func applyPatchCmd(r *git.Repository, entry *git.StatusEntry, patch string) error {
-	mode := []string{"apply", "--cached"}
+	args := []string{"apply", "--cached"}
 	if entry.Indexed() {
-		mode = []string{"apply", "--cached", "--reverse"}
+		args = append(args, "--reverse")
 	}
-	cmd := exec.Command("git", mode...)
-	cmd.Dir = r.Path()
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return err
-	}
-	go func() {
-		defer stdin.Close()
-		io.WriteString(stdin, patch+"\n")
-	}()
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	cmd := r.Command(args...)
+	cmd.Stdin = strings.NewReader(patch + "\n")
+	_, err := git.Run(cmd)
+	return err
 }

@@ -2,12 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"os/exec"
 
 	"github.com/fatih/color"
+	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
-	"github.com/isacikgoz/gitin/git"
 	"github.com/justincampbell/timeago"
 )
 
@@ -19,6 +18,14 @@ type branch struct {
 
 // BranchPrompt configures a prompt to serve as a branch prompt
 func BranchPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
+	b, err := newBranch(r, opts)
+	if err != nil {
+		return nil, err
+	}
+	return b.prompt, nil
+}
+
+func newBranch(r *git.Repository, opts *prompt.Options) (*branch, error) {
 	branches, err := r.Branches()
 	if err != nil {
 		return nil, fmt.Errorf("could not load branches: %v", err)
@@ -34,18 +41,17 @@ func BranchPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, erro
 		prompt.WithItemRenderer(renderItem),
 		prompt.WithInformation(b.branchInfo),
 	)
-	b.defineKeyBindings()
+	if err := b.defineKeyBindings(); err != nil {
+		return nil, err
+	}
 
-	return b.prompt, nil
+	return b, nil
 }
 
 func (b *branch) onSelect(item interface{}) error {
 	branch := item.(*git.Branch)
-	args := []string{"checkout", branch.Name}
-	cmd := exec.Command("git", args...)
-	cmd.Dir = b.repository.Path()
-	if err := cmd.Run(); err != nil {
-		return nil // possibly dirty branch
+	if err := runGitCommand(b.repository, []string{"checkout", branch.Name, "--"}); err != nil {
+		return err // e.g. local changes would be overwritten
 	}
 	b.prompt.Stop() // quit after selection
 	return nil
@@ -53,19 +59,19 @@ func (b *branch) onSelect(item interface{}) error {
 
 func (b *branch) defineKeyBindings() error {
 	keybindings := []*prompt.KeyBinding{
-		&prompt.KeyBinding{
+		{
 			Key:     'd',
 			Display: "d",
 			Desc:    "delete branch",
 			Handler: b.deleteBranch,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'D',
 			Display: "D",
 			Desc:    "force delete branch",
 			Handler: b.forceDeleteBranch,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'q',
 			Display: "q",
 			Desc:    "quit",
@@ -82,18 +88,17 @@ func (b *branch) defineKeyBindings() error {
 
 func (b *branch) branchInfo(item interface{}) [][]term.Cell {
 	branch := item.(*git.Branch)
-	target := branch.Target()
 	grid := make([][]term.Cell, 0)
-	if target != nil {
-		cells := term.Cprint("Last commit was ", color.Faint)
-		cells = append(cells, term.Cprint(timeago.FromTime(target.Author.When), color.FgBlue)...)
-		grid = append(grid, cells)
-		if branch.IsRemote() {
-			return grid
-		}
-		grid = append(grid, branchInfo(branch, false)...)
+	if branch.When.IsZero() {
+		return grid
 	}
-	return grid
+	cells := term.Cprint("Last commit was ", color.Faint)
+	cells = append(cells, term.Cprint(timeago.FromTime(branch.When), color.FgBlue)...)
+	grid = append(grid, cells)
+	if branch.IsRemote() {
+		return grid
+	}
+	return append(grid, branchInfo(branch, false)...)
 }
 
 func (b *branch) deleteBranch(item interface{}) error {
@@ -106,10 +111,12 @@ func (b *branch) forceDeleteBranch(item interface{}) error {
 
 func (b *branch) bareDelete(item interface{}, mode string) error {
 	branch := item.(*git.Branch)
-	cmd := exec.Command("git", "branch", "-"+mode, branch.Name)
-	cmd.Dir = b.repository.Path()
-	if err := cmd.Run(); err != nil {
-		return nil // possibly an unmerged branch, just ignore it
+	args := []string{"branch", "-" + mode, branch.Name}
+	if branch.IsRemote() {
+		args = []string{"branch", "-" + mode, "--remotes", branch.Name}
+	}
+	if err := runGitCommand(b.repository, args); err != nil {
+		return err // e.g. the branch is not fully merged
 	}
 	return b.reloadBranches()
 }
@@ -132,6 +139,5 @@ func (b *branch) reloadBranches() error {
 	}
 	state.List = list
 	b.prompt.SetState(state)
-	// return err
 	return nil
 }

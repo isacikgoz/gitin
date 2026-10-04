@@ -1,4 +1,8 @@
-![](https://img.shields.io/github/actions/workflow/status/isacikgoz/gitin/build.yml) ![](https://img.shields.io/github/release-pre/isacikgoz/gitin.svg?style=flat)
+[![CI](https://github.com/isacikgoz/gitin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/isacikgoz/gitin/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/isacikgoz/gitin?include_prereleases&sort=semver)](https://github.com/isacikgoz/gitin/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/isacikgoz/gitin.svg)](https://pkg.go.dev/github.com/isacikgoz/gitin)
+[![Go version](https://img.shields.io/github/go-mod/go-version/isacikgoz/gitin)](go.mod)
+[![License](https://img.shields.io/github/license/isacikgoz/gitin)](LICENSE)
 
 # gitin
 
@@ -17,16 +21,17 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 - Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
 - Interactive hunk staging (`gitin status` then press `p`)
 - Explore branches with useful filter options (e.g. `gitin branch` press `enter` to checkout)
+- Fast on large repositories, the history is loaded and searched in the background
 - Convenient UX and minimalist design
 - See more options by running `gitin --help`, also you can get help for individual subcommands (e.g. `gitin log --help`)
 
 ## Installation
 
-- Linux and macOS are supported.
-- Download latest release from [here](https://github.com/isacikgoz/gitin/releases)
-- **Or**, manually download it with `go get -d github.com/isacikgoz/gitin/cmd/gitin`
-- `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
-- build with `make install` (`cmake` and `pkg-config` are required, also note that git2go will be cloned and built)
+Linux and macOS are supported. gitin runs `git` to read repositories, `git` 2.18 or newer is required.
+
+- Download the binary for your platform from the [latest release](https://github.com/isacikgoz/gitin/releases/latest).
+  To check that it was built by this repository's release workflow, run `gh attestation verify <archive> --repo isacikgoz/gitin`
+- **Or**, install it with Go: `go install github.com/isacikgoz/gitin/cmd/gitin@latest`
 
 ### Mac/Linux using brew
 
@@ -43,7 +48,8 @@ brew install gitin
 usage: gitin [<flags>] <command> [<args> ...]
 
 Flags:
-  -h, --help     Show context-sensitive help (also try --help-long and --help-man).
+  -h, --help     Show context-sensitive help (also try --help-long and
+                 --help-man).
   -v, --version  Show application version.
 
 Commands:
@@ -59,15 +65,15 @@ Commands:
   branch
     Show list of branches.
 
+
 Environment Variables:
 
   GITIN_LINESIZE=<int>
-  GITIN_STARTINSEARCH=<bool
+  GITIN_STARTINSEARCH=<bool>
   GITIN_DISABLECOLOR=<bool>
   GITIN_VIMKEYS=<bool>
 
 Press ? for controls while application is running.
-
 ```
 
 ## Configure
@@ -77,16 +83,24 @@ Press ? for controls while application is running.
 - To disable colors `GITIN_DISABLECOLOR=true`
 - To disable h,j,k,l for nav `GITIN_VIMKEYS=false`
 
-## Development Requirements
+## Development
 
-- **Running with static linking is highly recommended.**
-- Clone the project and `cd` into it.
-- Run `make build-libgit2` (this will satisfy the replace rule in the `go.mod` file)
-- You can run the project with `go run --tags static cmd/gitin/main.go --help` command
+Go and `git` are the only requirements.
+
+```sh
+go run ./cmd/gitin --help   # run gitin
+make test                   # unit and end-to-end tests
+make coverage               # the same with a coverage report
+make dist VERSION=v1.2.3    # release archives for Linux and macOS
+```
+
+The end-to-end tests in [e2e](e2e) run the gitin binary in a pseudo terminal, type keys and check the screen and the repository.
+[CI](.github/workflows/ci.yml) runs them on Linux and macOS and with the oldest supported Go and git versions, and checks lint, workflows and known vulnerabilities.
+Pushing a `v*.*.*` tag runs CI and publishes a [release](.github/workflows/release.yml) with binaries for Linux and macOS and their build attestations.
 
 ## Contribution
 
-- Contributions are welcome. If you like to please refer to [Contribution Guidelines](/CONTRIBUTING.md)
+- Contributions are welcome. If you like to please refer to [Contribution Guidelines](CONTRIBUTING.md)
 - Bug reports should include descriptive steps to reproduce so that maintainers can easily understand the actual problem
 - Feature requests are welcome, ask for anything that seems appropriate
 
@@ -96,4 +110,4 @@ See the [credits page](https://github.com/isacikgoz/gitin/wiki/Credits)
 
 ## License
 
-[BSD-3-Clause](/LICENSE)
+[BSD-3-Clause](LICENSE)

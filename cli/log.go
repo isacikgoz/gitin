@@ -1,9 +1,9 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/git"
@@ -17,32 +17,36 @@ import (
 type log struct {
 	repository *git.Repository
 	prompt     *prompt.Prompt
+	refs       map[string][]git.Ref
 	selected   *git.Commit
 	oldState   *prompt.State
 }
 
-// LogPrompt configures a prompt to serve as a commit prompt
-func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
-	commits, err := r.CommitsChan(0)
+// LogPrompt configures a prompt to serve as a commit prompt. Commits are
+// loaded in the background until ctx is cancelled.
+func LogPrompt(ctx context.Context, r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) {
+	l, err := newLog(ctx, r, opts)
 	if err != nil {
-		return nil, fmt.Errorf("could not load commits: %v", err)
+		return nil, err
 	}
-	r.Branches() // to find refs
-	r.Tags()
-	items := make(chan interface{})
-	go func() {
-		for c := range commits {
-			items <- c
-		}
-		close(items)
-	}()
+	return l.prompt, nil
+}
 
+func newLog(ctx context.Context, r *git.Repository, opts *prompt.Options) (*log, error) {
+	commits, wait := r.Commits(ctx)
+	// git log keeps streaming commits while the refs are loaded
+	refs, err := r.Refs()
+	if err != nil {
+		return nil, fmt.Errorf("could not load refs: %v", err)
+	}
+
+	items := make(chan interface{}, 1024)
 	list, err := prompt.NewAsyncList(items, opts.LineSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
 
-	l := &log{repository: r}
+	l := &log{repository: r, refs: refs}
 	l.prompt = prompt.Create("Commits", opts, list,
 		prompt.WithSelectionHandler(l.onSelect),
 		prompt.WithItemRenderer(renderItem),
@@ -52,18 +56,26 @@ func LogPrompt(r *git.Repository, opts *prompt.Options) (*prompt.Prompt, error) 
 		return nil, err
 	}
 
-	return l.prompt, nil
+	go func() {
+		for c := range commits {
+			items <- c
+		}
+		close(items)
+		if err := wait(); err != nil && ctx.Err() == nil {
+			l.prompt.Fail(fmt.Errorf("could not load commits: %v", err))
+		}
+	}()
+
+	return l, nil
 }
 
-// return true to terminate
 func (l *log) onSelect(item interface{}) error {
-	switch item.(type) {
-	case *git.Commit: // nolint:typecheck
-		commit := item.(*git.Commit)
-		l.selected = commit
-		diff, err := commit.Diff()
+	switch item := item.(type) {
+	case *git.Commit:
+		l.selected = item
+		diff, err := item.Diff()
 		if err != nil {
-			return nil
+			return err
 		}
 		deltas := diff.Deltas()
 		if len(deltas) <= 0 {
@@ -85,20 +97,18 @@ func (l *log) onSelect(item interface{}) error {
 		if l.selected == nil {
 			return nil
 		}
-		var args []string
-		pid, err := l.selected.ParentID()
-		if err != nil {
-			args = []string{"show", "--oneline", "--patch"}
-		} else {
-			args = []string{"diff", pid + ".." + l.selected.Hash}
-		}
-		dd := item.(*git.DiffDelta)
-		args = append(args, dd.OldFile.Path)
-		if err := popGitCommand(l.repository, args); err != nil {
-			//no err handling required here
-		}
+		return popGitCommand(l.repository, fileDiffArgs(l.selected, item))
 	}
 	return nil
+}
+
+// fileDiffArgs returns the git command args showing the change of a file in
+// a commit, compared to the first parent like the file list
+func fileDiffArgs(c *git.Commit, dd *git.DiffDelta) []string {
+	if pid, err := c.ParentID(); err == nil {
+		return []string{"diff", pid, c.Hash, "--", dd.OldFile.Path}
+	}
+	return []string{"show", "--format=", c.Hash, "--", dd.OldFile.Path}
 }
 
 func (l *log) commitStat(item interface{}) error {
@@ -121,7 +131,7 @@ func (l *log) commitDiff(item interface{}) error {
 
 func (l *log) quit(item interface{}) error {
 	switch item.(type) {
-	case *git.Commit: // nolint: typecheck
+	case *git.Commit:
 		l.prompt.Stop()
 	case *git.DiffDelta:
 		l.prompt.SetState(l.oldState)
@@ -134,41 +144,31 @@ func (l *log) logInfo(item interface{}) [][]term.Cell {
 	if item == nil {
 		return grid
 	}
-	switch item.(type) {
-	case *git.Commit: // nolint: typecheck
-		commit := item.(*git.Commit)
+	switch item := item.(type) {
+	case *git.Commit:
 		cells := term.Cprint("Author ", color.Faint)
-		cells = append(cells, term.Cprint(commit.Author.Name+" <"+commit.Author.Email+">", color.FgWhite)...)
+		cells = append(cells, term.Cprint(item.Author.Name+" <"+item.Author.Email+">", color.FgWhite)...)
 		grid = append(grid, cells)
 		cells = term.Cprint("When", color.Faint)
-		cells = append(cells, term.Cprint("   "+timeago.FromTime(commit.Author.When), color.FgWhite)...)
+		cells = append(cells, term.Cprint("   "+timeago.FromTime(item.Author.When), color.FgWhite)...)
 		grid = append(grid, cells)
-		grid = append(grid, commitRefs(l.repository, commit))
+		grid = append(grid, commitRefs(l.refs, item))
 		return grid
 	case *git.DiffDelta:
-		dd := item.(*git.DiffDelta)
-		var adds, dels int
-		for _, line := range strings.Split(dd.Patch, "\n") {
-			if len(line) > 0 {
-				switch rn := line[0]; rn {
-				case '+':
-					adds++
-				case '-':
-					dels++
-				}
-			}
+		if item.Binary {
+			return append(grid, term.Cprint("Binary file.", color.Faint))
 		}
 		var cells []term.Cell
-		if adds > 1 {
-			cells = term.Cprint(strconv.Itoa(adds-1), color.FgGreen)
-			cells = append(cells, term.Cprint(" additions", color.Faint)...)
+		if item.Additions > 0 {
+			cells = term.Cprint(strconv.Itoa(item.Additions), color.FgGreen)
+			cells = append(cells, term.Cprint(plural(item.Additions, " addition"), color.Faint)...)
 		}
-		if dels > 1 {
+		if item.Deletions > 0 {
 			if len(cells) > 1 {
-				cells = append(cells, term.Cell{Ch: ' '})
+				cells = append(cells, term.Cprint(", ", color.Faint)...)
 			}
-			cells = append(cells, term.Cprint(strconv.Itoa(dels-1), color.FgRed)...)
-			cells = append(cells, term.Cprint(" deletions", color.Faint)...)
+			cells = append(cells, term.Cprint(strconv.Itoa(item.Deletions), color.FgRed)...)
+			cells = append(cells, term.Cprint(plural(item.Deletions, " deletion"), color.Faint)...)
 		}
 		if len(cells) > 1 {
 			cells = append(cells, term.Cell{Ch: '.', Attr: []color.Attribute{color.Faint}})
@@ -178,21 +178,28 @@ func (l *log) logInfo(item interface{}) [][]term.Cell {
 	return grid
 }
 
+func plural(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+	return word + "s"
+}
+
 func (l *log) defineKeybindings() error {
 	keybindings := []*prompt.KeyBinding{
-		&prompt.KeyBinding{
+		{
 			Key:     's',
 			Display: "s",
 			Desc:    "show stat",
 			Handler: l.commitStat,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'd',
 			Display: "d",
 			Desc:    "show diff",
 			Handler: l.commitDiff,
 		},
-		&prompt.KeyBinding{
+		{
 			Key:     'q',
 			Display: "q",
 			Desc:    "quit",
@@ -207,9 +214,9 @@ func (l *log) defineKeybindings() error {
 	return nil
 }
 
-func commitRefs(r *git.Repository, c *git.Commit) []term.Cell {
+func commitRefs(refMap map[string][]git.Ref, c *git.Commit) []term.Cell {
 	var cells []term.Cell
-	if refs, ok := r.RefMap[c.Hash]; ok {
+	if refs, ok := refMap[c.Hash]; ok {
 		if len(refs) <= 0 {
 			return cells
 		}
