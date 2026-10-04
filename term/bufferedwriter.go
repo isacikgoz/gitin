@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/fatih/color"
 )
@@ -67,9 +68,11 @@ func (b *BufferedWriter) Write(bites []byte) (int, error) {
 		if err != nil {
 			return n, err
 		}
-		line := append(bites, []byte("\n")...)
-		n, err = b.buf.Write(line)
+		n, err = b.buf.Write(bites)
 		if err != nil {
+			return n, err
+		}
+		if err := b.buf.WriteByte('\n'); err != nil {
 			return n, err
 		}
 		b.height++
@@ -91,25 +94,43 @@ func (b *BufferedWriter) Write(bites []byte) (int, error) {
 		b.cursor++
 		return n, nil
 	default:
-		return 0, fmt.Errorf("Invalid write cursor position (%d) exceeded line height: %d", b.cursor, b.height)
+		return 0, fmt.Errorf("invalid write cursor position (%d) exceeded line height: %d", b.cursor, b.height)
 	}
 }
 
 // WriteCells add colored text to the inner buffer
 func (b *BufferedWriter) WriteCells(cs []Cell) (int, error) {
-	bs := make([]byte, 0)
-	if colored {
-		for _, c := range cs {
-			paint := color.New(c.Attr...)
-			painted := paint.Sprintf(string(c.Ch))
-			bs = append(bs, []byte(painted)...)
+	var line strings.Builder
+	for i := 0; i < len(cs); {
+		// paint consecutive cells with the same attributes at once
+		j := i + 1
+		for j < len(cs) && sameAttrs(cs[i].Attr, cs[j].Attr) {
+			j++
 		}
-	} else {
-		for _, c := range cs {
-			bs = append(bs, []byte(string(c.Ch))...)
+		var text strings.Builder
+		for _, c := range cs[i:j] {
+			text.WriteRune(c.Ch)
+		}
+		if colored && len(cs[i].Attr) > 0 {
+			line.WriteString(color.New(cs[i].Attr...).Sprint(text.String()))
+		} else {
+			line.WriteString(text.String())
+		}
+		i = j
+	}
+	return b.Write([]byte(line.String()))
+}
+
+func sameAttrs(a, b []color.Attribute) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
 		}
 	}
-	return b.Write(bs)
+	return true
 }
 
 // Flush writes any buffered data to the underlying io.Writer, ensuring that any pending data is displayed.
