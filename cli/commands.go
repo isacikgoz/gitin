@@ -2,24 +2,25 @@ package cli
 
 import (
 	"os"
-	"os/exec"
 
 	"github.com/isacikgoz/gitin/git"
 )
 
+// popGitCommand runs an interactive git command, e.g. one that opens a pager
+// or an editor, on the terminal. Failures return git's error message.
 func popGitCommand(r *git.Repository, args []string) error {
-	os.Setenv("LESS", "-RCS")
-	cmd := exec.Command("git", args...)
-	cmd.Dir = r.Path()
-
+	cmd := r.Command(args...)
+	// the pager must not exit on its own, the prompt would overwrite it
+	cmd.Env = append(os.Environ(), "LESS=-RCS")
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
+	_, err := git.Run(cmd)
+	return err
+}
 
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	if err := cmd.Wait(); err != nil {
-		return err
-	}
-	return nil
+// runGitCommand runs a non-interactive git command. Failures return git's
+// error message.
+func runGitCommand(r *git.Repository, args []string) error {
+	_, err := r.Output(args...)
+	return err
 }

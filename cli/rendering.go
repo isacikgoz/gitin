@@ -17,7 +17,7 @@ func renderItem(item interface{}, matches []int, selected bool) [][]term.Cell {
 		line = append(line, term.Cprint("  ", color.FgWhite)...)
 	}
 	switch i := item.(type) {
-	case *git.StatusEntry: // nolint: typecheck
+	case *git.StatusEntry:
 		attr := color.FgRed
 		if i.Indexed() {
 			attr = color.FgGreen
@@ -58,27 +58,24 @@ func stautsText(text string) []term.Cell {
 	return cells
 }
 
+// highLightedText underlines the matched characters, matches are byte offsets in str
 func highLightedText(matches []int, c color.Attribute, str string) []term.Cell {
 	if len(matches) == 0 {
 		return term.Cprint(str, c)
 	}
-	highligted := make([]term.Cell, 0)
-	for _, r := range str {
-		highligted = append(highligted, term.Cell{
-			Ch:   r,
-			Attr: []color.Attribute{c},
-		})
-	}
+	matched := make(map[int]bool, len(matches))
 	for _, m := range matches {
-		if m > len(highligted)-1 {
-			continue
-		}
-		highligted[m] = term.Cell{
-			Ch:   highligted[m].Ch,
-			Attr: append(highligted[m].Attr, color.Underline),
-		}
+		matched[m] = true
 	}
-	return highligted
+	highlighted := make([]term.Cell, 0, len(str))
+	for i, r := range str {
+		attr := []color.Attribute{c}
+		if matched[i] {
+			attr = append(attr, color.Underline)
+		}
+		highlighted = append(highlighted, term.Cell{Ch: r, Attr: attr})
+	}
+	return highlighted
 }
 
 func branchInfo(b *git.Branch, yours bool) [][]term.Cell {
@@ -89,6 +86,13 @@ func branchInfo(b *git.Branch, yours bool) [][]term.Cell {
 	var grid [][]term.Cell
 	if b == nil {
 		return append(grid, term.Cprint("Unable to load branch info", color.Faint))
+	}
+	if yours && b.Detached {
+		cells := term.Cprint("HEAD detached at ", color.Faint)
+		if len(b.Hash) >= 7 {
+			cells = append(cells, term.Cprint(b.Hash[:7], color.FgYellow)...)
+		}
+		return append(grid, cells)
 	}
 	if yours && len(b.Name) > 0 {
 		bName := term.Cprint("On branch ", color.Faint)

@@ -22,11 +22,9 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 
 ## Installation
 
-- Linux and macOS are supported.
+- Linux and macOS are supported. `git` 2.18 or newer is required at runtime.
 - Download latest release from [here](https://github.com/isacikgoz/gitin/releases)
-- **Or**, manually download it with `go get -d github.com/isacikgoz/gitin/cmd/gitin`
-- `cd` into `$GOPATH/src/github.com/isacikgoz/gitin`
-- build with `make install` (`cmake` and `pkg-config` are required, also note that git2go will be cloned and built)
+- **Or**, install it with `go install github.com/isacikgoz/gitin/cmd/gitin@latest`
 
 ### Mac/Linux using brew
 
@@ -62,7 +60,7 @@ Commands:
 Environment Variables:
 
   GITIN_LINESIZE=<int>
-  GITIN_STARTINSEARCH=<bool
+  GITIN_STARTINSEARCH=<bool>
   GITIN_DISABLECOLOR=<bool>
   GITIN_VIMKEYS=<bool>
 
@@ -79,10 +77,9 @@ Press ? for controls while application is running.
 
 ## Development Requirements
 
-- **Running with static linking is highly recommended.**
+- Go and `git` are the only requirements, gitin reads repositories by running `git`.
 - Clone the project and `cd` into it.
-- Run `make build-libgit2` (this will satisfy the replace rule in the `go.mod` file)
-- You can run the project with `go run --tags static cmd/gitin/main.go --help` command
+- Run the project with `go run ./cmd/gitin --help`, run the tests with `make test`
 
 ## Contribution
 

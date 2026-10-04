@@ -1,19 +1,18 @@
+// Package git reads repository data by running the git command line tool with
+// machine readable output formats. It requires git 2.18 or newer.
 package git
 
 import (
+	"bytes"
 	"errors"
-	"path/filepath"
-
-	lib "github.com/libgit2/git2go/v33"
+	"fmt"
+	"os/exec"
+	"strings"
 )
 
-// Repository is the wrapper and main interface to git repository
+// Repository is the main interface to a git repository
 type Repository struct {
-	essence *lib.Repository
-	path    string
-
-	RefMap map[string][]Ref
-	Head   *Branch
+	path string
 }
 
 // RefType defines the ref types
@@ -26,67 +25,88 @@ const (
 	RefTypeHEAD
 )
 
-// Ref is the wrapper of lib.Ref
+// Ref is a named reference to a commit, e.g. a branch or a tag
 type Ref interface {
 	Type() RefType
-	Target() *Commit
 	String() string
 }
 
-// Open load the repository from the filesystem
+// CommandError is returned when a git command fails, it carries the message
+// git printed to its standard error.
+type CommandError struct {
+	Args   []string
+	Stderr string
+	Err    error
+}
+
+func (e *CommandError) Error() string {
+	msg := strings.TrimSpace(e.Stderr)
+	if msg == "" {
+		return fmt.Sprintf("git %s: %v", strings.Join(e.Args, " "), e.Err)
+	}
+	return strings.TrimPrefix(msg, "fatal: ")
+}
+
+func (e *CommandError) Unwrap() error {
+	return e.Err
+}
+
+// Open finds the repository containing path the same way git does. Commands
+// run from the root of the working tree, or from the git directory if the
+// repository has no working tree (e.g. a bare repository).
 func Open(path string) (*Repository, error) {
-	repo, realpath, err := initRepoFromPath(path)
+	r := &Repository{path: path}
+	out, err := r.Output("rev-parse", "--show-toplevel")
 	if err != nil {
-		return nil, ErrCannotOpenRepo
+		out, err = r.Output("rev-parse", "--absolute-git-dir")
 	}
-	r := &Repository{
-		path:    realpath,
-		essence: repo,
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrCannotOpenRepo, err)
 	}
-	r.RefMap = make(map[string][]Ref)
-	r.LoadHead()
+	r.path = strings.TrimSuffix(string(out), "\n")
 	return r, nil
 }
 
-func initRepoFromPath(path string) (*lib.Repository, string, error) {
-	walk := path
-	for {
-		r, err := lib.OpenRepository(walk)
-		if err == nil {
-			return r, walk, err
-		}
-		walk = filepath.Dir(walk)
-		if walk == "/" {
-			break
-		}
-	}
-	return nil, walk, errors.New("cannot load a git repository from " + path)
-}
-
-// LoadHead can be used to refresh HEAD ref
-func (r *Repository) LoadHead() error {
-	head, err := r.essence.Head()
-	if err != nil {
-		return err
-	}
-	branch, err := unpackRawBranch(r.essence, head.Branch())
-	if err != nil {
-		return err
-	}
-	obj, err := r.essence.RevparseSingle(branch.Hash)
-	if err == nil && obj != nil {
-		if commit, _ := obj.AsCommit(); commit != nil {
-			branch.target = unpackRawCommit(r, commit)
-		}
-	}
-	if err != nil {
-		// a warning here
-	}
-	r.Head = branch
-	return nil
-}
-
-// Path returns the filesystem location of the repository
+// Path returns the directory the git commands run in
 func (r *Repository) Path() string {
 	return r.path
+}
+
+// Command returns a git command that runs in the repository
+func (r *Repository) Command(args ...string) *exec.Cmd {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = r.path
+	return cmd
+}
+
+// Output runs a git command in the repository and returns its standard output
+func (r *Repository) Output(args ...string) ([]byte, error) {
+	return Run(r.Command(args...))
+}
+
+// Run runs cmd and returns its standard output, also when it fails. Standard
+// output and standard error are captured unless they are already set. If the
+// command fails, the error is a *CommandError with the message git printed.
+func Run(cmd *exec.Cmd) ([]byte, error) {
+	var stdout, stderr bytes.Buffer
+	if cmd.Stdout == nil {
+		cmd.Stdout = &stdout
+	}
+	if cmd.Stderr == nil {
+		cmd.Stderr = &stderr
+	}
+	if err := cmd.Run(); err != nil {
+		return stdout.Bytes(), &CommandError{Args: cmd.Args[1:], Stderr: stderr.String(), Err: err}
+	}
+	return stdout.Bytes(), nil
+}
+
+// ExitCode returns the exit code of a failed git command, or -1 if err is
+// not the result of git exiting unsuccessfully.
+func ExitCode(err error) int {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
 }

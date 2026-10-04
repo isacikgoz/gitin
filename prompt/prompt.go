@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/fatih/color"
@@ -18,7 +20,8 @@ type keyEvent struct {
 	err error
 }
 
-// KeyBinding is used for mapping a key to a function
+// KeyBinding is used for mapping a key to a function. An error returned by
+// the handler is shown to the user, the prompt keeps running.
 type KeyBinding struct {
 	Key     rune
 	Display string
@@ -63,6 +66,7 @@ type Prompt struct {
 	informationRenderer informationRendererFunc
 
 	exitMsg [][]term.Cell // to be set on runtime if required
+	notice  string        // error of the last action, shown until the next key press
 
 	inputMode  bool
 	helpMode   bool
@@ -73,9 +77,8 @@ type Prompt struct {
 	writer *term.BufferedWriter // initialized by prompt
 	mx     *sync.RWMutex
 
-	events  chan keyEvent
-	quit    chan struct{}
-	newItem chan struct{}
+	events chan keyEvent
+	quit   chan error
 }
 
 // Create returns a pointer to prompt that is ready to Run
@@ -89,8 +92,7 @@ func Create(label string, opts *Options, list List, fs ...OptionalFunc) *Prompt 
 		writer:       term.NewBufferedWriter(os.Stdout),
 		mx:           &sync.RWMutex{},
 		events:       make(chan keyEvent, 20),
-		quit:         make(chan struct{}, 1),
-		newItem:      make(chan struct{}),
+		quit:         make(chan error, 1),
 	}
 
 	for _, f := range fs {
@@ -99,7 +101,8 @@ func Create(label string, opts *Options, list List, fs ...OptionalFunc) *Prompt 
 	return p
 }
 
-// WithSelectionHandler adds a selection handler to the prompt
+// WithSelectionHandler adds a selection handler to the prompt. An error
+// returned by the handler is shown to the user, the prompt keeps running.
 func WithSelectionHandler(f selectionHandlerFunc) OptionalFunc {
 	return func(p *Prompt) {
 		p.selectionHandler = f
@@ -126,7 +129,7 @@ func (p *Prompt) Run(ctx context.Context) error {
 	if err := term.Init(os.Stdin, os.Stdout); err != nil {
 		return err
 	}
-	defer term.Close()
+	defer func() { _ = term.Close() }()
 
 	if p.opts.DisableColor {
 		term.DisableColor()
@@ -162,7 +165,20 @@ func (p *Prompt) Run(ctx context.Context) error {
 
 // Stop sends a quit signal to the main loop of the prompt
 func (p *Prompt) Stop() {
-	p.quit <- struct{}{}
+	p.stop(nil)
+}
+
+// Fail stops the prompt and makes Run return err. It is safe to call from
+// any goroutine.
+func (p *Prompt) Fail(err error) {
+	p.stop(err)
+}
+
+func (p *Prompt) stop(err error) {
+	select {
+	case p.quit <- err:
+	default: // the prompt is already stopping
+	}
 }
 
 func (p *Prompt) spawnEvents(ctx context.Context) {
@@ -182,13 +198,13 @@ func (p *Prompt) spawnEvents(ctx context.Context) {
 // this is the main loop for reading input channel
 func (p *Prompt) mainloop() error {
 	sigwinch := make(chan os.Signal, 1)
-	defer close(sigwinch)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
+	defer signal.Stop(sigwinch)
 
 	for {
 		select {
-		case <-p.quit:
-			return nil
+		case err := <-p.quit:
+			return err
 		case <-sigwinch:
 			p.render()
 		case <-p.list.Update():
@@ -202,6 +218,8 @@ func (p *Prompt) mainloop() error {
 					return err
 				}
 
+				p.notice = ""
+				var err error
 				switch r := ev.ch; r {
 				case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
 					p.Stop()
@@ -211,14 +229,12 @@ func (p *Prompt) mainloop() error {
 					if idx == NotFound {
 						break
 					}
-
-					if err := p.selectionHandler(items[idx]); err != nil {
-						return err
-					}
+					err = p.selectionHandler(items[idx])
 				default:
-					if err := p.onKey(r); err != nil {
-						return err
-					}
+					err = p.onKey(r)
+				}
+				if err != nil {
+					p.notice = err.Error()
 				}
 				p.render()
 				return nil
@@ -231,10 +247,7 @@ func (p *Prompt) mainloop() error {
 
 // render function draws screen's list to terminal
 func (p *Prompt) render() {
-	defer func() {
-		p.writer.Flush()
-
-	}()
+	defer func() { _ = p.writer.Flush() }()
 
 	if p.helpMode {
 		for _, line := range genHelp(p.allControls()) {
@@ -261,6 +274,22 @@ func (p *Prompt) render() {
 	} else {
 		_, _ = p.writer.WriteCells(term.Cprint("Not found.", color.FgRed))
 	}
+
+	for _, line := range noticeLines(p.notice) {
+		_, _ = p.writer.WriteCells(term.Cprint(line, color.FgRed))
+	}
+}
+
+// noticeLines returns the first few non-empty lines of an error message
+func noticeLines(notice string) []string {
+	const maxLines = 5
+	var lines []string
+	for _, line := range strings.Split(notice, "\n") {
+		if line = strings.TrimSpace(line); line != "" && len(lines) < maxLines {
+			lines = append(lines, line)
+		}
+	}
+	return lines
 }
 
 // AddKeyBinding adds a key-function map to prompt
@@ -299,6 +328,9 @@ func (p *Prompt) onKey(key rune) error {
 			case rune(term.KeyCtrlU):
 				p.input = ""
 			default:
+				if !unicode.IsPrint(key) {
+					return nil
+				}
 				p.input += string(key)
 			}
 			p.list.Search(p.input)

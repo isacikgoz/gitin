@@ -1,133 +1,93 @@
 package git
 
 import (
+	"strconv"
 	"strings"
-
-	lib "github.com/libgit2/git2go/v33"
+	"time"
 )
 
-// Branch is a wrapper of lib.Branch object
+// Branch is a local or remote-tracking branch
 type Branch struct {
 	refType RefType
-	essence *lib.Branch
-	owner   *Repository
-	target  *Commit
 
 	Name     string
 	FullName string
 	Hash     string
+	// When is the author date of the commit the branch points to
+	When     time.Time
 	isRemote bool
 	Head     bool
+	// Detached is set for the HEAD of a repository that is not on a branch
+	Detached bool
 	Ahead    int
 	Behind   int
 	Upstream *Branch
 }
 
-// Branches loads branches with the lib's branch iterator
-// loads both remote and local branches
+const branchFormat = "--format=%(refname)%00%(refname:lstrip=2)%00%(objectname)%00%(HEAD)%00%(upstream:lstrip=2)%00%(upstream)%00%(upstream:track,nobracket)%00%(authordate:unix)"
+
+const branchFields = 8
+
+// Branches loads the local and remote-tracking branches
 func (r *Repository) Branches() ([]*Branch, error) {
-	branchIter, err := r.essence.NewBranchIterator(lib.BranchAll)
+	out, err := r.Output("for-each-ref", branchFormat, "refs/heads", "refs/remotes")
 	if err != nil {
 		return nil, err
 	}
-	defer branchIter.Free()
-	buffer := make([]*Branch, 0)
-
-	err = branchIter.ForEach(func(branch *lib.Branch, branchType lib.BranchType) error {
-		b, err := unpackRawBranch(r.essence, branch)
-		if err != nil {
-			return err
+	var branches []*Branch
+	for _, line := range lines(out) {
+		f := strings.Split(line, "\x00")
+		if len(f) != branchFields {
+			continue
 		}
-		obj, err := r.essence.RevparseSingle(b.Hash)
-		if err == nil && obj != nil {
-			if commit, _ := obj.AsCommit(); commit != nil {
-				b.target = unpackRawCommit(r, commit)
-			}
+		b := &Branch{
+			refType:  RefTypeBranch,
+			FullName: f[0],
+			Name:     f[1],
+			Hash:     f[2],
+			Head:     f[3] == "*",
+			isRemote: strings.HasPrefix(f[0], "refs/remotes/"),
 		}
-		// add to refmap
-		if _, ok := r.RefMap[b.Hash]; !ok {
-			r.RefMap[b.Hash] = make([]Ref, 0)
+		if b.Head {
+			b.refType = RefTypeHEAD
 		}
-		refs := r.RefMap[b.Hash]
-		refs = append(refs, b)
-		r.RefMap[b.Hash] = refs
-
-		buffer = append(buffer, b)
-		return nil
-	})
-
-	return buffer, err
+		if ts, err := strconv.ParseInt(f[7], 10, 64); err == nil {
+			b.When = time.Unix(ts, 0)
+		}
+		// an upstream that no longer exists is reported as "gone"
+		if f[4] != "" && f[6] != "gone" {
+			b.Upstream = &Branch{Name: f[4], FullName: f[5], isRemote: true, refType: RefTypeBranch}
+			b.Ahead, b.Behind = parseTrack(f[6])
+		}
+		branches = append(branches, b)
+	}
+	return branches, nil
 }
 
-func unpackRawBranch(r *lib.Repository, branch *lib.Branch) (*Branch, error) {
-	name, err := branch.Name()
-	if err != nil {
-		return nil, err
-	}
-	fullname := branch.Reference.Name()
-
-	rawOid := branch.Target()
-
-	if rawOid == nil {
-		ref, err := branch.Resolve()
-		if err != nil {
-			return nil, err
-		}
-		rawOid = ref.Target()
-	}
-	var ahead, behind int
-	hash := rawOid.String()
-	isRemote := branch.IsRemote()
-	isHead, _ := branch.IsHead()
-
-	var upstream *Branch
-	if !isRemote {
-		us, err := branch.Upstream()
-		if err != nil || us == nil {
-			// upstream not found
-		} else {
-			var err error
-			ahead, behind, err = r.AheadBehind(branch.Reference.Target(), us.Target())
-			if err != nil {
-				ahead = 0
-				behind = 0
-			}
-			upstream = &Branch{
-				Name:     strings.Replace(us.Name(), "refs/remotes/", "", 1),
-				FullName: us.Name(),
-				Hash:     us.Target().String(),
-				isRemote: true,
-				essence:  us.Branch(),
-			}
+// parseTrack parses "ahead 1, behind 2" as printed by %(upstream:track,nobracket)
+func parseTrack(track string) (ahead, behind int) {
+	for _, part := range strings.Split(track, ", ") {
+		if n, ok := strings.CutPrefix(part, "ahead "); ok {
+			ahead, _ = strconv.Atoi(n)
+		} else if n, ok := strings.CutPrefix(part, "behind "); ok {
+			behind, _ = strconv.Atoi(n)
 		}
 	}
+	return ahead, behind
+}
 
-	b := &Branch{
-		Name:     name,
-		refType:  RefTypeBranch,
-		essence:  branch,
-		FullName: fullname,
-		Hash:     hash,
-		isRemote: isRemote,
-		Head:     isHead,
-		Upstream: upstream,
-		Ahead:    ahead,
-		Behind:   behind,
+// lines splits newline terminated output into lines
+func lines(out []byte) []string {
+	s := strings.TrimSuffix(string(out), "\n")
+	if s == "" {
+		return nil
 	}
-	if isHead, _ := branch.IsHead(); isHead {
-		b.refType = RefTypeHEAD
-	}
-	return b, nil
+	return strings.Split(s, "\n")
 }
 
 // Type is the reference type of this ref
 func (b *Branch) Type() RefType {
 	return b.refType
-}
-
-// Target is the hash of targeted commit
-func (b *Branch) Target() *Commit {
-	return b.target
 }
 
 func (b *Branch) String() string {
