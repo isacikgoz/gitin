@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/isacikgoz/gia/editor"
 	"github.com/isacikgoz/gitin/git"
 	"github.com/isacikgoz/gitin/prompt"
 	"github.com/isacikgoz/gitin/term"
@@ -146,15 +145,14 @@ func (s *status) addResetEntry(item interface{}) error {
 
 func (s *status) hunkStageEntry(item interface{}) error {
 	entry := item.(*git.StatusEntry)
-	file, err := generateDiffFile(s.repository, entry)
+	diff, err := entryDiff(s.repository, entry)
 	if err != nil {
 		return err
 	}
-	editor, err := editor.NewEditor(file)
-	if err != nil {
+	if _, err := parseDiffFile(diff, entry.String()); err != nil {
 		return err
 	}
-	patches, err := editor.Run()
+	patches, err := runHunkEditor(diff)
 	if err != nil {
 		return err
 	}
@@ -255,23 +253,34 @@ func fileStatArgs(e *git.StatusEntry) []string {
 }
 
 func generateDiffFile(r *git.Repository, entry *git.StatusEntry) (*diffparser.DiffFile, error) {
-	// a patch for "git apply", whatever the user's diff settings are
+	diff, err := entryDiff(r, entry)
+	if err != nil {
+		return nil, err
+	}
+	return parseDiffFile(diff, entry.String())
+}
+
+// entryDiff returns the diff of an entry as a patch for "git apply",
+// whatever the user's diff settings are
+func entryDiff(r *git.Repository, entry *git.StatusEntry) ([]byte, error) {
 	args := fileStatArgs(entry)
 	args = append([]string{args[0], "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/"}, args[1:]...)
 	out, err := r.Output(args...)
 	if entry.EntryType == git.StatusEntryTypeUntracked && git.ExitCode(err) == 1 {
 		err = nil // "git diff --no-index" exits with 1 when the files differ
 	}
-	if err != nil {
-		return nil, err
-	}
+	return out, err
+}
+
+// parseDiffFile parses the diff of a single file with at least one hunk
+func parseDiffFile(out []byte, name string) (*diffparser.DiffFile, error) {
 	diff, err := diffparser.Parse(string(out))
 	if err != nil {
 		return nil, err
 	}
 	// e.g. binary files and mode changes have no hunks
 	if len(diff.Files) == 0 || len(diff.Files[0].Hunks) == 0 {
-		return nil, fmt.Errorf("%s has no changes to stage by hunk", entry)
+		return nil, fmt.Errorf("%s has no changes to stage by hunk", name)
 	}
 	file := diff.Files[0]
 	// diffparser drops header lines such as "new file mode" and the file

@@ -17,8 +17,15 @@ import (
 // version is set at build time with -ldflags "-X main.version=..."
 var version = ""
 
+// arguments of the hunk editor gitin runs itself
+var hunkDiff, hunkPatches *string
+
 func main() {
 	mode := evalArgs()
+	if mode == cli.HunkEditorCommand {
+		exitIfError(cli.RunHunkEditor(*hunkDiff, *hunkPatches))
+		return
+	}
 	pwd, _ := os.Getwd()
 
 	r, err := git.Open(pwd)
@@ -66,6 +73,9 @@ func evalArgs() string {
 	pin.Command("log", "Show commit logs.")
 	pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 	pin.Command("branch", "Show list of branches.")
+	hunks := pin.Command(cli.HunkEditorCommand, "Pick hunks of a diff, used by the status command.").Hidden()
+	hunkDiff = hunks.Arg("diff", "File with the diff of a file.").Required().String()
+	hunkPatches = hunks.Arg("patches", "File to write the patches of the picked hunks to.").Required().String()
 
 	pin.Version("gitin version " + buildVersion())
 
