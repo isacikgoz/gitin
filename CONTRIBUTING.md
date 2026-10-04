@@ -15,6 +15,8 @@ If you are adding a new feature/improving performance:
 - Possible Drawbacks
 - How did you conduct the verification process
 
+Before submitting, run `make test`. Changes that a user can see should come with an end-to-end test in [e2e](e2e), it runs gitin in a pseudo terminal like a user does.
+
 Commits should:
 - Limit the first line to 72 characters or less
 - Use the present tense

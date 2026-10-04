@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build archives
+        # named gitin_<tag>_<os>_<arch>.tar.gz like earlier releases, the Homebrew tap downloads them
+        run: |
+          mkdir dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os=${target%/*} arch=${target#*/}
+            mkdir -p "build/${os}_${arch}"
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o "build/${os}_${arch}/gitin" ./cmd/gitin
+            tar -czf "dist/gitin_${GITHUB_REF_NAME}_${os}_${arch}.tar.gz" -C "build/${os}_${arch}" gitin -C "$PWD" README.md LICENSE
+          done
+          (cd dist && sha256sum ./*.tar.gz > checksums.txt)
+      - name: Test the release binary
+        run: |
+          build/linux_amd64/gitin --version 2>&1 | grep -Fx "gitin version ${GITHUB_REF_NAME}"
+          GITIN_E2E_BINARY="$PWD/build/linux_amd64/gitin" go test ./e2e/
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
