@@ -7,10 +7,11 @@ import (
 	"github.com/isacikgoz/gitin/git"
 )
 
-// the terminal interactive git commands use
+// the terminal interactive commands use
 var (
 	stdin  io.Reader = os.Stdin
 	stdout io.Writer = os.Stdout
+	stderr io.Writer = os.Stderr
 )
 
 // popGitCommand runs an interactive git command, e.g. one that opens a pager

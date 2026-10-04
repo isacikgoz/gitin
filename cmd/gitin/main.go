@@ -47,6 +47,9 @@ func main() {
 		p, err = cli.LogPrompt(ctx, r, &o)
 	case "branch":
 		p, err = cli.BranchPrompt(r, &o)
+	case "push":
+		exitIfError(cli.Push(ctx, r, &o))
+		return
 	default:
 		return
 	}
@@ -73,6 +76,7 @@ func evalArgs() string {
 	pin.Command("log", "Show commit logs.")
 	pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 	pin.Command("branch", "Show list of branches.")
+	pin.Command("push", "Push the current branch, optionally after running the checks of .gitin.yml.")
 	hunks := pin.Command(cli.HunkEditorCommand, "Pick hunks of a diff, used by the status command.").Hidden()
 	hunkDiff = hunks.Arg("diff", "File with the diff of a file.").Required().String()
 	hunkPatches = hunks.Arg("patches", "File to write the patches of the picked hunks to.").Required().String()

@@ -21,6 +21,7 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 - Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
 - Interactive hunk staging (`gitin status` then press `p`)
 - Explore branches with useful filter options (e.g. `gitin branch` press `enter` to checkout)
+- Push with checks: `gitin push` runs the checks of [`.gitin.yml`](#checks-before-pushing) before pushing, or skips them if you choose to
 - Fast on large repositories, the history is loaded and searched in the background
 - Convenient UX and minimalist design
 - See more options by running `gitin --help`, also you can get help for individual subcommands (e.g. `gitin log --help`)
@@ -65,6 +66,9 @@ Commands:
   branch
     Show list of branches.
 
+  push
+    Push the current branch, optionally after running the checks of .gitin.yml.
+
 
 Environment Variables:
 
@@ -82,6 +86,29 @@ Press ? for controls while application is running.
 - To set always start in search mode `GITIN_STARTINSEARCH=true`
 - To disable colors `GITIN_DISABLECOLOR=true`
 - To disable h,j,k,l for nav `GITIN_VIMKEYS=false`
+
+### Checks before pushing
+
+`gitin push` shows what it pushes and asks whether to run the checks of `.gitin.yml` first or to push without them, `q` cancels.
+Commit the file to share the checks with your team:
+
+```yaml
+push:
+  checks:
+    - name: Lint
+      run: golangci-lint run
+    - name: Tests
+      run: go test ./...
+    - name: Build
+      run: |
+        make build
+        ./scripts/smoke-test.sh
+```
+
+- Checks run one after the other in the root of the working tree, their output is shown as it comes.
+- If a check fails, gitin asks whether to push anyway. Ctrl-C stops the running check and cancels the push.
+- `run` is a shell command. Commands with `: ` in them have to be quoted, a `|` block is the easiest way.
+- A branch without upstream is pushed to `origin` (or `remote.pushDefault`) and tracks it. git's own `pre-push` hook still runs.
 
 ## Development
 

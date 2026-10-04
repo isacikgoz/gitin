@@ -37,9 +37,9 @@ func open(t *testing.T, dir string) *git.Repository {
 func captureTerminal(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var out bytes.Buffer
-	oldIn, oldOut := stdin, stdout
-	stdin, stdout = strings.NewReader(""), &out
-	t.Cleanup(func() { stdin, stdout = oldIn, oldOut })
+	oldIn, oldOut, oldErr := stdin, stdout, stderr
+	stdin, stdout, stderr = strings.NewReader(""), &out, &out
+	t.Cleanup(func() { stdin, stdout, stderr = oldIn, oldOut, oldErr })
 	t.Setenv("GIT_PAGER", "cat")
 	return &out
 }
