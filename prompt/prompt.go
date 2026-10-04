@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"strings"
@@ -141,11 +142,19 @@ func (p *Prompt) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// start input loop
-	go p.spawnEvents(ctx)
+	reading := make(chan struct{})
+	go func() {
+		defer close(reading)
+		p.spawnEvents(ctx)
+	}()
 
 	p.render() // start with an initial render
 
 	err := p.mainloop()
+	// stop reading keys before returning, the terminal belongs to whatever
+	// runs next, e.g. another prompt or a command
+	cancel()
+	<-reading
 
 	// reset cursor position and remove buffer
 	p.writer.Reset()
@@ -181,16 +190,27 @@ func (p *Prompt) stop(err error) {
 	}
 }
 
+// readInterval is how long reading waits for a key before it checks whether
+// the prompt stopped
+const readInterval = 50 * time.Millisecond
+
+// spawnEvents reads keys until ctx is cancelled. Key handlers run with the
+// lock held, interactive commands they start have the terminal to themselves.
 func (p *Prompt) spawnEvents(ctx context.Context) {
-	for {
+	for ctx.Err() == nil {
+		p.mx.Lock()
+		r, _, err := p.reader.ReadRuneTimeout(readInterval)
+		p.mx.Unlock()
+		if errors.Is(err, term.ErrNoKey) {
+			continue
+		}
 		select {
+		case p.events <- keyEvent{ch: r, err: err}:
 		case <-ctx.Done():
 			return
-		case <-time.After(10 * time.Millisecond):
-			p.mx.Lock()
-			r, _, err := p.reader.ReadRune()
-			p.mx.Unlock()
-			p.events <- keyEvent{ch: r, err: err}
+		}
+		if err != nil {
+			return
 		}
 	}
 }

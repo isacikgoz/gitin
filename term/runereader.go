@@ -7,7 +7,14 @@ package term
 
 import (
 	"bufio"
+	"errors"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
+
+// ErrNoKey is returned by ReadRuneTimeout when no key was pressed in time
+var ErrNoKey = errors.New("no key pressed")
 
 // RuneReader reads from an io.Reader interface
 type RuneReader struct {
@@ -26,6 +33,37 @@ func NewRuneReader(reader Reader) *RuneReader {
 // has no binding.
 func (rr *RuneReader) ReadRune() (rune, int, error) {
 	return readKey(state.reader)
+}
+
+// ReadRuneTimeout is ReadRune, but it returns ErrNoKey if no key is pressed
+// within timeout. Unlike a blocked ReadRune, it lets the caller stop reading.
+func (rr *RuneReader) ReadRuneTimeout(timeout time.Duration) (rune, int, error) {
+	if state.reader.Buffered() == 0 {
+		ready, err := waitForInput(int(reader.Fd()), timeout)
+		if err != nil {
+			return 0, 0, err
+		}
+		if !ready {
+			return 0, 0, ErrNoKey
+		}
+	}
+	return readKey(state.reader)
+}
+
+// waitForInput waits until fd can be read from or the timeout passes. It
+// uses select because poll doesn't support terminals on macOS.
+func waitForInput(fd int, timeout time.Duration) (bool, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		var fds unix.FdSet
+		fds.Set(fd)
+		tv := unix.NsecToTimeval(max(time.Until(deadline), 0).Nanoseconds())
+		n, err := unix.Select(fd+1, &fds, nil, nil, &tv)
+		if errors.Is(err, unix.EINTR) {
+			continue // e.g. the terminal was resized
+		}
+		return n > 0, err
+	}
 }
 
 // maxSequenceLength limits how much input an unexpected escape sequence consumes
