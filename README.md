@@ -96,7 +96,7 @@ make dist VERSION=v1.2.3    # release archives for Linux and macOS
 
 The end-to-end tests in [e2e](e2e) run the gitin binary in a pseudo terminal, type keys and check the screen and the repository.
 [CI](.github/workflows/ci.yml) runs them on Linux and macOS and with the oldest supported Go and git versions, and checks lint, workflows and known vulnerabilities.
-Pushing a `v*.*.*` tag runs CI and publishes a [release](.github/workflows/release.yml) with binaries for Linux and macOS and their build attestations.
+Pushing a `v*.*.*` tag runs CI and drafts a [release](.github/workflows/release.yml) with binaries for Linux and macOS and their build attestations, publish it on GitHub after reviewing the notes.
 
 ## Contribution
 
