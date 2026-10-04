@@ -15,34 +15,38 @@ jobs:
   release:
     needs: ci
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
-      contents: write
+      contents: write # publish the release
+      id-token: write # sign the attestations
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
-      - name: Build archives
-        # named gitin_<tag>_<os>_<arch>.tar.gz like earlier releases, the Homebrew tap downloads them
-        run: |
-          mkdir dist
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
-            os=${target%/*} arch=${target#*/}
-            mkdir -p "build/${os}_${arch}"
-            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
-              -o "build/${os}_${arch}/gitin" ./cmd/gitin
-            tar -czf "dist/gitin_${GITHUB_REF_NAME}_${os}_${arch}.tar.gz" -C "build/${os}_${arch}" gitin -C "$PWD" README.md LICENSE
-          done
-          (cd dist && sha256sum ./*.tar.gz > checksums.txt)
+          check-latest: true
+          cache: false # a release must not use a cache other runs could have written
+      # named gitin_<tag>_<os>_<arch>.tar.gz like earlier releases, the Homebrew tap downloads them
+      - name: Build the release archives
+        run: make dist VERSION="$GITHUB_REF_NAME"
       - name: Test the release binary
         run: |
-          build/linux_amd64/gitin --version 2>&1 | grep -Fx "gitin version ${GITHUB_REF_NAME}"
-          GITIN_E2E_BINARY="$PWD/build/linux_amd64/gitin" go test ./e2e/
-      - name: Publish
-        uses: softprops/action-gh-release@v2
+          binary="$PWD/build/linux_$(go env GOARCH)/gitin"
+          "$binary" --version 2>&1 | grep -Fx "gitin version $GITHUB_REF_NAME"
+          GITIN_E2E_BINARY="$binary" go test ./e2e/
+      # verify with: gh attestation verify <archive> --repo isacikgoz/gitin
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          files: |
-            dist/*.tar.gz
-            dist/checksums.txt
+          subject-path: dist/*.tar.gz
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=(--generate-notes --verify-tag --repo "$GITHUB_REPOSITORY")
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/checksums.txt "${flags[@]}"

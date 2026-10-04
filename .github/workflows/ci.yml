@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
+    branches: [master]
   pull_request:
+  merge_group:
+  schedule:
+    - cron: "17 6 * * 1" # weekly, for new vulnerabilities and tool versions
   workflow_dispatch:
   workflow_call:
 
@@ -13,22 +17,53 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Actions are pinned to commits, Dependabot updates them.
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      # golangci-lint can't load a standard library newer than the Go it was built with
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # the oldest supported Go: golangci-lint can't load a standard library
+      # newer than the Go it was built with
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Check formatting
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: Check go.mod
         run: go mod tidy && git diff --exit-code go.mod go.sum
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.12.2
+          version: v2.14.0
+
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      - name: Lint workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+  vulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
+        with:
+          go-version-input: stable
+          repo-checkout: false
 
   test:
     strategy:
@@ -36,9 +71,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
       - run: git --version
@@ -47,14 +85,16 @@ jobs:
       - name: Test
         run: make coverage | tee coverage.log
       - name: Coverage summary
+        env:
+          OS: ${{ matrix.os }}
         run: |
           {
-            echo "### Coverage on ${{ matrix.os }}"
+            echo "### Coverage on $OS"
             echo '```'
             grep -E "coverage:|^total:" coverage.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-${{ matrix.os }}
           path: coverage/coverage.txt
@@ -65,14 +105,19 @@ jobs:
       matrix:
         git: ["2.18.0"] # the oldest versions gitin supports, Go is the one of go.mod
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GIT_VERSION: ${{ matrix.git }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Cache git
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/git-${{ matrix.git }}
           key: git-${{ matrix.git }}-${{ runner.os }}-${{ runner.arch }}
@@ -81,27 +126,25 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           sudo apt-get update && sudo apt-get install -y --no-install-recommends zlib1g-dev
-          curl -sSfL "https://mirrors.edge.kernel.org/pub/software/scm/git/git-${{ matrix.git }}.tar.xz" | tar -xJ
-          make -C "git-${{ matrix.git }}" -j"$(nproc)" prefix="$HOME/git-${{ matrix.git }}" \
+          curl -sSfL "https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VERSION.tar.xz" | tar -xJ
+          make -C "git-$GIT_VERSION" -j"$(nproc)" prefix="$HOME/git-$GIT_VERSION" \
             NO_OPENSSL=1 NO_CURL=1 NO_EXPAT=1 NO_GETTEXT=1 NO_TCLTK=1 NO_PERL=1 NO_PYTHON=1 install
       - name: Test
         run: |
-          export PATH="$HOME/git-${{ matrix.git }}/bin:$PATH"
+          export PATH="$HOME/git-$GIT_VERSION/bin:$PATH"
           git --version
           go version
           go test ./...
 
   build:
-    strategy:
-      matrix:
-        target: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
-      - name: Build ${{ matrix.target }}
-        env:
-          TARGET: ${{ matrix.target }}
-        run: GOOS="${TARGET%/*}" GOARCH="${TARGET#*/}" CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/gitin
+      - name: Build the release archives
+        run: make dist

@@ -4,7 +4,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: gomod
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: deps
+    groups:
+      go-modules:
+        patterns: ["*"]

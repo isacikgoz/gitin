@@ -35,6 +35,22 @@ coverage:
 	$(GOCMD) tool covdata percent -i=coverage/unit,coverage/e2e
 	$(GOCMD) tool cover -func=coverage/coverage.txt | tail -n 1
 
+# release archives and checksums for every platform, VERSION is the git tag
+VERSION?=dev
+DIST_TARGETS=linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
+
+.PHONY: dist
+dist:
+	rm -rf dist build && mkdir -p dist
+	@for target in $(DIST_TARGETS); do \
+		os=$${target%/*}; arch=$${target#*/}; dir=build/$${os}_$${arch}; \
+		echo "building $$target"; \
+		mkdir -p $$dir && \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GOCMD) build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $$dir/gitin $(GITIN_SOURCE_DIR) && \
+		tar -czf dist/gitin_$(VERSION)_$${os}_$${arch}.tar.gz -C $$dir gitin -C $(CURDIR) README.md LICENSE || exit 1; \
+	done
+	cd dist && (sha256sum *.tar.gz 2>/dev/null || shasum -a 256 *.tar.gz) > checksums.txt
+
 .PHONY: clean
 clean:
-	rm -f $(BINARY)
+	rm -rf $(BINARY) coverage dist build
