@@ -56,8 +56,9 @@ func (e *CommandError) Unwrap() error {
 // repository has no working tree (e.g. a bare repository).
 func Open(path string) (*Repository, error) {
 	r := &Repository{path: path}
+	// without a working tree, older git versions print nothing instead of failing
 	out, err := r.Output("rev-parse", "--show-toplevel")
-	if err != nil {
+	if err != nil || len(out) == 0 {
 		out, err = r.Output("rev-parse", "--absolute-git-dir")
 	}
 	if err != nil {

@@ -199,7 +199,8 @@ func (s *status) discardEntry(item interface{}) error {
 	case entry.Indexed():
 		return errors.New("staged changes are not discarded, press space to unstage them first")
 	case entry.EntryType == git.StatusEntryTypeUntracked:
-		args = []string{"clean", "--force", "--", entry.String()}
+		// -d removes untracked directories with older git versions as well
+		args = []string{"clean", "-d", "--force", "--", entry.String()}
 	default:
 		args = []string{"checkout", "--", entry.String()}
 	}
@@ -268,7 +269,8 @@ func generateDiffFile(r *git.Repository, entry *git.StatusEntry) (*diffparser.Di
 	if err != nil {
 		return nil, err
 	}
-	if len(diff.Files) == 0 {
+	// e.g. binary files and mode changes have no hunks
+	if len(diff.Files) == 0 || len(diff.Files[0].Hunks) == 0 {
 		return nil, fmt.Errorf("%s has no changes to stage by hunk", entry)
 	}
 	file := diff.Files[0]
