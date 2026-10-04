@@ -111,9 +111,13 @@ func TestStatusDiscard(t *testing.T) {
 	s.send("!")
 	s.waitFrame("Files", m, "staged changes are not discarded, press space to unstage them first")
 
+	s.send(down, down)
+	s.waitSelected("Files", m, "new.txt")
 	m = s.mark()
-	s.send(down, down, "!")
-	s.waitFrame("Files", m, "deleted.txt", "modified.txt")
+	s.send("!")
+	s.waitUntil("Files", m, "new.txt removed", func(frame string) bool {
+		return strings.Contains(frame, "modified.txt") && !strings.Contains(frame, "new.txt")
+	})
 	if _, err := os.Stat(filepath.Join(dir, "new.txt")); !os.IsNotExist(err) {
 		t.Fatal("untracked file was not removed")
 	}

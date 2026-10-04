@@ -31,6 +31,9 @@ func TestVersionAndHelp(t *testing.T) {
 			t.Errorf("help does not mention %s (exit code %d):\n%s", want, code, out)
 		}
 	}
+	if strings.Contains(out, "hunk-editor") {
+		t.Errorf("help shows the internal hunk editor command:\n%s", out)
+	}
 }
 
 func TestOptionsFromEnvironment(t *testing.T) {
@@ -56,12 +59,10 @@ func TestOptionsFromEnvironment(t *testing.T) {
 	t.Run("vim keys", func(t *testing.T) {
 		s := start(t, dir, []string{"log"}, "GITIN_VIMKEYS=false")
 		s.waitFrame("Commits", 0, "four")
+		s.send("j")
 		m := s.mark()
-		s.send("j", down)
-		frame := s.waitFrame("Commits", m, "> [")
-		if line := selectedLine(frame); !strings.HasSuffix(line, "three") {
-			t.Fatalf("j moved the cursor, selected %q", line)
-		}
+		s.send(down) // j did not move the cursor, so down selects the second commit
+		s.waitSelected("Commits", m, "three")
 	})
 
 	t.Run("colors", func(t *testing.T) {

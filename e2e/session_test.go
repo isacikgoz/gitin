@@ -176,38 +176,47 @@ func (s *session) frame(label string, from int) string {
 	return out[i:]
 }
 
-// waitFrame waits until the last screen gitin drew after mark contains all texts
+// waitFrame waits until the last screen gitin drew after mark contains all
+// texts. Keys sent together draw a screen each, wait for a text only the
+// last screen has, or use waitUntil.
 func (s *session) waitFrame(label string, mark int, texts ...string) string {
+	s.t.Helper()
+	return s.waitUntil(label, mark, fmt.Sprintf("%q", texts), func(frame string) bool {
+		return containsAll(frame, texts)
+	})
+}
+
+// waitUntil waits until the last screen gitin drew after mark satisfies ok
+func (s *session) waitUntil(label string, mark int, what string, ok func(frame string) bool) string {
 	s.t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
 		frame := s.frame(label, mark)
-		missing := ""
-		if frame == "" {
-			missing = label
-		}
-		for _, text := range texts {
-			if !strings.Contains(frame, text) {
-				missing = text
-			}
-		}
-		if missing == "" {
+		if frame != "" && ok(frame) {
 			return frame
 		}
 		select {
 		case <-s.done:
 			<-s.read
-			if frame = s.frame(label, mark); frame != "" && containsAll(frame, texts) {
+			if frame = s.frame(label, mark); frame != "" && ok(frame) {
 				return frame
 			}
-			s.t.Fatalf("gitin exited (%v) before showing %q", s.err, missing)
+			s.t.Fatalf("gitin exited (%v) before showing %s", s.err, what)
 		default:
 		}
 		if time.Now().After(deadline) {
-			s.t.Fatalf("screen does not show %q, last screen:\n%s", missing, frame)
+			s.t.Fatalf("screen does not show %s, last screen:\n%s", what, frame)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// waitSelected waits until the item under the cursor ends with text
+func (s *session) waitSelected(label string, mark int, text string) string {
+	s.t.Helper()
+	return s.waitUntil(label, mark, "the cursor on "+text, func(frame string) bool {
+		return strings.HasSuffix(selectedLine(frame), text)
+	})
 }
 
 // waitText waits until the output after mark contains all texts

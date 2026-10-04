@@ -144,10 +144,7 @@ func TestLogStaysResponsiveWhileLoading(t *testing.T) {
 	// typing while the history is loaded used to freeze gitin
 	s := start(t, dir, []string{"log"})
 	s.send("/", "c", "4", "9", "9", "9", "9")
-	frame := s.waitFrame("Search Commits c49999", 0, "> [")
-	if line := selectedLine(frame); !strings.HasSuffix(line, "c49999") {
-		t.Fatalf("selected %q", line)
-	}
+	s.waitSelected("Search Commits c49999", 0, "c49999")
 	s.send(ctrlC)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
@@ -174,10 +171,7 @@ func TestUnknownKeysDoNotQuit(t *testing.T) {
 	// Alt+b, F5, ctrl+right, then down in application cursor mode
 	m := s.mark()
 	s.send("\x1bb", "\x1b[15~", "\x1b[1;5C", "\x1bOB")
-	frame := s.waitFrame("Commits", m, "> [")
-	if line := selectedLine(frame); !strings.HasSuffix(line, "first") {
-		t.Fatalf("selected %q", line)
-	}
+	s.waitSelected("Commits", m, "first")
 	if !s.running() {
 		t.Fatalf("gitin exited: %s", s.text())
 	}
