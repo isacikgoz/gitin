@@ -29,6 +29,10 @@ func feed(ch chan<- interface{}, from, to int) {
 	}
 }
 
+func timeout() <-chan time.Time {
+	return time.After(10 * time.Second)
+}
+
 func waitWorkers(t *testing.T, l *AsyncList) {
 	t.Helper()
 	done := make(chan struct{})
@@ -38,7 +42,7 @@ func waitWorkers(t *testing.T, l *AsyncList) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(10 * time.Second):
+	case <-timeout():
 		t.Fatal("list workers did not finish")
 	}
 }

@@ -3,6 +3,7 @@ module github.com/isacikgoz/gitin
 go 1.22
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/fatih/color v1.9.0
 	github.com/isacikgoz/fuzzy v0.2.0
 	github.com/isacikgoz/gia v0.2.0
