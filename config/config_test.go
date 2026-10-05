@@ -17,6 +17,10 @@ func write(t *testing.T, dir, name, content string) {
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, ".gitin.yml", `
+commit:
+  checks:
+    - name: Format
+      run: gofmt -l .
 # checks run before pushing
 push:
   checks:
@@ -28,8 +32,11 @@ push:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.File != ".gitin.yml" || len(c.Push.Checks) != 2 {
+	if c.File != ".gitin.yml" || len(c.Push.Checks) != 2 || len(c.Commit.Checks) != 1 {
 		t.Fatalf("got %+v", c)
+	}
+	if got := c.Commit.Checks[0]; got.Name != "Format" || got.Run != "gofmt -l ." {
+		t.Fatalf("got commit check %+v", got)
 	}
 	if got := c.Push.Checks[0]; got.Name != "Lint" || got.Run != "golangci-lint run" {
 		t.Fatalf("got first check %+v", got)
@@ -78,6 +85,7 @@ func TestLoadErrors(t *testing.T) {
 		"typo in a key":     {"push:\n  check:\n    - run: x\n", "line 2: field check not found"},
 		"unknown check key": {"push:\n  checks:\n    - run: x\n      timeout: 5m\n", "line 4: field timeout not found"},
 		"missing command":   {"push:\n  checks:\n    - run: x\n    - name: Lint\n", "push.checks[1]: run is missing"},
+		"missing in commit": {"commit:\n  checks:\n    - name: Format\n", "commit.checks[0]: run is missing"},
 		"not a list":        {"push:\n  checks: make test\n", "line 2"},
 		"invalid yaml":      {"push: [\n", "yaml:"},
 	}
@@ -126,7 +134,7 @@ func TestREADMEExample(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(c.Push.Checks) == 0 {
-		t.Fatal("the example has no checks")
+	if len(c.Push.Checks) == 0 || len(c.Commit.Checks) == 0 {
+		t.Fatal("the example has no commit and push checks")
 	}
 }

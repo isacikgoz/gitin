@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -405,5 +406,44 @@ func TestFileStatArgs(t *testing.T) {
 		if got := strings.Join(fileStatArgs(entry(t, s, tt.path, tt.staged)), " "); got != tt.want {
 			t.Errorf("got %q, want %q", got, tt.want)
 		}
+	}
+}
+
+func TestStatusCommitNeedsStagedChanges(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	gittest.Commit(t, dir, "base", map[string]string{"a": "1"})
+	gittest.WriteFile(t, dir, "a", "2")
+	s := newTestStatus(t, dir)
+	captureTerminal(t)
+	err := s.commit(nil)
+	if err == nil || err.Error() != "nothing to commit, stage changes with space or a first" {
+		t.Fatalf("got error %v", err)
+	}
+}
+
+// A merge is committed although nothing is staged, e.g. when its result is
+// the version of the current branch
+func TestStatusCommitMergeWithoutStagedChanges(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	gittest.Commit(t, dir, "base", map[string]string{"a": "1", "b": "1"})
+	gittest.Git(t, dir, "checkout", "--quiet", "-b", "topic")
+	gittest.Commit(t, dir, "topic", map[string]string{"a": "topic"})
+	gittest.Git(t, dir, "checkout", "--quiet", "main")
+	gittest.Commit(t, dir, "main", map[string]string{"a": "main"})
+	cmd := exec.Command("git", "merge", "--quiet", "topic")
+	cmd.Dir = dir
+	_ = cmd.Run() // conflicts
+	gittest.Git(t, dir, "checkout", "--ours", "a")
+	gittest.Git(t, dir, "add", "a")
+	gittest.WriteFile(t, dir, "b", "unstaged")
+
+	s := newTestStatus(t, dir)
+	captureTerminal(t)
+	setEditor(t, "merge topic")
+	if err := s.commit(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := gittest.Git(t, dir, "log", "-1", "--format=%s %p"); !strings.HasPrefix(got, "merge topic ") || len(strings.Fields(got)) != 4 {
+		t.Fatalf("got last commit %q, want a merge commit", got)
 	}
 }

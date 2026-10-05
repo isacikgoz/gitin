@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -17,20 +18,20 @@ import (
 	"github.com/isacikgoz/gitin/term"
 )
 
-// pushAction is a choice of the push prompt
-type pushAction string
+// choice is an item of the prompts asking what to do
+type choice string
 
 const (
-	actionCheckAndPush  pushAction = "Run checks, then push"
-	actionSkipAndPush   pushAction = "Push without checks"
-	actionPush          pushAction = "Push"
-	actionPushAnyway    pushAction = "Push anyway"
-	actionCancel        pushAction = "Cancel"
-	maxPushCommitsShown            = 5
+	choiceCheckAndPush  choice = "Run checks, then push"
+	choiceSkipAndPush   choice = "Push without checks"
+	choicePush          choice = "Push"
+	choicePushAnyway    choice = "Push anyway"
+	choiceCancel        choice = "Cancel"
+	maxPushCommitsShown        = 5
 )
 
-func (a pushAction) String() string {
-	return string(a)
+func (c choice) String() string {
+	return string(c)
 }
 
 // checkFailure is a check that didn't succeed
@@ -39,8 +40,11 @@ type checkFailure struct {
 	err   error
 }
 
-// errInterrupted is returned when the user stops a check with Ctrl-C
-var errInterrupted = errors.New("push cancelled")
+// errStopped is returned when the user stops a check with Ctrl-C
+var errStopped = errors.New("stopped")
+
+// beforeCheckStart runs right before a check starts, tests use it
+var beforeCheckStart = func() {}
 
 // Push pushes the checked out branch. If the configuration file has checks,
 // it asks whether to run them first.
@@ -62,30 +66,33 @@ func Push(ctx context.Context, r *git.Repository, opts *prompt.Options) error {
 	}
 
 	// q and Ctrl-C cancel, like on every gitin screen
-	actions := []pushAction{actionPush}
+	choices := []choice{choicePush}
 	if len(cfg.Push.Checks) > 0 {
-		actions = []pushAction{actionCheckAndPush, actionSkipAndPush}
+		choices = []choice{choiceCheckAndPush, choiceSkipAndPush}
 	}
-	action, err := choose(ctx, opts, actions, pushInfo(target, cfg))
+	chosen, err := choose(ctx, opts, "Push", choices, pushInfo(target, cfg))
 	if err != nil {
 		return err
 	}
-	switch action {
-	case actionCancel:
+	switch chosen {
+	case choiceCancel:
 		_, _ = fmt.Fprintln(stdout, "Push cancelled.")
 		return nil
-	case actionCheckAndPush:
+	case choiceCheckAndPush:
 		failure, err := runChecks(r.Path(), cfg.Push.Checks)
+		if errors.Is(err, errStopped) {
+			return errors.New("push cancelled")
+		}
 		if err != nil {
 			return err
 		}
 		if failure != nil {
 			// cancelling comes first, Enter must not push what failed a check
-			action, err := choose(ctx, opts, []pushAction{actionCancel, actionPushAnyway}, failureInfo(failure))
+			chosen, err := choose(ctx, opts, "Push", []choice{choiceCancel, choicePushAnyway}, failureInfo(failure, "nothing was pushed yet"))
 			if err != nil {
 				return err
 			}
-			if action != actionPushAnyway {
+			if chosen != choicePushAnyway {
 				return fmt.Errorf("%s failed, nothing was pushed", failure.check.Name)
 			}
 		}
@@ -93,17 +100,18 @@ func Push(ctx context.Context, r *git.Repository, opts *prompt.Options) error {
 	return push(r, target)
 }
 
-// choose asks the user to pick one of the actions. Quitting the prompt cancels.
-func choose(ctx context.Context, opts *prompt.Options, actions []pushAction, info [][]term.Cell) (pushAction, error) {
-	list, err := prompt.NewList(actions, len(actions))
+// choose asks the user to pick one of the choices. Quitting the prompt
+// returns choiceCancel.
+func choose(ctx context.Context, opts *prompt.Options, label string, choices []choice, info [][]term.Cell) (choice, error) {
+	list, err := prompt.NewList(choices, len(choices))
 	if err != nil {
-		return actionCancel, err
+		return choiceCancel, err
 	}
-	chosen := actionCancel
+	chosen := choiceCancel
 	var p *prompt.Prompt
-	p = prompt.Create("Push", opts, list,
+	p = prompt.Create(label, opts, list,
 		prompt.WithSelectionHandler(func(item interface{}) error {
-			chosen = item.(pushAction)
+			chosen = item.(choice)
 			p.Stop()
 			return nil
 		}),
@@ -115,10 +123,10 @@ func choose(ctx context.Context, opts *prompt.Options, actions []pushAction, inf
 		return nil
 	}}
 	if err := p.AddKeyBinding(quit); err != nil {
-		return actionCancel, err
+		return choiceCancel, err
 	}
 	if err := p.Run(ctx); err != nil {
-		return actionCancel, err
+		return choiceCancel, err
 	}
 	return chosen, nil
 }
@@ -159,18 +167,24 @@ func pushInfo(t *git.PushTarget, cfg *config.Config) [][]term.Cell {
 	if len(cfg.Push.Checks) == 0 {
 		return append(grid, term.Cprint(fmt.Sprintf("No checks, add them to %s to run them before pushing.", config.FileNames[0]), color.Faint))
 	}
-	var names []string
-	for _, check := range cfg.Push.Checks {
-		names = append(names, check.Name)
-	}
-	line = term.Cprint(fmt.Sprintf("Checks of %s: ", cfg.File), color.Faint)
-	return append(grid, append(line, term.Cprint(strings.Join(names, ", "))...))
+	return append(grid, checkNames(cfg, cfg.Push))
 }
 
-func failureInfo(f *checkFailure) [][]term.Cell {
+// failureInfo describes a failed check, outcome says what didn't happen
+func failureInfo(f *checkFailure, outcome string) [][]term.Cell {
 	line := term.Cprint(f.check.Name, color.FgYellow)
-	line = append(line, term.Cprint(fmt.Sprintf(" failed (%v), nothing was pushed yet.", f.err), color.FgRed)...)
+	line = append(line, term.Cprint(fmt.Sprintf(" failed (%v), %s.", f.err, outcome), color.FgRed)...)
 	return [][]term.Cell{line}
+}
+
+// checkNames lists the checks of a hook of the configuration
+func checkNames(cfg *config.Config, hook config.Hook) []term.Cell {
+	var names []string
+	for _, check := range hook.Checks {
+		names = append(names, check.Name)
+	}
+	line := term.Cprint(fmt.Sprintf("Checks of %s: ", cfg.File), color.Faint)
+	return append(line, term.Cprint(strings.Join(names, ", "))...)
 }
 
 func nothingToPush(t *git.PushTarget) string {
@@ -207,17 +221,33 @@ func runChecks(dir string, checks []config.Check) (*checkFailure, error) {
 				return false
 			}
 		}
-		// Ctrl-C before the check started didn't reach it
 		if stopped() {
-			return nil, errInterrupted
+			return nil, errStopped
 		}
 		cmd := exec.Command("sh", "-c", check.Run)
 		cmd.Dir = dir
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, stdout, stderr
-		err := cmd.Run()
+		beforeCheckStart()
+		err := cmd.Start()
+		forwarded := false
+		if err == nil {
+			// Ctrl-C right before the check started didn't reach it
+			select {
+			case <-interrupts:
+				_ = cmd.Process.Signal(os.Interrupt)
+				forwarded = true
+			default:
+			}
+			err = cmd.Wait()
+		}
 		took := duration(time.Since(start))
+		// the signal can reach the check before gitin's channel
+		if forwarded || interrupted(err) {
+			_, _ = color.New(color.FgRed).Fprintf(stdout, "✘ %s stopped after %s\n", check.Name, took)
+			return nil, errStopped
+		}
 		if stopped() {
-			return nil, errInterrupted
+			return nil, errStopped
 		}
 		if err != nil {
 			_, _ = color.New(color.FgRed).Fprintf(stdout, "✘ %s failed after %s: %v\n", check.Name, took, err)
@@ -226,6 +256,16 @@ func runChecks(dir string, checks []config.Check) (*checkFailure, error) {
 		_, _ = color.New(color.FgGreen).Fprintf(stdout, "✔ %s passed in %s\n", check.Name, took)
 	}
 	return nil, nil
+}
+
+// interrupted reports whether a command ended because of Ctrl-C
+func interrupted(err error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled() && status.Signal() == syscall.SIGINT
 }
 
 // firstLine returns the first line of a command, with … if it has more lines

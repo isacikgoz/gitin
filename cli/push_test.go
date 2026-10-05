@@ -2,9 +2,11 @@ package cli
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -74,7 +76,7 @@ func TestPushInfo(t *testing.T) {
 		}
 		return out
 	}
-	checks := &config.Config{File: ".gitin.yml", Push: config.Push{Checks: []config.Check{{Name: "Lint"}, {Name: "Tests"}}}}
+	checks := &config.Config{File: ".gitin.yml", Push: config.Hook{Checks: []config.Check{{Name: "Lint"}, {Name: "Tests"}}}}
 
 	tests := []struct {
 		name   string
@@ -128,7 +130,7 @@ func TestPushMessages(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 	failure := &checkFailure{check: config.Check{Name: "Lint"}, err: errors.New("exit status 1")}
-	if got := lines(failureInfo(failure)); len(got) != 1 || got[0] != "Lint failed (exit status 1), nothing was pushed yet." {
+	if got := lines(failureInfo(failure, "nothing was pushed yet")); len(got) != 1 || got[0] != "Lint failed (exit status 1), nothing was pushed yet." {
 		t.Errorf("got %q", got)
 	}
 	for d, want := range map[time.Duration]string{
@@ -172,15 +174,53 @@ func TestPushFailure(t *testing.T) {
 func TestRunChecksStopsOnInterrupt(t *testing.T) {
 	out := captureTerminal(t)
 	checks := []config.Check{
-		// like Ctrl-C in the terminal, which signals gitin and the check
-		{Name: "Interrupted", Run: "kill -INT $PPID"},
+		// like Ctrl-C in the terminal, which signals gitin and the check, the
+		// check waits for gitin to receive the signal
+		{Name: "Interrupted", Run: "kill -INT $PPID; sleep 0.5"},
 		{Name: "Next", Run: "echo NEXT RAN"},
 	}
 	failure, err := runChecks(t.TempDir(), checks)
-	if !errors.Is(err, errInterrupted) || failure != nil {
+	if !errors.Is(err, errStopped) || failure != nil {
 		t.Fatalf("got failure %+v, error %v", failure, err)
 	}
 	if got := out.String(); !strings.Contains(got, "✘ Interrupted stopped after") || strings.Contains(got, "NEXT RAN") {
 		t.Fatalf("got output %q", got)
+	}
+}
+
+// Ctrl-C right before a check starts only reaches gitin, which passes it on
+func TestRunChecksForwardsEarlyInterrupt(t *testing.T) {
+	out := captureTerminal(t)
+	beforeCheckStart = func() {
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+		time.Sleep(100 * time.Millisecond) // the signal arrives
+	}
+	defer func() { beforeCheckStart = func() {} }()
+
+	start := time.Now()
+	failure, err := runChecks(t.TempDir(), []config.Check{{Name: "Slow", Run: "sleep 10"}})
+	if !errors.Is(err, errStopped) || failure != nil {
+		t.Fatalf("got failure %+v, error %v", failure, err)
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Fatalf("the check ran for %v, it did not get the interrupt", took)
+	}
+	if !strings.Contains(out.String(), "✘ Slow stopped after") {
+		t.Fatalf("got output %q", out.String())
+	}
+}
+
+// A check killed by Ctrl-C counts as stopped, also if gitin didn't see the signal yet
+func TestRunChecksStoppedBySignal(t *testing.T) {
+	out := captureTerminal(t)
+	failure, err := runChecks(t.TempDir(), []config.Check{{Name: "Killed", Run: "kill -INT $$; sleep 5"}, {Name: "Next", Run: "echo NEXT RAN"}})
+	if !errors.Is(err, errStopped) || failure != nil {
+		t.Fatalf("got failure %+v, error %v", failure, err)
+	}
+	if got := out.String(); !strings.Contains(got, "✘ Killed stopped after") || strings.Contains(got, "NEXT RAN") {
+		t.Fatalf("got output %q", got)
+	}
+	if interrupted(nil) || interrupted(errors.New("other")) {
+		t.Fatal("errors without a signal count as interrupted")
 	}
 }

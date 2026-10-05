@@ -136,7 +136,7 @@ func TestPushFailingCheck(t *testing.T) {
 
 func TestPushStopCheck(t *testing.T) {
 	remote, clone := gittest.NewRemote(t)
-	gittest.Commit(t, clone, "Slow check", map[string]string{".gitin.yml": "push:\n  checks:\n    - name: Slow\n      run: echo CHECK STARTED; sleep 30\n"})
+	gittest.Commit(t, clone, "Slow check", map[string]string{".gitin.yml": "push:\n  checks:\n    - name: Slow\n      run: printf 'CHECK %s\\n' STARTED; sleep 30\n"})
 	s := start(t, clone, []string{"push"})
 	s.waitFrame(pushScreen, 0, "> Run checks, then push")
 	m := s.mark()

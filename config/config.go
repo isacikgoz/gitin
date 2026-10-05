@@ -21,16 +21,19 @@ type Config struct {
 	// File is the name of the file the configuration was read from, empty
 	// if there is none
 	File string `yaml:"-"`
-	Push Push   `yaml:"push"`
+	// Commit runs before committing in "gitin status"
+	Commit Hook `yaml:"commit"`
+	// Push runs before "gitin push" pushes
+	Push Hook `yaml:"push"`
 }
 
-// Push configures "gitin push"
-type Push struct {
-	// Checks run before pushing, in order, the push stops at the first failure
+// Hook lists the checks that run before an operation
+type Hook struct {
+	// Checks run in order, the operation stops at the first failure
 	Checks []Check `yaml:"checks"`
 }
 
-// Check is a command that has to succeed before pushing
+// Check is a command that has to succeed before the operation
 type Check struct {
 	// Name is shown to the user, it defaults to Run
 	Name string `yaml:"name"`
@@ -74,13 +77,20 @@ func parse(data []byte) (*Config, error) {
 	if err := dec.Decode(c); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
-	for i := range c.Push.Checks {
-		check := &c.Push.Checks[i]
-		if check.Run == "" {
-			return nil, fmt.Errorf("push.checks[%d]: run is missing, it is the command of the check", i)
-		}
-		if check.Name == "" {
-			check.Name = check.Run
+	hooks := []struct {
+		name string
+		hook *Hook
+	}{{"commit", &c.Commit}, {"push", &c.Push}}
+	for _, h := range hooks {
+		name, hook := h.name, h.hook
+		for i := range hook.Checks {
+			check := &hook.Checks[i]
+			if check.Run == "" {
+				return nil, fmt.Errorf("%s.checks[%d]: run is missing, it is the command of the check", name, i)
+			}
+			if check.Name == "" {
+				check.Name = check.Run
+			}
 		}
 	}
 	return c, nil

@@ -142,3 +142,22 @@ func TestRunUsesGivenOutputs(t *testing.T) {
 		t.Fatalf("got returned %q and written %q", out, stdout.String())
 	}
 }
+
+func TestMerging(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	gittest.Commit(t, dir, "base", map[string]string{"a": "1"})
+	gittest.Git(t, dir, "checkout", "--quiet", "-b", "topic")
+	gittest.Commit(t, dir, "topic", map[string]string{"a": "topic"})
+	gittest.Git(t, dir, "checkout", "--quiet", "main")
+	gittest.Commit(t, dir, "main", map[string]string{"a": "main"})
+	r := open(t, dir)
+	if r.Merging() {
+		t.Fatal("merging before a merge")
+	}
+	cmd := exec.Command("git", "merge", "--quiet", "topic")
+	cmd.Dir = dir
+	_ = cmd.Run() // conflicts
+	if !r.Merging() {
+		t.Fatal("not merging during a merge")
+	}
+}

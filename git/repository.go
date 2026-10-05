@@ -68,6 +68,12 @@ func Open(path string) (*Repository, error) {
 	return r, nil
 }
 
+// Merging reports whether a merge is in progress
+func (r *Repository) Merging() bool {
+	_, err := r.Output("rev-parse", "--quiet", "--verify", "MERGE_HEAD")
+	return err == nil
+}
+
 // Path returns the directory the git commands run in
 func (r *Repository) Path() string {
 	return r.path
