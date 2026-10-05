@@ -32,7 +32,7 @@ func (s *status) checkAndCommit(m commitMode) error {
 	if m == newCommit && !s.hasStaged() && !s.repository.Merging() {
 		return errors.New("nothing to commit, stage changes with space or a first")
 	}
-	cfg, err := config.Load(s.repository.Path())
+	cfg, err := loadConfig(s.repository)
 	if err != nil {
 		return err
 	}

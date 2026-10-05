@@ -179,7 +179,7 @@ func TestPushWithoutConfiguration(t *testing.T) {
 	remote, clone := gittest.NewRemote(t)
 	gittest.Commit(t, clone, "change", nil)
 	s := start(t, clone, []string{"push"})
-	frame := s.waitFrame(pushScreen, 0, "> Push", "No checks, add them to .gitin.yml to run them before pushing.")
+	frame := s.waitFrame(pushScreen, 0, "> Push", "No checks, add them to .git/gitin/config.yml to run them before pushing.")
 	if strings.Contains(frame, "Run checks") || strings.Contains(frame, "Cancel") {
 		t.Fatalf("offers checks without any:\n%s", frame)
 	}

@@ -1,5 +1,7 @@
-// Package config reads the configuration of gitin from the root of the
-// working tree, it is meant to be committed and shared with the team.
+// Package config reads the configuration of gitin. A repository can have
+// two configuration files: a personal one in the git directory, which is
+// never committed, and an optional shared one in the working tree, which is
+// committed for the team.
 package config
 
 import (
@@ -9,18 +11,26 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
 
-// FileNames are the names of the configuration file, in the order they are looked up
-var FileNames = []string{".gitin.yml", ".gitin.yaml"}
+// SharedFileNames are the names of the shared configuration file in the
+// root of the working tree, in the order they are looked up
+var SharedFileNames = []string{".gitin.yml", ".gitin.yaml"}
 
-// Config is the content of the configuration file
+// PersonalFile is the path of the personal configuration file in the git
+// directory
+var PersonalFile = filepath.Join("gitin", "config.yml")
+
+// Config is the content of the configuration files
 type Config struct {
-	// File is the name of the file the configuration was read from, empty
-	// if there is none
-	File string `yaml:"-"`
+	// Files are the files the configuration was read from, as the user
+	// refers to them from the root of the working tree
+	Files []string `yaml:"-"`
+	// Personal is the personal configuration file, also if it doesn't exist
+	Personal string `yaml:"-"`
 	// Commit runs before committing in "gitin status"
 	Commit Hook `yaml:"commit"`
 	// Push runs before "gitin push" pushes
@@ -41,32 +51,58 @@ type Check struct {
 	Run string `yaml:"run"`
 }
 
-// Load reads the configuration file in dir. Without one it returns an empty configuration.
-func Load(dir string) (*Config, error) {
-	var found []string
-	for _, name := range FileNames {
-		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
-			found = append(found, name)
+// Load reads the configuration of a repository: the shared file in the
+// root of its working tree, if it has one, and the personal file in its
+// common git directory, shared by all its worktrees. The checks of both
+// run, the shared ones first. Missing files are no error.
+func Load(worktree, commonDir string) (*Config, error) {
+	c := &Config{}
+	var sources []string
+	if worktree != "" {
+		var found []string
+		for _, name := range SharedFileNames {
+			if _, err := os.Stat(filepath.Join(worktree, name)); err == nil {
+				found = append(found, filepath.Join(worktree, name))
+			}
 		}
+		if len(found) > 1 {
+			return nil, fmt.Errorf("both %s and %s exist, keep one of them", SharedFileNames[0], SharedFileNames[1])
+		}
+		sources = append(sources, found...)
 	}
-	switch len(found) {
-	case 0:
-		return &Config{}, nil
-	case 1:
-	default:
-		return nil, fmt.Errorf("both %s and %s exist, keep one of them", found[0], found[1])
+	personal := filepath.Join(commonDir, PersonalFile)
+	c.Personal = display(worktree, personal)
+	if _, err := os.Stat(personal); err == nil {
+		sources = append(sources, personal)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, found[0]))
-	if err != nil {
-		return nil, err
+	for _, path := range sources {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		name := display(worktree, path)
+		file, err := parse(data)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		c.Files = append(c.Files, name)
+		c.Commit.Checks = append(c.Commit.Checks, file.Commit.Checks...)
+		c.Push.Checks = append(c.Push.Checks, file.Push.Checks...)
 	}
-	c, err := parse(data)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", found[0], err)
-	}
-	c.File = found[0]
 	return c, nil
+}
+
+// display returns path relative to the working tree if it is inside it
+func display(worktree, path string) string {
+	if worktree == "" {
+		return path
+	}
+	rel, err := filepath.Rel(worktree, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return path
+	}
+	return rel
 }
 
 func parse(data []byte) (*Config, error) {

@@ -76,7 +76,7 @@ func TestPushInfo(t *testing.T) {
 		}
 		return out
 	}
-	checks := &config.Config{File: ".gitin.yml", Push: config.Hook{Checks: []config.Check{{Name: "Lint"}, {Name: "Tests"}}}}
+	checks := &config.Config{Files: []string{".gitin.yml", ".git/gitin/config.yml"}, Push: config.Hook{Checks: []config.Check{{Name: "Lint"}, {Name: "Tests"}}}}
 
 	tests := []struct {
 		name   string
@@ -88,27 +88,27 @@ func TestPushInfo(t *testing.T) {
 			"ahead",
 			&git.PushTarget{Branch: "main", RemoteBranch: "origin/main", Ahead: 1, Commits: commits("Fix it")},
 			checks,
-			[]string{"main → origin/main, 1 commit:", "  [0123456] Fix it", "Checks of .gitin.yml: Lint, Tests"},
+			[]string{"main → origin/main, 1 commit:", "  [0123456] Fix it", "Checks of .gitin.yml and .git/gitin/config.yml: Lint, Tests"},
 		},
 		{
 			"many commits",
 			&git.PushTarget{Branch: "main", RemoteBranch: "origin/main", Ahead: 12, Commits: commits("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")},
-			&config.Config{},
+			&config.Config{Personal: ".git/gitin/config.yml"},
 			[]string{"main → origin/main, 12 commits:", "  [0123456] 1", "  [0123456] 2", "  [0123456] 3", "  [0123456] 4", "  [0123456] 5",
-				"  and 7 more", "No checks, add them to .gitin.yml to run them before pushing."},
+				"  and 7 more", "No checks, add them to .git/gitin/config.yml to run them before pushing."},
 		},
 		{
 			"new branch",
 			&git.PushTarget{Branch: "topic", RemoteBranch: "origin/topic", SetUpstream: true, Ahead: 2, Commits: commits("b", "a")},
 			checks,
-			[]string{"New branch topic is pushed to origin/topic with 2 commits:", "  [0123456] b", "  [0123456] a", "Checks of .gitin.yml: Lint, Tests"},
+			[]string{"New branch topic is pushed to origin/topic with 2 commits:", "  [0123456] b", "  [0123456] a", "Checks of .gitin.yml and .git/gitin/config.yml: Lint, Tests"},
 		},
 		{
 			"diverged",
 			&git.PushTarget{Branch: "main", RemoteBranch: "origin/main", Ahead: 1, Behind: 1, Commits: commits("mine")},
 			checks,
 			[]string{"main → origin/main, 1 commit:", "  [0123456] mine",
-				"origin/main has 1 commit main doesn't have, the push is rejected until you pull it.", "Checks of .gitin.yml: Lint, Tests"},
+				"origin/main has 1 commit main doesn't have, the push is rejected until you pull it.", "Checks of .gitin.yml and .git/gitin/config.yml: Lint, Tests"},
 		},
 	}
 	for _, tt := range tests {

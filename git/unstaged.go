@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// unstagedPatch is the file in the git directory that keeps unstaged
-// changes while they are set aside
-const unstagedPatch = "gitin-unstaged.patch"
+// unstagedPatch is the file in the git directory of a working tree that
+// keeps its unstaged changes while they are set aside
+var unstagedPatch = filepath.Join("gitin", "unstaged.patch")
 
 // UnstagedChanges are the unstaged changes of tracked files, set aside so
 // the working tree has what the next commit has
@@ -29,11 +29,11 @@ var unstagedDiff = []string{"diff", "--ita-invisible-in-index", "--no-renames", 
 // working tree and keeps them in the git directory until Restore. Untracked
 // and intent-to-add files stay.
 func (r *Repository) SetAsideUnstaged() (*UnstagedChanges, error) {
-	gitDir, err := r.Output("rev-parse", "--absolute-git-dir")
+	gitDir, err := r.gitDir()
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(strings.TrimSpace(string(gitDir)), unstagedPatch)
+	path := filepath.Join(gitDir, unstagedPatch)
 	if _, err := os.Stat(path); err == nil {
 		return nil, fmt.Errorf("unstaged changes set aside earlier are still in %s, restore them with \"git apply %s\" and delete the file", path, path)
 	}
@@ -60,6 +60,9 @@ func (r *Repository) SetAsideUnstaged() (*UnstagedChanges, error) {
 
 	patch, err := r.Output(append(append(unstagedDiff, "--binary", "--src-prefix=a/", "--dst-prefix=b/"), pathspec...)...)
 	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
 	if err := os.WriteFile(path, patch, 0o600); err != nil {

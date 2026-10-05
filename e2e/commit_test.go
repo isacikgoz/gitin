@@ -42,7 +42,7 @@ func assertRestored(t *testing.T, dir string) {
 	if string(data) != "one\nstaged\nunstaged\n" {
 		t.Fatalf("app.txt has %q, the unstaged change was not restored", data)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".git", "gitin-unstaged.patch")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, ".git", "gitin", "unstaged.patch")); !os.IsNotExist(err) {
 		t.Fatal("the unstaged changes are still set aside")
 	}
 }
@@ -223,7 +223,7 @@ func TestCommitChecksNeedStagedChanges(t *testing.T) {
 
 func TestCommitWithLeftOverChanges(t *testing.T) {
 	dir := commitRepo(t, stagedOnlyCheck)
-	gittest.WriteFile(t, dir, ".git/gitin-unstaged.patch", "changes of a run that crashed")
+	gittest.WriteFile(t, dir, ".git/gitin/unstaged.patch", "changes of a run that crashed")
 	s := start(t, dir, []string{"status"}, editor(t, "blocked"))
 	s.waitFrame("Files", 0, "app.txt")
 	s.send("c")

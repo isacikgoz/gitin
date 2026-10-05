@@ -76,7 +76,7 @@ func evalArgs() string {
 	pin.Command("log", "Show commit logs.")
 	pin.Command("status", "Show working-tree status. Also stage and commit changes.")
 	pin.Command("branch", "Show list of branches.")
-	pin.Command("push", "Push the current branch, optionally after running the checks of .gitin.yml.")
+	pin.Command("push", "Push the current branch, optionally after running your checks.")
 	hunks := pin.Command(cli.HunkEditorCommand, "Pick hunks of a diff, used by the status command.").Hidden()
 	hunkDiff = hunks.Arg("diff", "File with the diff of a file.").Required().String()
 	hunkPatches = hunks.Arg("patches", "File to write the patches of the picked hunks to.").Required().String()

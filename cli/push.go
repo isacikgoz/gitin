@@ -49,7 +49,7 @@ var beforeCheckStart = func() {}
 // Push pushes the checked out branch. If the configuration file has checks,
 // it asks whether to run them first.
 func Push(ctx context.Context, r *git.Repository, opts *prompt.Options) error {
-	cfg, err := config.Load(r.Path())
+	cfg, err := loadConfig(r)
 	if err != nil {
 		return err
 	}
@@ -98,6 +98,15 @@ func Push(ctx context.Context, r *git.Repository, opts *prompt.Options) error {
 		}
 	}
 	return push(r, target)
+}
+
+// loadConfig reads the configuration of the repository
+func loadConfig(r *git.Repository) (*config.Config, error) {
+	commonDir, err := r.CommonDir()
+	if err != nil {
+		return nil, err
+	}
+	return config.Load(r.Path(), commonDir)
 }
 
 // choose asks the user to pick one of the choices. Quitting the prompt
@@ -165,7 +174,7 @@ func pushInfo(t *git.PushTarget, cfg *config.Config) [][]term.Cell {
 	}
 
 	if len(cfg.Push.Checks) == 0 {
-		return append(grid, term.Cprint(fmt.Sprintf("No checks, add them to %s to run them before pushing.", config.FileNames[0]), color.Faint))
+		return append(grid, term.Cprint(fmt.Sprintf("No checks, add them to %s to run them before pushing.", cfg.Personal), color.Faint))
 	}
 	return append(grid, checkNames(cfg, cfg.Push))
 }
@@ -183,7 +192,7 @@ func checkNames(cfg *config.Config, hook config.Hook) []term.Cell {
 	for _, check := range hook.Checks {
 		names = append(names, check.Name)
 	}
-	line := term.Cprint(fmt.Sprintf("Checks of %s: ", cfg.File), color.Faint)
+	line := term.Cprint(fmt.Sprintf("Checks of %s: ", strings.Join(cfg.Files, " and ")), color.Faint)
 	return append(line, term.Cprint(strings.Join(names, ", "))...)
 }
 

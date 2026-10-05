@@ -21,7 +21,7 @@ gitin is a minimalist tool that lets you explore a git repository from the comma
 - Commit/amend changes (`gitin status` then press `c` to commit or `m` to amend)
 - Interactive hunk staging (`gitin status` then press `p`)
 - Explore branches with useful filter options (e.g. `gitin branch` press `enter` to checkout)
-- Checks before committing and pushing: `gitin status` and `gitin push` run the checks of [`.gitin.yml`](#checks-before-committing-and-pushing) first, or skip them if you choose to
+- [Checks before committing and pushing](#checks-before-committing-and-pushing): `gitin status` and `gitin push` run your checks first, or skip them if you choose to
 - Fast on large repositories, the history is loaded and searched in the background
 - Convenient UX and minimalist design
 - See more options by running `gitin --help`, also you can get help for individual subcommands (e.g. `gitin log --help`)
@@ -67,7 +67,7 @@ Commands:
     Show list of branches.
 
   push
-    Push the current branch, optionally after running the checks of .gitin.yml.
+    Push the current branch, optionally after running your checks.
 
 
 Environment Variables:
@@ -89,9 +89,10 @@ Press ? for controls while application is running.
 
 ### Checks before committing and pushing
 
-Committing in `gitin status` (`c`, or `m` to amend) asks whether to run the commit checks of `.gitin.yml` first or to commit without them.
+Committing in `gitin status` (`c`, or `m` to amend) asks whether to run the commit checks first or to commit without them.
 `gitin push` shows what it pushes and asks the same about the push checks. `q` cancels.
-Commit the file to share the checks with your team:
+
+Write your checks in `.git/gitin/config.yml`. It is never committed, so it needs no `.gitignore` entry and works in any repository:
 
 ```yaml
 commit:
@@ -110,8 +111,10 @@ push:
         ./scripts/smoke-test.sh
 ```
 
-- Checks run one after the other in the root of the working tree, their output is shown as it comes.
-- Commit checks see what gets committed: unstaged changes of tracked files are set aside while they run, in `.git/gitin-unstaged.patch`, and restored afterwards. Untracked files stay. If a check changes a file you also changed without staging, its change is undone so yours comes back.
+To share checks with your team, commit them in a `.gitin.yml` at the root of the repository, in the same format. Its checks run first, then your own.
+
+- Checks run one after the other in the root of the working tree, their output is shown as it comes. All worktrees of a clone use its `.git/gitin/config.yml`.
+- Commit checks see what gets committed: unstaged changes of tracked files are set aside while they run, in `.git/gitin/unstaged.patch`, and restored afterwards. Untracked files stay. If a check changes a file you also changed without staging, its change is undone so yours comes back.
 - If a check fails, gitin asks whether to commit or push anyway. Ctrl-C stops the running check and cancels.
 - `run` is a shell command. Commands with `: ` in them have to be quoted, a `|` block is the easiest way.
 - git's own `pre-commit` and `pre-push` hooks still run. A branch without upstream is pushed to `origin` (or `remote.pushDefault`) and tracks it.
