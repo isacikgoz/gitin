@@ -172,6 +172,25 @@ func (p *Prompt) Run(ctx context.Context) error {
 	return nil
 }
 
+// Suspend removes the prompt from the screen and runs fn with the terminal
+// in the user's mode, e.g. to run commands that print or read input, or to
+// show another prompt. Call it from a key handler, the prompt is drawn again
+// below whatever fn printed.
+func (p *Prompt) Suspend(fn func() error) error {
+	p.writer.Reset()
+	if err := p.writer.ClearScreen(); err != nil {
+		return err
+	}
+	if err := term.Suspend(); err != nil {
+		return err
+	}
+	err := fn()
+	if rerr := term.Resume(); err == nil {
+		err = rerr
+	}
+	return err
+}
+
 // Stop sends a quit signal to the main loop of the prompt
 func (p *Prompt) Stop() {
 	p.stop(nil)

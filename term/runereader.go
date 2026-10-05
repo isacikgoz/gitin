@@ -32,14 +32,14 @@ func NewRuneReader(reader Reader) *RuneReader {
 // keys are translated to their aliases, unknown ones to KeyCtrlSpace which
 // has no binding.
 func (rr *RuneReader) ReadRune() (rune, int, error) {
-	return readKey(state.reader)
+	return readKey(keys)
 }
 
 // ReadRuneTimeout is ReadRune, but it returns ErrNoKey if no key is pressed
 // within timeout. Unlike a blocked ReadRune, it lets the caller stop reading.
 func (rr *RuneReader) ReadRuneTimeout(timeout time.Duration) (rune, int, error) {
-	if state.reader.Buffered() == 0 {
-		ready, err := waitForInput(int(reader.Fd()), timeout)
+	if keys.Buffered() == 0 {
+		ready, err := waitForInput(int(input.Fd()), timeout)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -47,7 +47,7 @@ func (rr *RuneReader) ReadRuneTimeout(timeout time.Duration) (rune, int, error) 
 			return 0, 0, ErrNoKey
 		}
 	}
-	return readKey(state.reader)
+	return readKey(keys)
 }
 
 // waitForInput waits until fd can be read from or the timeout passes. It

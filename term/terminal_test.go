@@ -293,3 +293,46 @@ func TestReadRuneTimeout(t *testing.T) {
 		}
 	}
 }
+
+// A prompt can suspend itself to run a command, which can show a prompt of
+// its own. Every step leaves the terminal in the mode it needs.
+func TestNestedInitAndSuspend(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("no pseudo terminal: %v", err)
+	}
+	defer func() { _ = ptmx.Close() }()
+	defer func() { _ = tty.Close() }()
+	go func() { _, _ = io.Copy(io.Discard, ptmx) }()
+
+	raw := uint64(syscall.ECHO | syscall.ICANON | syscall.ISIG)
+	cooked := func(want bool, step string) {
+		t.Helper()
+		if got := lflag(t, tty)&raw == raw; got != want {
+			t.Fatalf("%s: got cooked mode %v, want %v", step, got, want)
+		}
+	}
+
+	steps := []struct {
+		name   string
+		do     func() error
+		cooked bool
+	}{
+		{"prompt", func() error { return Init(tty, tty) }, false},
+		{"suspended for a command", Suspend, true},
+		{"prompt of the command", func() error { return Init(tty, tty) }, false},
+		{"prompt of the command closed", Close, true},
+		{"resumed", Resume, false},
+		{"prompt closed", Close, true},
+		{"closed once too often", Close, true},
+		{"resumed without prompt", Resume, true},
+		{"suspended without prompt", Suspend, true},
+	}
+	cooked(true, "start")
+	for _, step := range steps {
+		if err := step.do(); err != nil {
+			t.Fatalf("%s: %v", step.name, err)
+		}
+		cooked(step.cooked, step.name)
+	}
+}
