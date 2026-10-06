@@ -10,6 +10,8 @@ require (
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
+	go.yaml.in/yaml/v3 v3.0.5
+	golang.org/x/sys v0.42.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
@@ -22,5 +24,4 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/nsf/termbox-go v0.0.0-20190325093121-288510b9734e // indirect
-	golang.org/x/sys v0.42.0 // indirect
 )

@@ -94,3 +94,14 @@ func Clone(t testing.TB, dir string, args ...string) string {
 	Git(t, dir, append(append([]string{"clone", "--quiet"}, args...), "file://"+dir, clone)...)
 	return clone
 }
+
+// NewRemote creates a bare repository with a commit on main, the remote,
+// and a clone of it on main that tracks origin/main
+func NewRemote(t testing.TB) (remote, clone string) {
+	t.Helper()
+	work := NewRepo(t)
+	Commit(t, work, "initial commit", map[string]string{"README": "hello\n"})
+	remote = filepath.Join(t.TempDir(), "remote.git")
+	Git(t, work, "clone", "--quiet", "--bare", work, remote)
+	return remote, Clone(t, remote)
+}

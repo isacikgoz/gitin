@@ -2,6 +2,8 @@ package term
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -256,5 +258,81 @@ func TestInitWithoutTerminal(t *testing.T) {
 	defer func() { _ = f.Close() }()
 	if err := Init(f, f); err == nil {
 		t.Fatal("Init accepted a regular file")
+	}
+}
+
+func TestReadRuneTimeout(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("no pseudo terminal: %v", err)
+	}
+	defer func() { _ = ptmx.Close() }()
+	defer func() { _ = tty.Close() }()
+	go func() { _, _ = io.Copy(io.Discard, ptmx) }()
+	if err := Init(tty, tty); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = Close() }()
+	rr := NewRuneReader(tty)
+
+	start := time.Now()
+	if _, _, err := rr.ReadRuneTimeout(50 * time.Millisecond); !errors.Is(err, ErrNoKey) {
+		t.Fatalf("got error %v without a key press, want %v", err, ErrNoKey)
+	}
+	if waited := time.Since(start); waited < 40*time.Millisecond || waited > 2*time.Second {
+		t.Fatalf("waited %v for a key, want about 50ms", waited)
+	}
+
+	if _, err := ptmx.Write([]byte("x\x1b[A")); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []rune{'x', ArrowUp} {
+		r, _, err := rr.ReadRuneTimeout(5 * time.Second)
+		if err != nil || r != want {
+			t.Fatalf("got %q, %v, want %q", r, err, want)
+		}
+	}
+}
+
+// A prompt can suspend itself to run a command, which can show a prompt of
+// its own. Every step leaves the terminal in the mode it needs.
+func TestNestedInitAndSuspend(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("no pseudo terminal: %v", err)
+	}
+	defer func() { _ = ptmx.Close() }()
+	defer func() { _ = tty.Close() }()
+	go func() { _, _ = io.Copy(io.Discard, ptmx) }()
+
+	raw := uint64(syscall.ECHO | syscall.ICANON | syscall.ISIG)
+	cooked := func(want bool, step string) {
+		t.Helper()
+		if got := lflag(t, tty)&raw == raw; got != want {
+			t.Fatalf("%s: got cooked mode %v, want %v", step, got, want)
+		}
+	}
+
+	steps := []struct {
+		name   string
+		do     func() error
+		cooked bool
+	}{
+		{"prompt", func() error { return Init(tty, tty) }, false},
+		{"suspended for a command", Suspend, true},
+		{"prompt of the command", func() error { return Init(tty, tty) }, false},
+		{"prompt of the command closed", Close, true},
+		{"resumed", Resume, false},
+		{"prompt closed", Close, true},
+		{"closed once too often", Close, true},
+		{"resumed without prompt", Resume, true},
+		{"suspended without prompt", Suspend, true},
+	}
+	cooked(true, "start")
+	for _, step := range steps {
+		if err := step.do(); err != nil {
+			t.Fatalf("%s: %v", step.name, err)
+		}
+		cooked(step.cooked, step.name)
 	}
 }

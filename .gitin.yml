@@ -1,0 +1,13 @@
+# checks gitin offers to run before committing and pushing
+commit:
+  checks:
+    - name: Format
+      run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+push:
+  checks:
+    - name: Format
+      run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+    - name: Vet
+      run: go vet ./...
+    - name: Tests
+      run: go test ./...

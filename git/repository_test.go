@@ -142,3 +142,45 @@ func TestRunUsesGivenOutputs(t *testing.T) {
 		t.Fatalf("got returned %q and written %q", out, stdout.String())
 	}
 }
+
+func TestMerging(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	gittest.Commit(t, dir, "base", map[string]string{"a": "1"})
+	gittest.Git(t, dir, "checkout", "--quiet", "-b", "topic")
+	gittest.Commit(t, dir, "topic", map[string]string{"a": "topic"})
+	gittest.Git(t, dir, "checkout", "--quiet", "main")
+	gittest.Commit(t, dir, "main", map[string]string{"a": "main"})
+	r := open(t, dir)
+	if r.Merging() {
+		t.Fatal("merging before a merge")
+	}
+	cmd := exec.Command("git", "merge", "--quiet", "topic")
+	cmd.Dir = dir
+	_ = cmd.Run() // conflicts
+	if !r.Merging() {
+		t.Fatal("not merging during a merge")
+	}
+}
+
+func TestCommonDir(t *testing.T) {
+	dir := gittest.NewRepo(t)
+	gittest.Commit(t, dir, "base", map[string]string{"sub/a": "1"})
+	linked := filepath.Join(t.TempDir(), "linked")
+	gittest.Git(t, dir, "worktree", "add", linked)
+	want := resolved(t, filepath.Join(dir, ".git"))
+
+	for _, path := range []string{dir, filepath.Join(dir, "sub"), linked} {
+		got, err := open(t, path).CommonDir()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resolved(t, got) != want {
+			t.Errorf("from %s: got %s, want %s", path, got, want)
+		}
+	}
+	// the worktree has a git directory of its own
+	gitDir, err := open(t, linked).gitDir()
+	if err != nil || resolved(t, gitDir) == want {
+		t.Fatalf("got git directory %s, %v", gitDir, err)
+	}
+}

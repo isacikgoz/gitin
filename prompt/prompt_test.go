@@ -317,6 +317,27 @@ func TestPromptState(t *testing.T) {
 	}
 }
 
+func TestPromptSuspend(t *testing.T) {
+	tp := startPrompt(t, syncList(t, numbered(3), 3), &Options{LineSize: 3})
+	err := tp.AddKeyBinding(&KeyBinding{Key: 's', Display: "s", Desc: "suspend", Handler: func(item interface{}) error {
+		return tp.Suspend(func() error {
+			// e.g. a command printing its output
+			_, _ = tp.out.Write([]byte("COMMAND OUTPUT\n"))
+			return errors.New("command failed")
+		})
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tp.waitFrame(t, "Items", "> item-0")
+	tp.send('s')
+	// the prompt is drawn again below the output, with the error of fn
+	frame := tp.waitFrame(t, "COMMAND OUTPUT", "Items", "> item-0", "command failed")
+	if !strings.HasPrefix(frame, "COMMAND OUTPUT") {
+		t.Fatalf("the prompt was not drawn below the output:\n%s", frame)
+	}
+}
+
 func TestNoticeLines(t *testing.T) {
 	got := noticeLines("one\n\n  two  \nthree\nfour\nfive\nsix\n")
 	if fmt.Sprint(got) != "[one two three four five]" {

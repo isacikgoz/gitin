@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -66,6 +67,35 @@ func Open(path string) (*Repository, error) {
 	}
 	r.path = strings.TrimSuffix(string(out), "\n")
 	return r, nil
+}
+
+// CommonDir returns the git directory shared by all worktrees of the
+// repository, the .git directory of its main working tree
+func (r *Repository) CommonDir() (string, error) {
+	out, err := r.Output("rev-parse", "--git-common-dir")
+	if err != nil {
+		return "", err
+	}
+	dir := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(r.path, dir)
+	}
+	return filepath.Clean(dir), nil
+}
+
+// gitDir returns the git directory of the working tree gitin runs in
+func (r *Repository) gitDir() (string, error) {
+	out, err := r.Output("rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// Merging reports whether a merge is in progress
+func (r *Repository) Merging() bool {
+	_, err := r.Output("rev-parse", "--quiet", "--verify", "MERGE_HEAD")
+	return err == nil
 }
 
 // Path returns the directory the git commands run in

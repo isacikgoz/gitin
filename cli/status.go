@@ -15,7 +15,9 @@ import (
 type status struct {
 	repository *git.Repository
 	prompt     *prompt.Prompt
+	opts       *prompt.Options
 	branch     *git.Branch
+	entries    []*git.StatusEntry
 }
 
 // StatusPrompt configures a prompt to serve as work-dir explorer prompt. If
@@ -47,7 +49,7 @@ func newStatus(r *git.Repository, opts *prompt.Options) (*status, error) {
 		return nil, fmt.Errorf("could not create list: %v", err)
 	}
 
-	s := &status{repository: r, branch: st.Branch}
+	s := &status{repository: r, opts: opts, branch: st.Branch, entries: st.Entities}
 
 	s.prompt = prompt.Create("Files", opts, list,
 		prompt.WithSelectionHandler(s.onSelect),
@@ -165,11 +167,11 @@ func (s *status) hunkStageEntry(item interface{}) error {
 }
 
 func (s *status) commit(item interface{}) error {
-	return s.bareCommit("--edit")
+	return s.checkAndCommit(newCommit)
 }
 
 func (s *status) amend(item interface{}) error {
-	return s.bareCommit("--amend")
+	return s.checkAndCommit(amendCommit)
 }
 
 func (s *status) bareCommit(arg string) error {
@@ -223,7 +225,7 @@ func (s *status) reloadStatus() error {
 	if err != nil {
 		return err
 	}
-	s.branch = status.Branch
+	s.branch, s.entries = status.Branch, status.Entities
 	if len(status.Entities) == 0 {
 		// this is the case when the working tree is cleaned at runtime
 		s.prompt.Stop()
