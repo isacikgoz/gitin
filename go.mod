@@ -1,17 +1,17 @@
 module github.com/isacikgoz/gitin
 
-go 1.22
+go 1.25.0
 
 require (
 	github.com/creack/pty v1.1.24
-	github.com/fatih/color v1.9.0
+	github.com/fatih/color v1.19.0
 	github.com/isacikgoz/fuzzy v0.2.0
 	github.com/isacikgoz/gia v0.2.0
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.42.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
@@ -20,8 +20,8 @@ require (
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/jroimartin/gocui v0.4.0 // indirect
 	github.com/justincampbell/bigduration v0.0.0-20160531141349-e45bf03c0666 // indirect
-	github.com/mattn/go-colorable v0.1.4 // indirect
-	github.com/mattn/go-isatty v0.0.11 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/nsf/termbox-go v0.0.0-20190325093121-288510b9734e // indirect
 )

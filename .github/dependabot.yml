@@ -18,3 +18,7 @@ updates:
     groups:
       go-modules:
         patterns: ["*"]
+    ignore:
+      # gets no more releases, newer versions moved to
+      # github.com/alecthomas/kingpin/v2 which changes the help output
+      - dependency-name: gopkg.in/alecthomas/kingpin.v2
