@@ -97,7 +97,7 @@ func (l *log) onSelect(item interface{}) error {
 		if l.selected == nil {
 			return nil
 		}
-		return popGitCommand(l.repository, fileDiffArgs(l.selected, item))
+		return popGitCommand(l.prompt, l.repository, fileDiffArgs(l.selected, item))
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func (l *log) commitStat(item interface{}) error {
 		return nil
 	}
 	args := []string{"show", "--stat", commit.Hash}
-	return popGitCommand(l.repository, args)
+	return popGitCommand(l.prompt, l.repository, args)
 }
 
 func (l *log) commitDiff(item interface{}) error {
@@ -126,7 +126,7 @@ func (l *log) commitDiff(item interface{}) error {
 		return nil
 	}
 	args := []string{"show", commit.Hash}
-	return popGitCommand(l.repository, args)
+	return popGitCommand(l.prompt, l.repository, args)
 }
 
 func (l *log) quit(item interface{}) error {

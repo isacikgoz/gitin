@@ -36,10 +36,10 @@ func (s *status) checkAndCommit(m commitMode) error {
 	if err != nil {
 		return err
 	}
-	if len(cfg.Commit.Checks) == 0 {
-		return s.bareCommit(m.arg)
-	}
 	return s.prompt.Suspend(func() error {
+		if len(cfg.Commit.Checks) == 0 {
+			return s.bareCommit(m.arg)
+		}
 		title := strings.ToUpper(m.verb[:1]) + m.verb[1:]
 		run, skip := choice("Run checks, then "+m.verb), choice(title+" without checks")
 		chosen, err := choose(context.Background(), s.opts, title, []choice{run, skip}, s.commitInfo(cfg))
