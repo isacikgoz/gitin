@@ -3,15 +3,22 @@
 package gittest
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
 
+// Commits have fixed dates, so their hashes are the same in every run. Commit
+// dates the commits of a repository a minute apart from epoch on, other
+// commits, e.g. the ones gitin makes, are dated a day later.
+const epoch = 1735689600 // 2025-01-01
+
 // Isolate makes git ignore the configuration of the user running the tests
-// and sets a fixed author. Call it from TestMain, it changes HOME.
+// and sets a fixed author and date. Call it from TestMain, it changes HOME.
 func Isolate() error {
 	home, err := os.MkdirTemp("", "gittest-home")
 	if err != nil {
@@ -27,6 +34,8 @@ func Isolate() error {
 		"GIT_AUTHOR_EMAIL":    "ada@example.com",
 		"GIT_COMMITTER_NAME":  "Ada Lovelace",
 		"GIT_COMMITTER_EMAIL": "ada@example.com",
+		"GIT_AUTHOR_DATE":     date(epoch + 24*60*60),
+		"GIT_COMMITTER_DATE":  date(epoch + 24*60*60),
 	} {
 		if err := os.Setenv(k, v); err != nil {
 			return err
@@ -43,11 +52,23 @@ func Main(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// date returns a date in git's internal format
+func date(unix int64) string {
+	return fmt.Sprintf("%d +0000", unix)
+}
+
 // Git runs git in dir and returns its trimmed output
 func Git(t testing.TB, dir string, args ...string) string {
 	t.Helper()
+	return gitEnv(t, dir, nil, args...)
+}
+
+// gitEnv runs git in dir with env added to the environment
+func gitEnv(t testing.TB, dir string, env []string, args ...string) string {
+	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), env...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
@@ -83,7 +104,12 @@ func Commit(t testing.TB, dir, message string, files map[string]string) string {
 		WriteFile(t, dir, name, content)
 	}
 	Git(t, dir, "add", "--all")
-	Git(t, dir, "commit", "--quiet", "--allow-empty", "-m", message)
+	n, err := strconv.Atoi(Git(t, dir, "rev-list", "--count", "--all"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	when := date(epoch + 60*int64(n))
+	gitEnv(t, dir, []string{"GIT_AUTHOR_DATE=" + when, "GIT_COMMITTER_DATE=" + when}, "commit", "--quiet", "--allow-empty", "-m", message)
 	return Git(t, dir, "rev-parse", "HEAD")
 }
 
