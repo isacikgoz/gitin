@@ -128,10 +128,12 @@ Go and `git` are the only requirements.
 go run ./cmd/gitin --help   # run gitin
 make test                   # unit and end-to-end tests
 make coverage               # the same with a coverage report
+make screens                # rewrite the screens of the end-to-end tests after a UI change
 make dist VERSION=v1.2.3    # release archives for Linux and macOS
 ```
 
-The end-to-end tests in [e2e](e2e) run the gitin binary in a pseudo terminal, type keys and check the screen and the repository.
+The end-to-end tests in [e2e](e2e) run the gitin binary in a pseudo terminal, type keys and check the repository and the screen of a terminal emulator, colors included.
+The screens worth reviewing are kept in [e2e/testdata/screens](e2e/testdata/screens), so a change to the UI shows up in the diff.
 [CI](.github/workflows/ci.yml) runs them on Linux and macOS and with the oldest supported Go and git versions, and checks lint, workflows and known vulnerabilities.
 Pushing a `v*.*.*` tag runs CI and drafts a [release](.github/workflows/release.yml) with binaries for Linux and macOS and their build attestations, publish it on GitHub after reviewing the notes.
 

@@ -27,6 +27,11 @@ test:
 	$(GOCMD) test -race $$($(GOCMD) list ./... | grep -v /e2e$$)
 	$(GOCMD) test -race -count=1 ./e2e/
 
+# rewrite the screens the e2e tests compare, review the diff before committing
+.PHONY: screens
+screens:
+	$(GOCMD) test -count=1 ./e2e/ -update
+
 # coverage of the unit tests and of the gitin processes the e2e tests run
 .PHONY: coverage
 coverage:
