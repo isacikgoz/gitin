@@ -240,7 +240,10 @@ func runChecks(dir string, checks []config.Check) (*checkFailure, error) {
 		err := cmd.Start()
 		forwarded := false
 		if err == nil {
-			// Ctrl-C right before the check started didn't reach it
+			// Ctrl-C right before the check started didn't reach it. Only sh
+			// gets it: a command sh runs as a child, rather than replacing
+			// itself with it (dash always, bash with several commands), keeps
+			// running until it ends. A Ctrl-C after the start reaches them all.
 			select {
 			case <-interrupts:
 				_ = cmd.Process.Signal(os.Interrupt)

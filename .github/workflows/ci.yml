@@ -17,6 +17,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# bash with pipefail, a failing command in a pipe fails its step
+defaults:
+  run:
+    shell: bash
+
 # Actions are pinned to commits, Dependabot updates them.
 jobs:
   lint:

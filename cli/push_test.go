@@ -198,7 +198,9 @@ func TestRunChecksForwardsEarlyInterrupt(t *testing.T) {
 	defer func() { beforeCheckStart = func() {} }()
 
 	start := time.Now()
-	failure, err := runChecks(t.TempDir(), []config.Check{{Name: "Slow", Run: "sleep 10"}})
+	// with exec, the signal reaches sleep with every sh: dash runs even a
+	// single command as a child and lets it finish
+	failure, err := runChecks(t.TempDir(), []config.Check{{Name: "Slow", Run: "exec sleep 10"}})
 	if !errors.Is(err, errStopped) || failure != nil {
 		t.Fatalf("got failure %+v, error %v", failure, err)
 	}
