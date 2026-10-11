@@ -210,11 +210,11 @@ func TestPushNewBranch(t *testing.T) {
 	}
 }
 
-// git switch -c topic origin/main makes origin/main the upstream, git push
+// a branch made from origin/main has it as upstream, git push
 // refuses to push to a branch with another name
 func TestPushUpstreamWithAnotherName(t *testing.T) {
 	remote, clone := gittest.NewRemote(t)
-	gittest.Git(t, clone, "switch", "--quiet", "-c", "topic", "origin/main")
+	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic", "origin/main")
 	gittest.Commit(t, clone, "topic work", nil)
 	s := start(t, clone, []string{"push"})
 	s.waitFrame(pushScreen, 0, "New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
