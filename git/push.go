@@ -22,9 +22,15 @@ type PushTarget struct {
 	Remote string
 	// RemoteBranch is the remote-tracking branch the push updates, e.g. origin/main
 	RemoteBranch string
-	// SetUpstream is set for a branch without an upstream, it is pushed to a
-	// branch with the same name on Remote and that becomes its upstream
+	// NewBranch is set if the remote doesn't have the branch yet, as far as
+	// its remote-tracking branches tell
+	NewBranch bool
+	// SetUpstream is set for a branch without an upstream, the branch it is
+	// pushed to becomes its upstream
 	SetUpstream bool
+	// explicit is set if push.default doesn't push the branch to RemoteBranch,
+	// e.g. if its upstream has another name, git push is told where to push
+	explicit bool
 	// Ahead is the number of commits the remote doesn't have
 	Ahead int
 	// Commits are the newest of the commits the remote doesn't have
@@ -38,8 +44,12 @@ const maxPushCommits = 10
 
 // Args returns the arguments of the git push command
 func (t *PushTarget) Args() []string {
-	if t.SetUpstream {
-		return []string{"push", "--set-upstream", t.Remote, t.Branch}
+	refspec := "refs/heads/" + t.Branch + ":refs/heads/" + t.Branch
+	switch {
+	case t.SetUpstream:
+		return []string{"push", "--set-upstream", t.Remote, refspec}
+	case t.explicit:
+		return []string{"push", t.Remote, refspec}
 	}
 	return []string{"push"}
 }
@@ -59,25 +69,36 @@ func (r *Repository) PushTarget() (*PushTarget, error) {
 		return nil, ErrNoCommits
 	}
 
-	// the remote and remote-tracking branch "git push" uses, both empty if
-	// the branch has no upstream
-	out, err = r.Output("for-each-ref", "--format=%(push:remotename)%00%(push:short)", "refs/heads/"+t.Branch)
+	// the remote git push uses, also for a branch without upstream if
+	// remote.pushDefault or branch.<name>.pushRemote is set, and the
+	// remote-tracking branch it updates, empty if push.default can't tell
+	out, err = r.Output("for-each-ref", "--format=%(upstream)%00%(push:remotename)%00%(push:short)", "refs/heads/"+t.Branch)
 	if err != nil {
 		return nil, err
 	}
 	f := strings.Split(strings.TrimSuffix(string(out), "\n"), "\x00")
-	if len(f) == 2 && f[0] != "" {
-		t.Remote, t.RemoteBranch = f[0], f[1]
-	} else if t.Remote, err = r.defaultRemote(); err != nil {
-		return nil, err
-	} else {
-		t.SetUpstream = true
+	if len(f) != 3 {
+		return nil, fmt.Errorf("unexpected output of git for-each-ref: %q", out)
+	}
+	upstream := f[0]
+	t.Remote, t.RemoteBranch = f[1], f[2]
+	if t.Remote == "" {
+		if t.Remote, err = r.defaultRemote(); err != nil {
+			return nil, err
+		}
+	}
+	t.SetUpstream = upstream == ""
+	if t.RemoteBranch == "" {
+		// e.g. the upstream has another name, a new branch, or a push remote
+		// other than the upstream's: push to a branch with the same name
+		t.explicit = true
 		t.RemoteBranch = t.Remote + "/" + t.Branch
 	}
+	t.NewBranch = !r.refExists("refs/remotes/" + t.RemoteBranch)
 
 	// commits the remote doesn't have, compared to the remote branch if it exists
 	unpushed := []string{"HEAD", "--not", "--remotes=" + t.Remote}
-	if r.refExists("refs/remotes/" + t.RemoteBranch) {
+	if !t.NewBranch {
 		unpushed = []string{t.RemoteBranch + "..HEAD"}
 		if t.Behind, err = r.count("HEAD.." + t.RemoteBranch); err != nil {
 			return nil, err
@@ -92,12 +113,9 @@ func (r *Repository) PushTarget() (*PushTarget, error) {
 	return t, nil
 }
 
-// defaultRemote returns the remote a branch without upstream is pushed to:
-// remote.pushDefault, origin or the only remote
+// defaultRemote returns the remote a branch without upstream and push remote
+// is pushed to: origin or the only remote
 func (r *Repository) defaultRemote() (string, error) {
-	if out, err := r.Output("config", "remote.pushDefault"); err == nil {
-		return strings.TrimSpace(string(out)), nil
-	}
 	out, err := r.Output("remote")
 	if err != nil {
 		return "", err

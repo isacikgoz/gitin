@@ -57,7 +57,7 @@ func Push(ctx context.Context, r *git.Repository, opts *prompt.Options) error {
 	if err != nil {
 		return err
 	}
-	if target.Ahead == 0 && !target.SetUpstream {
+	if target.Ahead == 0 && !target.NewBranch {
 		_, _ = fmt.Fprintln(stdout, nothingToPush(target))
 		return nil
 	}
@@ -145,7 +145,7 @@ func pushInfo(t *git.PushTarget, cfg *config.Config) [][]term.Cell {
 	var grid [][]term.Cell
 	commits := term.Cprint(fmt.Sprintf("%d %s", t.Ahead, plural(t.Ahead, "commit")), color.FgYellow)
 	var line []term.Cell
-	if t.SetUpstream {
+	if t.NewBranch {
 		line = append(term.Cprint("New branch ", color.Faint), term.Cprint(t.Branch, color.FgYellow)...)
 		line = append(line, term.Cprint(" is pushed to ", color.Faint)...)
 		line = append(line, term.Cprint(t.RemoteBranch, color.FgCyan)...)
@@ -155,8 +155,13 @@ func pushInfo(t *git.PushTarget, cfg *config.Config) [][]term.Cell {
 		line = append(line, term.Cprint(t.RemoteBranch, color.FgCyan)...)
 		line = append(line, term.Cprint(", ", color.Faint)...)
 	}
-	line = append(line, commits...)
-	grid = append(grid, append(line, term.Cprint(":", color.Faint)...))
+	if t.Ahead == 0 {
+		// only a new branch is pushed without commits
+		grid = append(grid, append(line, term.Cprint("no new commits.", color.Faint)...))
+	} else {
+		line = append(line, commits...)
+		grid = append(grid, append(line, term.Cprint(":", color.Faint)...))
+	}
 
 	for i, c := range t.Commits {
 		if i == maxPushCommitsShown {
