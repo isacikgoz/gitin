@@ -32,7 +32,7 @@ func NewRuneReader(reader Reader) *RuneReader {
 // keys are translated to their aliases, unknown ones to KeyCtrlSpace which
 // has no binding.
 func (rr *RuneReader) ReadRune() (rune, int, error) {
-	return readKey(keys)
+	return readKey(keys, moreInput)
 }
 
 // ReadRuneTimeout is ReadRune, but it returns ErrNoKey if no key is pressed
@@ -47,7 +47,18 @@ func (rr *RuneReader) ReadRuneTimeout(timeout time.Duration) (rune, int, error) 
 			return 0, 0, ErrNoKey
 		}
 	}
-	return readKey(keys)
+	return readKey(keys, moreInput)
+}
+
+// escDelay is how long the rest of an escape sequence may take after its
+// ESC. A terminal can deliver "\033[B" in two reads, e.g. on a busy machine or
+// over ssh, without waiting it is read as Esc, [ and B. Vim waits as long.
+const escDelay = 100 * time.Millisecond
+
+// moreInput waits up to escDelay for more input
+func moreInput() bool {
+	ready, err := waitForInput(int(input.Fd()), escDelay)
+	return err == nil && ready
 }
 
 // waitForInput waits until fd can be read from or the timeout passes. It
@@ -69,13 +80,14 @@ func waitForInput(fd int, timeout time.Duration) (bool, error) {
 // maxSequenceLength limits how much input an unexpected escape sequence consumes
 const maxSequenceLength = 16
 
-func readKey(in *bufio.Reader) (rune, int, error) {
+// readKey reads a key, more waits for the rest of an escape sequence
+func readKey(in *bufio.Reader, more func() bool) (rune, int, error) {
 	r, size, err := in.ReadRune()
 	if err != nil || r != '\033' {
 		return r, size, err
 	}
-	if in.Buffered() == 0 {
-		// no more characters so must be `Esc` key
+	if in.Buffered() == 0 && !more() {
+		// nothing follows, it is the Esc key
 		return rune(KeyESC), 1, nil
 	}
 	r, _, err = in.ReadRune()
