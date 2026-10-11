@@ -36,7 +36,7 @@ const timeout = 15 * time.Second
 var (
 	binary string
 	// coverDir collects the coverage data of the gitin processes, if set
-	coverDir = os.Getenv("GITIN_E2E_COVERDIR")
+	coverDir string
 )
 
 func TestMain(m *testing.M) {
@@ -44,6 +44,8 @@ func TestMain(m *testing.M) {
 }
 
 func run(m *testing.M) int {
+	// read here, go test only notices variables read once the tests started
+	coverDir = os.Getenv("GITIN_E2E_COVERDIR")
 	dir, err := os.MkdirTemp("", "gitin-e2e")
 	if err != nil {
 		panic(err)
