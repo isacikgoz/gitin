@@ -213,10 +213,10 @@ func TestPushUpstreamWithAnotherName(t *testing.T) {
 	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic", "origin/main")
 	gittest.Commit(t, clone, "topic work", nil)
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
+	s.waitScreen("New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
-		t.Fatalf("got exit code %d\n%s", code, s.text())
+		t.Fatalf("got exit code %d\n%s", code, s.output())
 	}
 	if gittest.Git(t, remote, "rev-parse", "topic") != gittest.Git(t, clone, "rev-parse", "HEAD") {
 		t.Fatal("topic was not pushed")
@@ -239,13 +239,14 @@ func TestPushNewBranchToPushDefault(t *testing.T) {
 	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic")
 	gittest.Commit(t, clone, "topic work", nil)
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "New branch topic is pushed to fork/topic with 2 commits:", "] topic work")
+	s.waitScreen("New branch topic is pushed to fork/topic with 2 commits:", "] topic work")
+	s.matchScreen("push")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
-		t.Fatalf("got exit code %d\n%s", code, s.text())
+		t.Fatalf("got exit code %d\n%s", code, s.output())
 	}
-	if !strings.Contains(s.text(), "Pushing topic to fork/topic") {
-		t.Fatalf("got output %q", s.text())
+	if !strings.Contains(s.output(), "Pushing topic to fork/topic") {
+		t.Fatalf("got output %q", s.output())
 	}
 	if gittest.Git(t, fork, "rev-parse", "topic") != gittest.Git(t, clone, "rev-parse", "HEAD") {
 		t.Fatal("topic was not pushed to the fork")
