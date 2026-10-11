@@ -1,0 +1,16 @@
+Commits
+> [fe0e1b5] Speed up by 50%
+  [5da08f8] root commit
+
+Author Ada Lovelace <ada@example.com>
+When   <time>
+(HEAD -> main, tag: light)
+-- styles --
+1 faint "Commits"
+2 cyan "> ", cyan "fe0e1b5", white "Speed up by 50%"
+3 white "  ", cyan "5da08f8", white "root commit"
+5 faint "Author ", white "Ada Lovelace <ada@example.com>"
+6 faint "When", white "   <time>"
+7 yellow "(", bold cyan "HEAD -> ", bold green "main", yellow ", ", bold yellow "tag: ", bold red "light", yellow ")"
+-- cursor --
+hidden

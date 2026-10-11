@@ -1,0 +1,16 @@
+Push
+> Push
+
+main → origin/main, 1 commit:
+  [4b5ef4f] mine
+origin/main has 1 commit main doesn't have, the push is rejected until you pull it.
+No checks, add them to .git/gitin/config.yml to run them before pushing.
+-- styles --
+1 faint "Push"
+2 cyan "> ", white "Push"
+4 yellow "main", faint " → ", cyan "origin/main", faint ", ", yellow "1 commit", faint ":"
+5 cyan "4b5ef4f"
+6 red "origin/main has 1 commit main doesn't have, the push is rejected until you pull it."
+7 faint "No checks, add them to .git/gitin/config.yml to run them before pushing."
+-- cursor --
+hidden

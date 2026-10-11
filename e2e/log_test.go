@@ -21,15 +21,16 @@ func logRepo(t *testing.T) string {
 
 func TestLogShowsCommitsWithRefs(t *testing.T) {
 	s := start(t, logRepo(t), []string{"log"})
-	frame := s.waitFrame("Commits", 0, "Speed up by 50%", "root commit", "Ada Lovelace <ada@example.com>", "(HEAD -> main, tag: light)")
-	if strings.Contains(frame, "NOVERB") {
-		t.Fatalf("%% is not shown as is:\n%s", frame)
+	screen := s.waitScreen("Speed up by 50%", "root commit", "Ada Lovelace <ada@example.com>", "(HEAD -> main, tag: light)")
+	if strings.Contains(screen, "NOVERB") {
+		t.Fatalf("%% is not shown as is:\n%s", screen)
 	}
+	s.matchScreen("commits")
 
-	m := s.mark()
 	s.send(down)
 	// annotated tags are shown on the commit they point to
-	s.waitFrame("Commits", m, "> [", "root commit", "(tag: v1.0)")
+	s.waitSelected("root commit")
+	s.waitScreen("(tag: v1.0)")
 
 	s.send("q")
 	if code := s.wait(); code != 0 {
@@ -39,20 +40,18 @@ func TestLogShowsCommitsWithRefs(t *testing.T) {
 
 func TestLogFilesAndDiffs(t *testing.T) {
 	s := start(t, logRepo(t), []string{"log"})
-	s.waitFrame("Commits", 0, "Speed up by 50%")
+	s.waitScreen("Speed up by 50%")
 
-	m := s.mark()
 	s.send(enter)
-	s.waitFrame("Files", m, "[A] 50% off.txt", "[M] root.txt", "1 addition.")
+	s.waitScreen("[A] 50% off.txt", "[M] root.txt", "1 addition.")
+	s.matchScreen("files")
 
-	m = s.mark()
 	s.send(down, enter)
-	s.waitText(m, "diff --git a/root.txt b/root.txt", "+fast")
+	s.waitOutput("diff --git a/root.txt b/root.txt", "+fast")
 
 	// q goes back from the files to the commits, then quits
-	m = s.mark()
 	s.send("q")
-	s.waitFrame("Commits", m, "Speed up by 50%")
+	s.waitScreen("Commits", "Speed up by 50%")
 	s.send("q")
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
@@ -61,23 +60,20 @@ func TestLogFilesAndDiffs(t *testing.T) {
 
 func TestLogFileOfRootCommit(t *testing.T) {
 	s := start(t, logRepo(t), []string{"log"})
-	s.waitFrame("Commits", 0, "root commit")
+	s.waitScreen("root commit")
 	s.send(down, enter)
-	s.waitFrame("Files", 0, "[A] root.txt")
-	m := s.mark()
+	s.waitScreen("[A] root.txt")
 	s.send(enter)
-	s.waitText(m, "new file mode", "+++ b/root.txt", "+r")
+	s.waitOutput("new file mode", "+++ b/root.txt", "+r")
 }
 
 func TestLogCommitStatAndDiff(t *testing.T) {
 	s := start(t, logRepo(t), []string{"log"})
-	s.waitFrame("Commits", 0, "Speed up by 50%")
-	m := s.mark()
+	s.waitScreen("Speed up by 50%")
 	s.send("s")
-	s.waitText(m, "2 files changed")
-	m = s.mark()
+	s.waitOutput("2 files changed")
 	s.send("d")
-	s.waitText(m, "+sale")
+	s.waitOutput("+sale")
 }
 
 func TestLogSearch(t *testing.T) {
@@ -86,25 +82,23 @@ func TestLogSearch(t *testing.T) {
 		gittest.Commit(t, dir, msg, nil)
 	}
 	s := start(t, dir, []string{"log"})
-	s.waitFrame("Commits", 0, "update docs")
+	s.waitScreen("update docs")
 
-	m := s.mark()
 	s.send("/", "a", "d", "d")
-	frame := s.waitFrame("Search Commits add", m, "add renderer", "add parser")
-	if strings.Contains(frame, "fix typo") || strings.Contains(frame, "update docs") {
-		t.Fatalf("search shows commits that don't match:\n%s", frame)
+	screen := s.waitScreen("Search Commits add", "add renderer", "add parser")
+	if strings.Contains(screen, "fix typo") || strings.Contains(screen, "update docs") {
+		t.Fatalf("search shows commits that don't match:\n%s", screen)
 	}
+	s.matchScreen("search")
 
-	m = s.mark()
 	s.send(backspace, backspace, backspace, "t", "y", "p", "o")
-	frame = s.waitFrame("Search Commits typo", m, "fix typo")
-	if strings.Contains(frame, "add parser") {
-		t.Fatalf("results of the previous search are shown:\n%s", frame)
+	screen = s.waitScreen("Search Commits typo", "fix typo")
+	if strings.Contains(screen, "add parser") {
+		t.Fatalf("results of the previous search are shown:\n%s", screen)
 	}
 
-	m = s.mark()
 	s.send(ctrlU, "/")
-	s.waitFrame("Commits", m, "add parser", "fix typo", "update docs")
+	s.waitScreen("add parser", "fix typo", "update docs")
 }
 
 func TestLogShallowClone(t *testing.T) {
@@ -114,7 +108,7 @@ func TestLogShallowClone(t *testing.T) {
 	}
 	clone := gittest.Clone(t, dir, "--depth=2")
 	s := start(t, clone, []string{"log"})
-	s.waitFrame("Commits", 0, "commit 4", "commit 3")
+	s.waitScreen("commit 4", "commit 3")
 	if !s.running() {
 		t.Fatal("gitin exited in a shallow clone")
 	}
@@ -144,7 +138,7 @@ func TestLogStaysResponsiveWhileLoading(t *testing.T) {
 	// typing while the history is loaded used to freeze gitin
 	s := start(t, dir, []string{"log"})
 	s.send("/", "c", "4", "9", "9", "9", "9")
-	s.waitSelected("Search Commits c49999", 0, "c49999")
+	s.waitSelected("c49999")
 	s.send(ctrlC)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
@@ -156,8 +150,8 @@ func TestLogWithoutCommits(t *testing.T) {
 	if code := s.wait(); code != 1 {
 		t.Fatalf("got exit code %d, want 1", code)
 	}
-	if !strings.Contains(s.text(), "does not have any commits yet") {
-		t.Fatalf("got output %q", s.text())
+	if !strings.Contains(s.output(), "does not have any commits yet") {
+		t.Fatalf("got output %q", s.output())
 	}
 }
 
@@ -166,14 +160,13 @@ func TestUnknownKeysDoNotQuit(t *testing.T) {
 	gittest.Commit(t, dir, "first", nil)
 	gittest.Commit(t, dir, "second", nil)
 	s := start(t, dir, []string{"log"})
-	s.waitFrame("Commits", 0, "second")
+	s.waitScreen("second")
 
 	// Alt+b, F5, ctrl+right, then down in application cursor mode
-	m := s.mark()
 	s.send("\x1bb", "\x1b[15~", "\x1b[1;5C", "\x1bOB")
-	s.waitSelected("Commits", m, "first")
+	s.waitSelected("first")
 	if !s.running() {
-		t.Fatalf("gitin exited: %s", s.text())
+		t.Fatalf("gitin exited: %s", s.output())
 	}
 }
 
@@ -181,11 +174,12 @@ func TestHelp(t *testing.T) {
 	dir := gittest.NewRepo(t)
 	gittest.Commit(t, dir, "first", nil)
 	s := start(t, dir, []string{"log"})
-	s.waitFrame("Commits", 0, "first")
-	m := s.mark()
+	s.waitScreen("first")
 	s.send("?")
-	s.waitText(m, "show stat: s", "show diff: d", "toggle search: /", "press any key to return.")
-	m = s.mark()
+	s.waitScreen("show stat: s", "show diff: d", "toggle search: /", "press any key to return.")
+	s.matchScreen("help")
 	s.send("x")
-	s.waitFrame("Commits", m, "first")
+	s.waitUntil("the commits", func(screen string) bool {
+		return strings.Contains(screen, "first") && !strings.Contains(screen, "press any key to return.")
+	})
 }

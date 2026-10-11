@@ -1,0 +1,20 @@
+Branches
+> main *
+  merged
+  unmerged
+  origin/HEAD
+  origin/main
+
+Last commit was <time>
+This branch is up to date with origin/main.
+-- styles --
+1 faint "Branches"
+2 cyan "> ", green "main *"
+3 white "  merged"
+4 white "  unmerged"
+5 white "  ", red "origin/HEAD"
+6 white "  ", red "origin/main"
+8 faint "Last commit was ", blue "<time>"
+9 faint "This branch is up to date with ", cyan "origin/main", faint "."
+-- cursor --
+hidden

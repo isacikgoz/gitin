@@ -24,15 +24,14 @@ func TestStatusHunkStagingManyFiles(t *testing.T) {
 	}
 
 	s := start(t, dir, []string{"status"})
-	s.waitFrame("Files", 0, "f0.txt")
+	s.waitScreen("f0.txt")
 	for i := range files {
 		file := fmt.Sprintf("f%d.txt", i)
-		m := s.mark()
 		s.send("p")
-		s.waitText(m, "+b")
-		m = s.mark()
+		s.waitScreen("+b")
 		s.send(" ", "q")
-		s.waitFrame("Files", m, "> [M] "+file)
+		s.waitSelected("[M] " + file)
+		s.waitStyle(file, "green") // staged
 		if !strings.Contains(shortStatus(t, dir), "M  "+file) {
 			t.Fatalf("file %d was not staged:\n%s", i, shortStatus(t, dir))
 		}

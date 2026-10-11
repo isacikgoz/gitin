@@ -1,0 +1,16 @@
+Push
+> Run checks, then push
+  Push without checks
+
+main → origin/main, 1 commit:
+  [f86df91] team checks
+Checks of .gitin.yml and .git/gitin/config.yml: Team, Mine
+-- styles --
+1 faint "Push"
+2 cyan "> ", white "Run checks, then push"
+3 white "  Push without checks"
+5 yellow "main", faint " → ", cyan "origin/main", faint ", ", yellow "1 commit", faint ":"
+6 cyan "f86df91"
+7 faint "Checks of .gitin.yml and .git/gitin/config.yml: "
+-- cursor --
+hidden

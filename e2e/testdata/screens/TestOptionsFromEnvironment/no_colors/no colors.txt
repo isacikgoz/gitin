@@ -1,0 +1,12 @@
+Commits
+> [8bb2900] four
+  [ca28efd] three
+  [38255a4] two
+  [9c5066f] one
+
+Author Ada Lovelace <ada@example.com>
+When   <time>
+(HEAD -> main)
+-- styles --
+-- cursor --
+hidden

@@ -1,0 +1,18 @@
+Files
+  [D] deleted.txt
+> [M] modified.txt
+  [M] modified.txt
+  [U] new.txt
+
+On branch main
+Your branch is not tracking a remote branch.
+-- styles --
+1 faint "Files"
+2 white "  ", cyan "D", green "deleted.txt"
+3 cyan "> ", cyan "M", green "modified.txt"
+4 white "  ", cyan "M", red "modified.txt"
+5 white "  ", cyan "U", red "new.txt"
+7 faint "On branch ", yellow "main"
+8 faint "Your branch is not tracking a remote branch."
+-- cursor --
+hidden

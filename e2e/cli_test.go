@@ -44,38 +44,36 @@ func TestOptionsFromEnvironment(t *testing.T) {
 
 	t.Run("line size", func(t *testing.T) {
 		s := start(t, dir, []string{"log"}, "GITIN_LINESIZE=2")
-		frame := s.waitFrame("Commits", 0, "four", "three")
-		if strings.Contains(frame, "two") {
-			t.Fatalf("more than 2 lines:\n%s", frame)
+		screen := s.waitScreen("four", "three")
+		if strings.Contains(screen, "two") {
+			t.Fatalf("more than 2 lines:\n%s", screen)
 		}
 	})
 
 	t.Run("start in search", func(t *testing.T) {
 		s := start(t, dir, []string{"log"}, "GITIN_STARTINSEARCH=true")
 		s.send("t", "w")
-		s.waitFrame("Search Commits tw", 0, "two")
+		s.waitScreen("Search Commits tw", "two")
 	})
 
 	t.Run("vim keys", func(t *testing.T) {
 		s := start(t, dir, []string{"log"}, "GITIN_VIMKEYS=false")
-		s.waitFrame("Commits", 0, "four")
+		s.waitScreen("four")
 		s.send("j")
-		m := s.mark()
 		s.send(down) // j did not move the cursor, so down selects the second commit
-		s.waitSelected("Commits", m, "three")
+		s.waitSelected("three")
 	})
 
 	t.Run("colors", func(t *testing.T) {
 		s := start(t, dir, []string{"log"})
-		s.waitFrame("Commits", 0, "four")
-		if !strings.Contains(s.raw(), "\x1b[36m") {
-			t.Fatal("no colors")
-		}
-		s = start(t, dir, []string{"log"}, "GITIN_DISABLECOLOR=true")
-		s.waitFrame("Commits", 0, "four")
-		if strings.Contains(s.raw(), "\x1b[36m") {
-			t.Fatal("colors although they are disabled")
-		}
+		s.waitScreen("four")
+		s.matchScreen("colors")
+	})
+
+	t.Run("no colors", func(t *testing.T) {
+		s := start(t, dir, []string{"log"}, "GITIN_DISABLECOLOR=true")
+		s.waitScreen("four")
+		s.matchScreen("no colors")
 	})
 }
 
@@ -96,7 +94,7 @@ func TestRepositoryFormats(t *testing.T) {
 			gittest.Git(t, dir, "symbolic-ref", "HEAD", "refs/heads/main")
 			gittest.Commit(t, dir, tt.name+" commit", map[string]string{"a": "1"})
 			s := start(t, dir, []string{"log"})
-			s.waitFrame("Commits", 0, tt.name+" commit")
+			s.waitScreen(tt.name + " commit")
 		})
 	}
 
@@ -110,10 +108,10 @@ func TestRepositoryFormats(t *testing.T) {
 			t.Skipf("git can't create a partial clone: %v\n%s", err, out)
 		}
 		s := start(t, clone, []string{"log"})
-		s.waitFrame("Commits", 0, "second", "first")
+		s.waitScreen("second", "first")
 		// the blobs of older commits are fetched when they are needed
 		s.send(down, enter)
-		s.waitFrame("Files", 0, "[A] a")
+		s.waitScreen("[A] a")
 	})
 }
 

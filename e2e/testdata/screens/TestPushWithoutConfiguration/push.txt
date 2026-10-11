@@ -1,0 +1,14 @@
+Push
+> Push
+
+main → origin/main, 1 commit:
+  [0e64d3c] change
+No checks, add them to .git/gitin/config.yml to run them before pushing.
+-- styles --
+1 faint "Push"
+2 cyan "> ", white "Push"
+4 yellow "main", faint " → ", cyan "origin/main", faint ", ", yellow "1 commit", faint ":"
+5 cyan "0e64d3c"
+6 faint "No checks, add them to .git/gitin/config.yml to run them before pushing."
+-- cursor --
+hidden

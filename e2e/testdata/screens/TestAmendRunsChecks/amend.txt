@@ -1,0 +1,14 @@
+Amend
+> Run checks, then amend
+  Amend without checks
+
+Checks of .gitin.yml: Staged only
+Unstaged changes are set aside while they run, they check what gets committed.
+-- styles --
+1 faint "Amend"
+2 cyan "> ", white "Run checks, then amend"
+3 white "  Amend without checks"
+5 faint "Checks of .gitin.yml: "
+6 faint "Unstaged changes are set aside while they run, they check what gets committed."
+-- cursor --
+hidden

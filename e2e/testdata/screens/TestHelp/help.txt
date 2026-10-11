@@ -1,0 +1,16 @@
+navigation: ← ↓ ↑ → (h,j,k,l)
+quit: q
+show diff: d
+show stat: s
+toggle search: /
+
+press any key to return.
+-- styles --
+1 faint "navigation: ", yellow "← ↓ ↑ → (h,j,k,l)"
+2 faint "quit: ", yellow "q"
+3 faint "show diff: ", yellow "d"
+4 faint "show stat: ", yellow "s"
+5 faint "toggle search: ", yellow "/"
+7 faint "press any key to return."
+-- cursor --
+hidden

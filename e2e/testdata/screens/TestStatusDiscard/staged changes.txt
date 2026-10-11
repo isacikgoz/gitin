@@ -1,0 +1,18 @@
+Files
+> [D] deleted.txt
+  [M] modified.txt
+  [U] new.txt
+
+On branch main
+Your branch is not tracking a remote branch.
+staged changes are not discarded, press space to unstage them first
+-- styles --
+1 faint "Files"
+2 cyan "> ", cyan "D", green "deleted.txt"
+3 white "  ", cyan "M", red "modified.txt"
+4 white "  ", cyan "U", red "new.txt"
+6 faint "On branch ", yellow "main"
+7 faint "Your branch is not tracking a remote branch."
+8 red "staged changes are not discarded, press space to unstage them first"
+-- cursor --
+hidden
