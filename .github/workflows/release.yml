@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# bash with pipefail, a failing command in a pipe fails its step
+defaults:
+  run:
+    shell: bash
+
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
