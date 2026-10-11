@@ -99,9 +99,15 @@ func TestPushInfo(t *testing.T) {
 		},
 		{
 			"new branch",
-			&git.PushTarget{Branch: "topic", RemoteBranch: "origin/topic", SetUpstream: true, Ahead: 2, Commits: commits("b", "a")},
+			&git.PushTarget{Branch: "topic", RemoteBranch: "origin/topic", NewBranch: true, SetUpstream: true, Ahead: 2, Commits: commits("b", "a")},
 			checks,
 			[]string{"New branch topic is pushed to origin/topic with 2 commits:", "  [0123456] b", "  [0123456] a", "Checks of .gitin.yml and .git/gitin/config.yml: Lint, Tests"},
+		},
+		{
+			"new branch without new commits",
+			&git.PushTarget{Branch: "topic", RemoteBranch: "origin/topic", NewBranch: true, SetUpstream: true},
+			checks,
+			[]string{"New branch topic is pushed to origin/topic with no new commits.", "Checks of .gitin.yml and .git/gitin/config.yml: Lint, Tests"},
 		},
 		{
 			"diverged",

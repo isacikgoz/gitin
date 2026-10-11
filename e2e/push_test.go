@@ -210,6 +210,55 @@ func TestPushNewBranch(t *testing.T) {
 	}
 }
 
+// a branch made from origin/main has it as upstream, git push
+// refuses to push to a branch with another name
+func TestPushUpstreamWithAnotherName(t *testing.T) {
+	remote, clone := gittest.NewRemote(t)
+	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic", "origin/main")
+	gittest.Commit(t, clone, "topic work", nil)
+	s := start(t, clone, []string{"push"})
+	s.waitFrame(pushScreen, 0, "New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
+	s.send(enter)
+	if code := s.wait(); code != 0 {
+		t.Fatalf("got exit code %d\n%s", code, s.text())
+	}
+	if gittest.Git(t, remote, "rev-parse", "topic") != gittest.Git(t, clone, "rev-parse", "HEAD") {
+		t.Fatal("topic was not pushed")
+	}
+	if gittest.Git(t, remote, "rev-parse", "main") == gittest.Git(t, clone, "rev-parse", "HEAD") {
+		t.Fatal("topic was pushed to main")
+	}
+	if got := gittest.Git(t, clone, "rev-parse", "--abbrev-ref", "topic@{upstream}"); got != "origin/main" {
+		t.Fatalf("the upstream changed to %q", got)
+	}
+}
+
+// remote.pushDefault applies to a branch without upstream as well
+func TestPushNewBranchToPushDefault(t *testing.T) {
+	_, clone := gittest.NewRemote(t)
+	fork := t.TempDir()
+	gittest.Git(t, fork, "init", "--quiet", "--bare")
+	gittest.Git(t, clone, "remote", "add", "fork", fork)
+	gittest.Git(t, clone, "config", "remote.pushDefault", "fork")
+	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic")
+	gittest.Commit(t, clone, "topic work", nil)
+	s := start(t, clone, []string{"push"})
+	s.waitFrame(pushScreen, 0, "New branch topic is pushed to fork/topic with 2 commits:", "] topic work")
+	s.send(enter)
+	if code := s.wait(); code != 0 {
+		t.Fatalf("got exit code %d\n%s", code, s.text())
+	}
+	if !strings.Contains(s.text(), "Pushing topic to fork/topic") {
+		t.Fatalf("got output %q", s.text())
+	}
+	if gittest.Git(t, fork, "rev-parse", "topic") != gittest.Git(t, clone, "rev-parse", "HEAD") {
+		t.Fatal("topic was not pushed to the fork")
+	}
+	if got := gittest.Git(t, clone, "rev-parse", "--abbrev-ref", "topic@{upstream}"); got != "fork/topic" {
+		t.Fatalf("got upstream %q", got)
+	}
+}
+
 func TestPushRejected(t *testing.T) {
 	remote, clone := gittest.NewRemote(t)
 	other := gittest.Clone(t, remote)

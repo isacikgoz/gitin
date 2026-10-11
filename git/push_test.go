@@ -32,7 +32,7 @@ func TestPushTarget(t *testing.T) {
 	gittest.Commit(t, clone, "second", map[string]string{"a": "2"})
 
 	got := pushTarget(t, clone)
-	if got.Branch != "main" || got.Remote != "origin" || got.RemoteBranch != "origin/main" || got.SetUpstream {
+	if got.Branch != "main" || got.Remote != "origin" || got.RemoteBranch != "origin/main" || got.SetUpstream || got.NewBranch {
 		t.Fatalf("got %+v", got)
 	}
 	if got.Ahead != 2 || got.Behind != 0 || summaries(got.Commits) != "second,first" {
@@ -72,15 +72,78 @@ func TestPushTargetNewBranch(t *testing.T) {
 	gittest.Commit(t, clone, "topic work", map[string]string{"t": "1"})
 
 	got := pushTarget(t, clone)
-	if got.Branch != "topic" || got.Remote != "origin" || got.RemoteBranch != "origin/topic" || !got.SetUpstream {
+	if got.Branch != "topic" || got.Remote != "origin" || got.RemoteBranch != "origin/topic" || !got.SetUpstream || !got.NewBranch {
 		t.Fatalf("got %+v", got)
 	}
 	// only the commits the remote doesn't have from any branch
 	if got.Ahead != 1 || summaries(got.Commits) != "topic work" {
 		t.Fatalf("got ahead %d commits %s", got.Ahead, summaries(got.Commits))
 	}
-	if args := strings.Join(got.Args(), " "); args != "push --set-upstream origin topic" {
+	if args := strings.Join(got.Args(), " "); args != "push --set-upstream origin refs/heads/topic:refs/heads/topic" {
 		t.Fatalf("got args %q", args)
+	}
+}
+
+// Where git push can't tell, the branch is pushed to a branch with the same name
+func TestPushTargetDestination(t *testing.T) {
+	tests := map[string]struct {
+		setup       [][]string // git commands
+		remote      string
+		setUpstream bool
+		upstream    string // after the push
+	}{
+		"new branch, remote.pushDefault": {
+			setup:  [][]string{{"config", "remote.pushDefault", "fork"}},
+			remote: "fork", setUpstream: true, upstream: "fork/topic",
+		},
+		"new branch, remote.pushDefault is origin": {
+			setup:  [][]string{{"config", "remote.pushDefault", "origin"}},
+			remote: "origin", setUpstream: true, upstream: "origin/topic",
+		},
+		"new branch, branch.<name>.pushRemote": {
+			setup:  [][]string{{"config", "branch.topic.pushRemote", "fork"}},
+			remote: "fork", setUpstream: true, upstream: "fork/topic",
+		},
+		// git switch -c topic origin/main sets this up
+		"upstream with another name": {
+			setup:  [][]string{{"branch", "--quiet", "--set-upstream-to", "origin/main"}},
+			remote: "origin", upstream: "origin/main",
+		},
+		"push remote other than the upstream's": {
+			setup:  [][]string{{"push", "--quiet", "--set-upstream", "origin", "topic"}, {"config", "remote.pushDefault", "fork"}},
+			remote: "fork", upstream: "origin/topic",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			remote, clone := gittest.NewRemote(t)
+			fork := t.TempDir()
+			gittest.Git(t, fork, "init", "--quiet", "--bare")
+			gittest.Git(t, clone, "remote", "add", "fork", fork)
+			gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic")
+			for _, args := range tt.setup {
+				gittest.Git(t, clone, args...)
+			}
+			head := gittest.Commit(t, clone, "topic work", nil)
+
+			// the fork is empty, it doesn't have the initial commit either
+			ahead := map[string]int{"origin": 1, "fork": 2}[tt.remote]
+			got := pushTarget(t, clone)
+			if got.Remote != tt.remote || got.RemoteBranch != tt.remote+"/topic" || got.SetUpstream != tt.setUpstream || !got.NewBranch || got.Ahead != ahead {
+				t.Fatalf("got %+v", got)
+			}
+			gittest.Git(t, clone, got.Args()...)
+			dir := map[string]string{"origin": remote, "fork": fork}[tt.remote]
+			if pushed := gittest.Git(t, dir, "rev-parse", "topic"); pushed != head {
+				t.Fatalf("%s has topic at %s, want %s", tt.remote, pushed, head)
+			}
+			if upstream := gittest.Git(t, clone, "rev-parse", "--abbrev-ref", "topic@{upstream}"); upstream != tt.upstream {
+				t.Fatalf("got upstream %s, want %s", upstream, tt.upstream)
+			}
+			if got := pushTarget(t, clone); got.NewBranch || got.Ahead != 0 || got.RemoteBranch != tt.remote+"/topic" {
+				t.Fatalf("after the push got %+v", got)
+			}
+		})
 	}
 }
 

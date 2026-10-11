@@ -117,7 +117,8 @@ To share checks with your team, commit them in a `.gitin.yml` at the root of the
 - Commit checks see what gets committed: unstaged changes of tracked files are set aside while they run, in `.git/gitin/unstaged.patch`, and restored afterwards. Untracked files stay. If a check changes a file you also changed without staging, its change is undone so yours comes back.
 - If a check fails, gitin asks whether to commit or push anyway. Ctrl-C stops the running check and cancels.
 - `run` is a shell command. Commands with `: ` in them have to be quoted, a `|` block is the easiest way.
-- git's own `pre-commit` and `pre-push` hooks still run. A branch without upstream is pushed to `origin` (or `remote.pushDefault`) and tracks it.
+- git's own `pre-commit` and `pre-push` hooks still run.
+- A branch goes where `git push` sends it. If git can't tell, e.g. for a branch without upstream or one whose upstream has another name, it goes to a branch with the same name on its push remote (`branch.<name>.pushRemote`, `remote.pushDefault` or the upstream's remote, else `origin` or the only remote). A branch without upstream tracks it.
 
 ## Development
 
