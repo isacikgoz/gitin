@@ -127,6 +127,8 @@ func start(t *testing.T, dir string, args []string, env ...string) *session {
 		close(s.done)
 	}()
 	t.Cleanup(func() {
+		// before quitting, gitin clears its screen when it quits
+		output := s.output()
 		select {
 		case <-s.done:
 		default:
@@ -141,7 +143,7 @@ func start(t *testing.T, dir string, args []string, env ...string) *session {
 		}
 		_ = f.Close()
 		if t.Failed() {
-			t.Logf("terminal output:\n%s", s.output())
+			t.Logf("terminal output:\n%s", output)
 		}
 	})
 	return s
