@@ -2,14 +2,18 @@ package prompt
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/fatih/color"
 	"github.com/isacikgoz/gitin/term"
 )
@@ -81,7 +85,7 @@ func startPrompt(t *testing.T, list List, opts *Options) *testPrompt {
 
 func (tp *testPrompt) send(keys ...rune) {
 	for _, k := range keys {
-		tp.events <- keyEvent{ch: k}
+		tp.events <- keyEvent{ch: k, handled: make(chan struct{})}
 	}
 }
 
@@ -130,6 +134,43 @@ func (tp *testPrompt) stop(t *testing.T) error {
 	}
 }
 
+// startReading reads the keys of the prompt from a pseudo terminal, like Run
+// reads them from the user's terminal. Keys written to the returned end of
+// the terminal are pressed.
+func startReading(t *testing.T, tp *testPrompt) *os.File {
+	t.Helper()
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("no pseudo terminal: %v", err)
+	}
+	go func() { _, _ = io.Copy(io.Discard, ptmx) }()
+	if err := term.Init(tty, tty); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	reading := make(chan struct{})
+	go func() {
+		defer close(reading)
+		tp.spawnEvents(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		_, _ = ptmx.Write([]byte{0}) // ends a wait for a key
+		<-reading
+		_ = term.Close()
+		_ = tty.Close()
+		_ = ptmx.Close()
+	})
+	return ptmx
+}
+
+func press(t *testing.T, ptmx *os.File, keys string) {
+	t.Helper()
+	if _, err := ptmx.Write([]byte(keys)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func syncList(t *testing.T, items []string, size int) *SyncList {
 	t.Helper()
 	l, err := NewList(items, size)
@@ -163,6 +204,50 @@ func TestPromptNavigationAndSelection(t *testing.T) {
 	if fmt.Sprint(tp.selected) != "[item-2 item-3]" || fmt.Sprint(tp.handled) != "[item-3]" {
 		t.Fatalf("got selected %v handled %v", tp.selected, tp.handled)
 	}
+}
+
+// A key is handled while the next one is awaited. gitin used to handle it
+// only after that wait, about 100ms per key.
+func TestPromptHandlesKeysRightAway(t *testing.T) {
+	interval := readInterval
+	t.Cleanup(func() { readInterval = interval })
+	readInterval = 30 * time.Second // longer than waitFrame waits
+	tp := startPrompt(t, syncList(t, numbered(5), 3), &Options{LineSize: 3, VimKeys: true})
+	ptmx := startReading(t, tp)
+	for _, want := range []string{"> item-1", "> item-2", "> item-3"} {
+		press(t, ptmx, "j")
+		tp.waitFrame(t, "Items", want)
+	}
+}
+
+// Keys pressed while a key handler runs go to what the handler runs, e.g. a
+// pager or another prompt
+func TestPromptLeavesKeysToHandlers(t *testing.T) {
+	tp := startPrompt(t, syncList(t, numbered(5), 3), &Options{LineSize: 3, VimKeys: true})
+	started := make(chan struct{})
+	got := make(chan rune, 1)
+	err := tp.AddKeyBinding(&KeyBinding{Key: 'r', Display: "r", Desc: "read", Handler: func(interface{}) error {
+		close(started)
+		r, _, err := term.NewRuneReader(nil).ReadRuneTimeout(5 * time.Second)
+		got <- r
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ptmx := startReading(t, tp)
+	press(t, ptmx, "r")
+	select {
+	case <-started:
+	case <-timeout():
+		t.Fatal("the handler did not run")
+	}
+	press(t, ptmx, "y")
+	if r := <-got; r != 'y' {
+		t.Fatalf("the handler read %q, want 'y'", r)
+	}
+	press(t, ptmx, "j")
+	tp.waitFrame(t, "Items", "> item-1")
 }
 
 func TestPromptWithoutVimKeys(t *testing.T) {

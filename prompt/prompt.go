@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 	"unicode"
@@ -17,8 +16,9 @@ import (
 )
 
 type keyEvent struct {
-	ch  rune
-	err error
+	ch      rune
+	err     error
+	handled chan struct{} // closed when the prompt is ready for the next key
 }
 
 // KeyBinding is used for mapping a key to a function. An error returned by
@@ -76,7 +76,6 @@ type Prompt struct {
 
 	reader *term.RuneReader     // initialized by prompt
 	writer *term.BufferedWriter // initialized by prompt
-	mx     *sync.RWMutex
 
 	events chan keyEvent
 	quit   chan error
@@ -91,8 +90,7 @@ func Create(label string, opts *Options, list List, fs ...OptionalFunc) *Prompt 
 		itemRenderer: itemText,
 		reader:       term.NewRuneReader(os.Stdin),
 		writer:       term.NewBufferedWriter(os.Stdout),
-		mx:           &sync.RWMutex{},
-		events:       make(chan keyEvent, 20),
+		events:       make(chan keyEvent),
 		quit:         make(chan error, 1),
 	}
 
@@ -211,24 +209,29 @@ func (p *Prompt) stop(err error) {
 
 // readInterval is how long reading waits for a key before it checks whether
 // the prompt stopped
-const readInterval = 50 * time.Millisecond
+var readInterval = 50 * time.Millisecond
 
-// spawnEvents reads keys until ctx is cancelled. Key handlers run with the
-// lock held, interactive commands they start have the terminal to themselves.
+// spawnEvents reads keys until ctx is cancelled. It reads the next key once
+// the last one is handled: a key handler may run a command that reads the
+// terminal, e.g. a pager or another prompt, keys pressed meanwhile are for it.
 func (p *Prompt) spawnEvents(ctx context.Context) {
 	for ctx.Err() == nil {
-		p.mx.Lock()
 		r, _, err := p.reader.ReadRuneTimeout(readInterval)
-		p.mx.Unlock()
 		if errors.Is(err, term.ErrNoKey) {
 			continue
 		}
+		ev := keyEvent{ch: r, err: err, handled: make(chan struct{})}
 		select {
-		case p.events <- keyEvent{ch: r, err: err}:
+		case p.events <- ev:
 		case <-ctx.Done():
 			return
 		}
 		if err != nil {
+			return
+		}
+		select {
+		case <-ev.handled:
+		case <-ctx.Done():
 			return
 		}
 	}
@@ -249,39 +252,42 @@ func (p *Prompt) mainloop() error {
 		case <-p.list.Update():
 			p.render()
 		case ev := <-p.events:
-			if err := func() error {
-				p.mx.Lock()
-				defer p.mx.Unlock()
-
-				if err := ev.err; err != nil {
-					return err
-				}
-
-				p.notice = ""
-				var err error
-				switch r := ev.ch; r {
-				case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
-					p.Stop()
-					return nil
-				case term.Enter, term.NewLine:
-					items, idx := p.list.Items()
-					if idx == NotFound {
-						break
-					}
-					err = p.selectionHandler(items[idx])
-				default:
-					err = p.onKey(r)
-				}
-				if err != nil {
-					p.notice = err.Error()
-				}
-				p.render()
-				return nil
-			}(); err != nil {
+			if ev.err != nil {
+				return ev.err
+			}
+			p.handleKey(ev.ch)
+			select {
+			case err := <-p.quit:
+				// no more keys are read, they are for what runs next
 				return err
+			default:
+				close(ev.handled)
 			}
 		}
 	}
+}
+
+// handleKey does what the key is for and draws the prompt again
+func (p *Prompt) handleKey(r rune) {
+	p.notice = ""
+	var err error
+	switch r {
+	case rune(term.KeyCtrlC), rune(term.KeyCtrlD):
+		p.Stop()
+		return
+	case term.Enter, term.NewLine:
+		items, idx := p.list.Items()
+		if idx == NotFound {
+			break
+		}
+		err = p.selectionHandler(items[idx])
+	default:
+		err = p.onKey(r)
+	}
+	if err != nil {
+		p.notice = err.Error()
+	}
+	p.render()
 }
 
 // render function draws screen's list to terminal
