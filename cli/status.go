@@ -65,7 +65,7 @@ func newStatus(r *git.Repository, opts *prompt.Options) (*status, error) {
 
 func (s *status) onSelect(item interface{}) error {
 	entry := item.(*git.StatusEntry)
-	err := popGitCommand(s.repository, fileStatArgs(entry))
+	err := popGitCommand(s.prompt, s.repository, fileStatArgs(entry))
 	if entry.EntryType == git.StatusEntryTypeUntracked && git.ExitCode(err) == 1 {
 		return nil // "git diff --no-index" exits with 1 when the files differ
 	}
@@ -174,11 +174,12 @@ func (s *status) amend(item interface{}) error {
 	return s.checkAndCommit(amendCommit)
 }
 
+// bareCommit commits, call it while the prompt is suspended
 func (s *status) bareCommit(arg string) error {
-	if err := popGitCommand(s.repository, []string{"commit", arg, "--quiet"}); err != nil {
+	if err := terminalGitCommand(s.repository, []string{"commit", arg, "--quiet"}); err != nil {
 		return err // e.g. a hook rejected the commit or the message was empty
 	}
-	if err := popGitCommand(s.repository, []string{"show", "--stat", "HEAD"}); err != nil {
+	if err := terminalGitCommand(s.repository, []string{"show", "--stat", "HEAD"}); err != nil {
 		return err
 	}
 	return s.reloadStatus()

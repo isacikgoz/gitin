@@ -1,0 +1,19 @@
+Unstaged changes are set aside until the checks finish.
+▶ Lint  echo LINT ERROR >&2 …
+LINT ERROR
+✘ Lint failed after <duration>: exit status 3
+Commit
+> Cancel
+  Commit anyway
+
+Lint failed (exit status 3), nothing was committed yet.
+-- styles --
+1 faint "Unstaged changes are set aside until the checks finish."
+2 bold "▶ Lint", faint "  echo LINT ERROR >&2 …"
+4 red "✘ Lint failed after <duration>: exit status 3"
+5 faint "Commit"
+6 cyan "> ", white "Cancel"
+7 white "  Commit anyway"
+9 yellow "Lint", red " failed (exit status 3), nothing was committed yet."
+-- cursor --
+hidden

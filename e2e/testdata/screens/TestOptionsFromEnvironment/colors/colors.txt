@@ -1,0 +1,20 @@
+Commits
+> [8bb2900] four
+  [ca28efd] three
+  [38255a4] two
+  [9c5066f] one
+
+Author Ada Lovelace <ada@example.com>
+When   <time>
+(HEAD -> main)
+-- styles --
+1 faint "Commits"
+2 cyan "> ", cyan "8bb2900", white "four"
+3 white "  ", cyan "ca28efd", white "three"
+4 white "  ", cyan "38255a4", white "two"
+5 white "  ", cyan "9c5066f", white "one"
+7 faint "Author ", white "Ada Lovelace <ada@example.com>"
+8 faint "When", white "   <time>"
+9 yellow "(", bold cyan "HEAD -> ", bold green "main", yellow ")"
+-- cursor --
+hidden

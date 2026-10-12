@@ -22,8 +22,8 @@ func branchRepo(t *testing.T) string {
 func TestBranchListAndCheckout(t *testing.T) {
 	dir := branchRepo(t)
 	s := start(t, dir, []string{"branch"})
-	s.waitFrame("Branches", 0, "> main *", "merged", "unmerged", "origin/main",
-		"Last commit was", "This branch is up to date with origin/main.")
+	s.waitScreen("> main *", "merged", "unmerged", "origin/main", "Last commit was", "This branch is up to date with origin/main.")
+	s.matchScreen("branches")
 
 	s.send(down, down, enter)
 	if code := s.wait(); code != 0 {
@@ -38,10 +38,9 @@ func TestBranchCheckoutFailure(t *testing.T) {
 	dir := branchRepo(t)
 	gittest.WriteFile(t, dir, "a", "local change")
 	s := start(t, dir, []string{"branch"})
-	s.waitFrame("Branches", 0, "unmerged")
-	m := s.mark()
+	s.waitScreen("unmerged")
 	s.send(down, down, enter)
-	s.waitFrame("Branches", m, "would be overwritten by checkout")
+	s.waitScreen("would be overwritten by checkout")
 	if !s.running() {
 		t.Fatal("gitin exited after a failed checkout")
 	}
@@ -50,23 +49,20 @@ func TestBranchCheckoutFailure(t *testing.T) {
 func TestBranchDelete(t *testing.T) {
 	dir := branchRepo(t)
 	s := start(t, dir, []string{"branch"})
-	s.waitFrame("Branches", 0, "merged")
+	s.waitScreen("merged")
 
-	m := s.mark()
 	s.send(down, "d")
-	frame := s.waitFrame("Branches", m, "> unmerged")
-	if strings.Contains(frame, " merged\n") {
-		t.Fatalf("merged branch is still listed:\n%s", frame)
+	screen := s.waitScreen("> unmerged")
+	if strings.Contains(screen+"\n", " merged\n") {
+		t.Fatalf("merged branch is still listed:\n%s", screen)
 	}
 
-	m = s.mark()
 	s.send("d")
-	s.waitFrame("Branches", m, "not fully merged")
-	m = s.mark()
+	s.waitScreen("not fully merged") // git's hints differ between versions
 	s.send("D")
-	frame = s.waitFrame("Branches", m, "origin/main")
-	if strings.Contains(frame, "unmerged") {
-		t.Fatalf("unmerged branch is still listed:\n%s", frame)
+	screen = s.waitScreen("origin/main")
+	if strings.Contains(screen, "unmerged") {
+		t.Fatalf("unmerged branch is still listed:\n%s", screen)
 	}
 	if got := gittest.Git(t, dir, "branch", "--format=%(refname:short)"); got != "main" {
 		t.Fatalf("got branches %q", got)

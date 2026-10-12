@@ -294,6 +294,43 @@ func TestReadRuneTimeout(t *testing.T) {
 	}
 }
 
+// The terminal can deliver an escape sequence in two reads, the rest of an
+// arrow key must not be read as more keys
+func TestReadSplitEscapeSequence(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("no pseudo terminal: %v", err)
+	}
+	defer func() { _ = ptmx.Close() }()
+	defer func() { _ = tty.Close() }()
+	go func() { _, _ = io.Copy(io.Discard, ptmx) }()
+	if err := Init(tty, tty); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = Close() }()
+	rr := NewRuneReader(tty)
+
+	go func() {
+		_, _ = ptmx.Write([]byte("\x1b"))
+		time.Sleep(20 * time.Millisecond)
+		_, _ = ptmx.Write([]byte("[Bx"))
+	}()
+	for _, want := range []rune{ArrowDown, 'x'} {
+		r, _, err := rr.ReadRuneTimeout(5 * time.Second)
+		if err != nil || r != want {
+			t.Fatalf("got %q, %v, want %q", r, err, want)
+		}
+	}
+
+	// Esc alone is still Esc
+	if _, err := ptmx.Write([]byte("\x1b")); err != nil {
+		t.Fatal(err)
+	}
+	if r, _, err := rr.ReadRuneTimeout(5 * time.Second); err != nil || r != rune(KeyESC) {
+		t.Fatalf("got %q, %v, want Esc", r, err)
+	}
+}
+
 // A prompt can suspend itself to run a command, which can show a prompt of
 // its own. Every step leaves the terminal in the mode it needs.
 func TestNestedInitAndSuspend(t *testing.T) {

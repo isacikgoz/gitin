@@ -1,0 +1,16 @@
+Push
+> Run checks, then push
+  Push without checks
+
+main → origin/main, 1 commit:
+  [d8f6697] Add the checks
+Checks of .gitin.yml: Lint, Tests
+-- styles --
+1 faint "Push"
+2 cyan "> ", white "Run checks, then push"
+3 white "  Push without checks"
+5 yellow "main", faint " → ", cyan "origin/main", faint ", ", yellow "1 commit", faint ":"
+6 cyan "d8f6697"
+7 faint "Checks of .gitin.yml: "
+-- cursor --
+hidden

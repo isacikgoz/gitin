@@ -1,0 +1,12 @@
+Files
+> [A] 50% off.txt
+  [M] root.txt
+
+1 addition.
+-- styles --
+1 faint "Files"
+2 cyan "> ", cyan "A", white "50% off.txt"
+3 white "  ", cyan "M", white "root.txt"
+5 green "1", faint " addition."
+-- cursor --
+hidden

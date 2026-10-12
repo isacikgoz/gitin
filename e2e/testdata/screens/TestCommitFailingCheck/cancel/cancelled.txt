@@ -1,0 +1,23 @@
+Unstaged changes are set aside until the checks finish.
+▶ Lint  echo LINT ERROR >&2 …
+LINT ERROR
+✘ Lint failed after <duration>: exit status 3
+Files
+> [M] app.txt
+  [M] app.txt
+
+On branch main
+Your branch is not tracking a remote branch.
+Lint failed, nothing was committed
+-- styles --
+1 faint "Unstaged changes are set aside until the checks finish."
+2 bold "▶ Lint", faint "  echo LINT ERROR >&2 …"
+4 red "✘ Lint failed after <duration>: exit status 3"
+5 faint "Files"
+6 cyan "> ", cyan "M", green "app.txt"
+7 white "  ", cyan "M", red "app.txt"
+9 faint "On branch ", yellow "main"
+10 faint "Your branch is not tracking a remote branch."
+11 red "Lint failed, nothing was committed"
+-- cursor --
+hidden

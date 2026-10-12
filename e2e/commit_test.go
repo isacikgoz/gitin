@@ -9,9 +9,6 @@ import (
 	"github.com/isacikgoz/gitin/internal/gittest"
 )
 
-// commitScreen starts the prompt asking about the commit checks
-const commitScreen = "\nCommit\n"
-
 // commitRepo has commit checks and app.txt with a staged and an unstaged change
 func commitRepo(t *testing.T, checks string) string {
 	t.Helper()
@@ -50,15 +47,14 @@ func assertRestored(t *testing.T, dir string) {
 func TestCommitRunsChecksOnStagedChanges(t *testing.T) {
 	dir := commitRepo(t, stagedOnlyCheck)
 	s := start(t, dir, []string{"status"}, editor(t, "checked commit"))
-	s.waitFrame("Files", 0, "app.txt")
-	m := s.mark()
+	s.waitScreen("app.txt")
 	s.send("c")
-	s.waitFrame(commitScreen, m, "> Run checks, then commit", "Commit without checks", "Checks of .gitin.yml: Staged only",
+	s.waitScreen("> Run checks, then commit", "Commit without checks", "Checks of .gitin.yml: Staged only",
 		"Unstaged changes are set aside while they run, they check what gets committed.")
-	m = s.mark()
+	s.matchScreen("commit")
 	s.send(enter)
-	s.waitFrame("Files", m, "[M] app.txt")
-	out := s.text()[m:]
+	s.waitScreen("[M] app.txt", "1 file changed")
+	out := s.output()
 	for _, want := range []string{"Unstaged changes are set aside until the checks finish.", "STAGED ONLY", "✔ Staged only passed in", "1 file changed"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output does not show %q", want)
@@ -76,14 +72,12 @@ func TestCommitRunsChecksOnStagedChanges(t *testing.T) {
 func TestCommitWithoutChecks(t *testing.T) {
 	dir := commitRepo(t, stagedOnlyCheck)
 	s := start(t, dir, []string{"status"}, editor(t, "unchecked commit"))
-	s.waitFrame("Files", 0, "app.txt")
-	m := s.mark()
+	s.waitScreen("app.txt")
 	s.send("c")
-	s.waitFrame(commitScreen, m, "> Run checks, then commit")
-	m = s.mark()
+	s.waitScreen("> Run checks, then commit")
 	s.send(down, enter)
-	s.waitFrame("Files", m, "[M] app.txt")
-	if strings.Contains(s.text(), "STAGED ONLY") {
+	s.waitScreen("[M] app.txt", "1 file changed")
+	if strings.Contains(s.output(), "STAGED ONLY") {
 		t.Fatal("the checks ran")
 	}
 	if got := lastCommit(t, dir); got != "unchecked commit" {
@@ -95,14 +89,12 @@ func TestCommitWithoutChecks(t *testing.T) {
 func TestCommitCancel(t *testing.T) {
 	dir := commitRepo(t, stagedOnlyCheck)
 	s := start(t, dir, []string{"status"}, editor(t, "cancelled"))
-	s.waitFrame("Files", 0, "app.txt")
-	m := s.mark()
+	s.waitScreen("app.txt")
 	s.send("c")
-	s.waitFrame(commitScreen, m, "> Run checks, then commit")
-	m = s.mark()
+	s.waitScreen("> Run checks, then commit")
 	s.send("q")
-	s.waitFrame("Files", m, "> [M] app.txt")
-	if got := lastCommit(t, dir); got != "base" || strings.Contains(s.text(), "STAGED ONLY") {
+	s.waitScreen("> [M] app.txt")
+	if got := lastCommit(t, dir); got != "base" || strings.Contains(s.output(), "STAGED ONLY") {
 		t.Fatalf("got last commit %q", got)
 	}
 	if !s.running() {
@@ -116,15 +108,15 @@ func TestCommitFailingCheck(t *testing.T) {
 	t.Run("cancel", func(t *testing.T) {
 		dir := commitRepo(t, failing)
 		s := start(t, dir, []string{"status"}, editor(t, "failed"))
-		s.waitFrame("Files", 0, "app.txt")
+		s.waitScreen("app.txt")
 		s.send("c")
-		s.waitFrame(commitScreen, 0, "> Run checks, then commit")
-		m := s.mark()
+		s.waitScreen("> Run checks, then commit")
 		s.send(enter)
-		s.waitFrame(commitScreen, m, "> Cancel", "Commit anyway", "Lint failed (exit status 3), nothing was committed yet.")
-		m = s.mark()
+		s.waitScreen("> Cancel", "Commit anyway", "Lint failed (exit status 3), nothing was committed yet.")
+		s.matchScreen("failed")
 		s.send(enter)
-		s.waitFrame("Files", m, "app.txt", "Lint failed, nothing was committed")
+		s.waitScreen("app.txt", "Lint failed, nothing was committed")
+		s.matchScreen("cancelled")
 		if got := lastCommit(t, dir); got != "base" {
 			t.Fatalf("got last commit %q", got)
 		}
@@ -134,15 +126,13 @@ func TestCommitFailingCheck(t *testing.T) {
 	t.Run("commit anyway", func(t *testing.T) {
 		dir := commitRepo(t, failing)
 		s := start(t, dir, []string{"status"}, editor(t, "committed anyway"))
-		s.waitFrame("Files", 0, "app.txt")
+		s.waitScreen("app.txt")
 		s.send("c")
-		s.waitFrame(commitScreen, 0, "> Run checks, then commit")
-		m := s.mark()
+		s.waitScreen("> Run checks, then commit")
 		s.send(enter)
-		s.waitFrame(commitScreen, m, "> Cancel")
-		m = s.mark()
+		s.waitScreen("> Cancel")
 		s.send(down, enter)
-		s.waitFrame("Files", m, "[M] app.txt")
+		s.waitScreen("[M] app.txt", "1 file changed")
 		if got := lastCommit(t, dir); got != "committed anyway" {
 			t.Fatalf("got last commit %q", got)
 		}
@@ -154,15 +144,13 @@ func TestCommitStopCheck(t *testing.T) {
 	// the header shows the command, the output must differ from it
 	dir := commitRepo(t, "    - name: Slow\n      run: printf 'CHECK %s\\n' STARTED; sleep 30\n")
 	s := start(t, dir, []string{"status"}, editor(t, "stopped"))
-	s.waitFrame("Files", 0, "app.txt")
+	s.waitScreen("app.txt")
 	s.send("c")
-	s.waitFrame(commitScreen, 0, "> Run checks, then commit")
-	m := s.mark()
+	s.waitScreen("> Run checks, then commit")
 	s.send(enter)
-	s.waitText(m, "CHECK STARTED")
-	m = s.mark()
+	s.waitOutput("CHECK STARTED")
 	s.send(ctrlC)
-	s.waitFrame("Files", m, "app.txt", "the checks were stopped, nothing was committed")
+	s.waitScreen("app.txt", "the checks were stopped, nothing was committed")
 	if got := lastCommit(t, dir); got != "base" {
 		t.Fatalf("got last commit %q", got)
 	}
@@ -174,14 +162,13 @@ func TestCommitStopCheck(t *testing.T) {
 func TestCommitCheckRewritesFile(t *testing.T) {
 	dir := commitRepo(t, "    - name: Format\n      run: echo formatted > app.txt\n")
 	s := start(t, dir, []string{"status"}, editor(t, "formatted"))
-	s.waitFrame("Files", 0, "app.txt")
+	s.waitScreen("app.txt")
 	s.send("c")
-	s.waitFrame(commitScreen, 0, "> Run checks, then commit")
-	m := s.mark()
+	s.waitScreen("> Run checks, then commit")
 	s.send(enter)
-	s.waitFrame("Files", m, "app.txt")
-	if !strings.Contains(s.text()[m:], "The checks changed files with unstaged changes, their changes were undone to restore yours.") {
-		t.Fatalf("got output %q", s.text()[m:])
+	s.waitScreen("app.txt", "1 file changed")
+	if !strings.Contains(s.output(), "The checks changed files with unstaged changes, their changes were undone to restore yours.") {
+		t.Fatalf("got output %q", s.output())
 	}
 	if got := lastCommit(t, dir); got != "formatted" {
 		t.Fatalf("got last commit %q", got)
@@ -192,14 +179,13 @@ func TestCommitCheckRewritesFile(t *testing.T) {
 func TestAmendRunsChecks(t *testing.T) {
 	dir := commitRepo(t, stagedOnlyCheck)
 	s := start(t, dir, []string{"status"}, editor(t, "amended base"))
-	s.waitFrame("Files", 0, "app.txt")
-	m := s.mark()
+	s.waitScreen("app.txt")
 	s.send("m")
-	s.waitFrame("\nAmend\n", m, "> Run checks, then amend", "Amend without checks")
-	m = s.mark()
+	s.waitScreen("> Run checks, then amend", "Amend without checks")
+	s.matchScreen("amend")
 	s.send(enter)
-	s.waitFrame("Files", m, "app.txt")
-	if !strings.Contains(s.text()[m:], "STAGED ONLY") {
+	s.waitScreen("app.txt", "2 files changed") // the amended commit is the root commit
+	if !strings.Contains(s.output(), "STAGED ONLY") {
 		t.Fatal("the checks did not run")
 	}
 	if got := gittest.Git(t, dir, "log", "--format=%s"); got != "amended base" {
@@ -212,11 +198,10 @@ func TestCommitChecksNeedStagedChanges(t *testing.T) {
 	dir := commitRepo(t, stagedOnlyCheck)
 	gittest.Git(t, dir, "reset", "--quiet")
 	s := start(t, dir, []string{"status"}, editor(t, "nothing"))
-	s.waitFrame("Files", 0, "app.txt")
-	m := s.mark()
+	s.waitScreen("app.txt")
 	s.send("c")
-	s.waitFrame("Files", m, "nothing to commit, stage changes with space or a first")
-	if strings.Contains(s.text(), "Run checks") {
+	s.waitScreen("nothing to commit, stage changes with space or a first")
+	if strings.Contains(s.output(), "Run checks") {
 		t.Fatal("asked to run checks without anything to commit")
 	}
 }
@@ -225,12 +210,11 @@ func TestCommitWithLeftOverChanges(t *testing.T) {
 	dir := commitRepo(t, stagedOnlyCheck)
 	gittest.WriteFile(t, dir, ".git/gitin/unstaged.patch", "changes of a run that crashed")
 	s := start(t, dir, []string{"status"}, editor(t, "blocked"))
-	s.waitFrame("Files", 0, "app.txt")
+	s.waitScreen("app.txt")
 	s.send("c")
-	s.waitFrame(commitScreen, 0, "> Run checks, then commit")
-	m := s.mark()
+	s.waitScreen("> Run checks, then commit")
 	s.send(enter)
-	s.waitFrame("Files", m, "unstaged changes set aside earlier are still in")
+	s.waitScreen("unstaged changes set aside earlier are still in")
 	if got := lastCommit(t, dir); got != "base" {
 		t.Fatalf("got last commit %q", got)
 	}

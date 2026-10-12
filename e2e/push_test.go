@@ -7,10 +7,6 @@ import (
 	"github.com/isacikgoz/gitin/internal/gittest"
 )
 
-// pushScreen starts the push prompt, the title line alone since the
-// choices contain "Push" as well
-const pushScreen = "\nPush\n"
-
 const checksConfig = `push:
   checks:
     - name: Lint
@@ -37,17 +33,18 @@ func pushed(t *testing.T, remote, clone string) bool {
 func TestPushRunsChecks(t *testing.T) {
 	remote, clone := pushRepo(t)
 	s := start(t, clone, []string{"push"}, "TESTS_EXIT=0")
-	frame := s.waitFrame(pushScreen, 0, "> Run checks, then push", "Push without checks",
+	screen := s.waitScreen("> Run checks, then push", "Push without checks",
 		"main → origin/main, 1 commit:", "] Add the checks", "Checks of .gitin.yml: Lint, Tests")
-	if strings.Contains(frame, "Cancel") {
-		t.Fatalf("offers Cancel, q cancels:\n%s", frame)
+	if strings.Contains(screen, "Cancel") {
+		t.Fatalf("offers Cancel, q cancels:\n%s", screen)
 	}
+	s.matchScreen("push")
 
 	s.send(enter)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
 	}
-	out := s.text()
+	out := s.output()
 	for _, want := range []string{"▶ Lint", "LINT RAN", "✔ Lint passed in", "TESTS RAN", "✔ Tests passed in", "▶ Pushing main to origin/main", "main -> main"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output does not show %q", want)
@@ -61,12 +58,12 @@ func TestPushRunsChecks(t *testing.T) {
 func TestPushWithoutChecks(t *testing.T) {
 	remote, clone := pushRepo(t)
 	s := start(t, clone, []string{"push"}, "TESTS_EXIT=0")
-	s.waitFrame(pushScreen, 0, "> Run checks, then push")
+	s.waitScreen("> Run checks, then push")
 	s.send(down, enter)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
 	}
-	if strings.Contains(s.text(), "LINT RAN") {
+	if strings.Contains(s.output(), "LINT RAN") {
 		t.Fatal("checks ran")
 	}
 	if !pushed(t, remote, clone) {
@@ -82,13 +79,13 @@ func TestPushCancel(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			remote, clone := pushRepo(t)
 			s := start(t, clone, []string{"push"}, "TESTS_EXIT=0")
-			s.waitFrame(pushScreen, 0, "> Run checks, then push")
+			s.waitScreen("> Run checks, then push")
 			s.send(keys...)
 			if code := s.wait(); code != 0 {
 				t.Fatalf("got exit code %d", code)
 			}
-			if !strings.Contains(s.text(), "Push cancelled.") || strings.Contains(s.text(), "LINT RAN") {
-				t.Fatalf("got output %q", s.text())
+			if !strings.Contains(s.output(), "Push cancelled.") || strings.Contains(s.output(), "LINT RAN") {
+				t.Fatalf("got output %q", s.output())
 			}
 			if pushed(t, remote, clone) {
 				t.Fatal("pushed although cancelled")
@@ -101,16 +98,16 @@ func TestPushFailingCheck(t *testing.T) {
 	t.Run("cancel", func(t *testing.T) {
 		remote, clone := pushRepo(t)
 		s := start(t, clone, []string{"push"}, "TESTS_EXIT=3")
-		s.waitFrame(pushScreen, 0, "> Run checks, then push")
-		m := s.mark()
+		s.waitScreen("> Run checks, then push")
 		s.send(enter)
-		s.waitFrame(pushScreen, m, "> Cancel", "Push anyway", "Tests failed (exit status 3), nothing was pushed yet.")
+		s.waitScreen("> Cancel", "Push anyway", "Tests failed (exit status 3), nothing was pushed yet.")
+		s.matchScreen("failed")
 		s.send(enter)
 		if code := s.wait(); code != 1 {
 			t.Fatalf("got exit code %d, want 1", code)
 		}
-		if !strings.Contains(s.text(), "✘ Tests failed after") || !strings.Contains(s.text(), "Tests failed, nothing was pushed") {
-			t.Fatalf("got output %q", s.text())
+		if !strings.Contains(s.output(), "✘ Tests failed after") || !strings.Contains(s.output(), "Tests failed, nothing was pushed") {
+			t.Fatalf("got output %q", s.output())
 		}
 		if pushed(t, remote, clone) {
 			t.Fatal("pushed although a check failed")
@@ -120,10 +117,9 @@ func TestPushFailingCheck(t *testing.T) {
 	t.Run("push anyway", func(t *testing.T) {
 		remote, clone := pushRepo(t)
 		s := start(t, clone, []string{"push"}, "TESTS_EXIT=3")
-		s.waitFrame(pushScreen, 0, "> Run checks, then push")
-		m := s.mark()
+		s.waitScreen("> Run checks, then push")
 		s.send(enter)
-		s.waitFrame(pushScreen, m, "> Cancel")
+		s.waitScreen("> Cancel")
 		s.send(down, enter)
 		if code := s.wait(); code != 0 {
 			t.Fatalf("got exit code %d", code)
@@ -138,16 +134,15 @@ func TestPushStopCheck(t *testing.T) {
 	remote, clone := gittest.NewRemote(t)
 	gittest.Commit(t, clone, "Slow check", map[string]string{".gitin.yml": "push:\n  checks:\n    - name: Slow\n      run: printf 'CHECK %s\\n' STARTED; sleep 30\n"})
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "> Run checks, then push")
-	m := s.mark()
+	s.waitScreen("> Run checks, then push")
 	s.send(enter)
-	s.waitText(m, "CHECK STARTED")
+	s.waitOutput("CHECK STARTED")
 	s.send(ctrlC)
 	if code := s.wait(); code != 1 {
 		t.Fatalf("got exit code %d, want 1", code)
 	}
-	if !strings.Contains(s.text(), "✘ Slow stopped after") || !strings.Contains(s.text(), "push cancelled") {
-		t.Fatalf("got output %q", s.text())
+	if !strings.Contains(s.output(), "✘ Slow stopped after") || !strings.Contains(s.output(), "push cancelled") {
+		t.Fatalf("got output %q", s.output())
 	}
 	if pushed(t, remote, clone) {
 		t.Fatal("pushed although the check was stopped")
@@ -159,16 +154,15 @@ func TestPushCheckReadsInput(t *testing.T) {
 	remote, clone := gittest.NewRemote(t)
 	gittest.Commit(t, clone, "Asking check", map[string]string{".gitin.yml": "push:\n  checks:\n    - run: |\n        echo 'Continue? '\n        read answer\n        echo \"ANSWER=$answer\"\n        test \"$answer\" = yes\n"})
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "> Run checks, then push")
-	m := s.mark()
+	s.waitScreen("> Run checks, then push")
 	s.send(enter)
-	s.waitText(m, "Continue?")
+	s.waitOutput("Continue?")
 	s.send("yes\r")
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
 	}
-	if !strings.Contains(s.text(), "ANSWER=yes") {
-		t.Fatalf("the check did not get the whole answer: %q", s.text())
+	if !strings.Contains(s.output(), "ANSWER=yes") {
+		t.Fatalf("the check did not get the whole answer: %q", s.output())
 	}
 	if !pushed(t, remote, clone) {
 		t.Fatal("nothing was pushed")
@@ -179,10 +173,11 @@ func TestPushWithoutConfiguration(t *testing.T) {
 	remote, clone := gittest.NewRemote(t)
 	gittest.Commit(t, clone, "change", nil)
 	s := start(t, clone, []string{"push"})
-	frame := s.waitFrame(pushScreen, 0, "> Push", "No checks, add them to .git/gitin/config.yml to run them before pushing.")
-	if strings.Contains(frame, "Run checks") || strings.Contains(frame, "Cancel") {
-		t.Fatalf("offers checks without any:\n%s", frame)
+	screen := s.waitScreen("> Push", "No checks, add them to .git/gitin/config.yml to run them before pushing.")
+	if strings.Contains(screen, "Run checks") || strings.Contains(screen, "Cancel") {
+		t.Fatalf("offers checks without any:\n%s", screen)
 	}
+	s.matchScreen("push")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
@@ -197,7 +192,8 @@ func TestPushNewBranch(t *testing.T) {
 	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic")
 	gittest.Commit(t, clone, "topic work", nil)
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
+	s.waitScreen("New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
+	s.matchScreen("push")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
@@ -217,10 +213,10 @@ func TestPushUpstreamWithAnotherName(t *testing.T) {
 	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic", "origin/main")
 	gittest.Commit(t, clone, "topic work", nil)
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
+	s.waitScreen("New branch topic is pushed to origin/topic with 1 commit:", "] topic work")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
-		t.Fatalf("got exit code %d\n%s", code, s.text())
+		t.Fatalf("got exit code %d\n%s", code, s.output())
 	}
 	if gittest.Git(t, remote, "rev-parse", "topic") != gittest.Git(t, clone, "rev-parse", "HEAD") {
 		t.Fatal("topic was not pushed")
@@ -243,13 +239,14 @@ func TestPushNewBranchToPushDefault(t *testing.T) {
 	gittest.Git(t, clone, "checkout", "--quiet", "-b", "topic")
 	gittest.Commit(t, clone, "topic work", nil)
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "New branch topic is pushed to fork/topic with 2 commits:", "] topic work")
+	s.waitScreen("New branch topic is pushed to fork/topic with 2 commits:", "] topic work")
+	s.matchScreen("push")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
-		t.Fatalf("got exit code %d\n%s", code, s.text())
+		t.Fatalf("got exit code %d\n%s", code, s.output())
 	}
-	if !strings.Contains(s.text(), "Pushing topic to fork/topic") {
-		t.Fatalf("got output %q", s.text())
+	if !strings.Contains(s.output(), "Pushing topic to fork/topic") {
+		t.Fatalf("got output %q", s.output())
 	}
 	if gittest.Git(t, fork, "rev-parse", "topic") != gittest.Git(t, clone, "rev-parse", "HEAD") {
 		t.Fatal("topic was not pushed to the fork")
@@ -268,13 +265,14 @@ func TestPushRejected(t *testing.T) {
 	gittest.Git(t, clone, "fetch", "--quiet")
 
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "origin/main has 1 commit main doesn't have, the push is rejected until you pull it.")
+	s.waitScreen("origin/main has 1 commit main doesn't have, the push is rejected until you pull it.")
+	s.matchScreen("push")
 	s.send(enter)
 	if code := s.wait(); code != 1 {
 		t.Fatalf("got exit code %d, want 1", code)
 	}
-	if !strings.Contains(s.text(), "rejected") || !strings.Contains(s.text(), "git push failed") {
-		t.Fatalf("got output %q", s.text())
+	if !strings.Contains(s.output(), "rejected") || !strings.Contains(s.output(), "git push failed") {
+		t.Fatalf("got output %q", s.output())
 	}
 }
 
@@ -313,10 +311,10 @@ func TestPushFromSubdirectory(t *testing.T) {
 		"sub/file":   "x",
 	})
 	s := start(t, clone+"/sub", []string{"push"})
-	s.waitFrame(pushScreen, 0, "> Run checks, then push", "Checks of .gitin.yml: In the root")
+	s.waitScreen("> Run checks, then push", "Checks of .gitin.yml: In the root")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
-		t.Fatalf("got exit code %d: %s", code, s.text())
+		t.Fatalf("got exit code %d: %s", code, s.output())
 	}
 	if !pushed(t, remote, clone) {
 		t.Fatal("nothing was pushed")

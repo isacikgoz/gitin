@@ -1,0 +1,22 @@
+▶ Lint  echo LINT RAN
+LINT RAN
+✔ Lint passed in <duration>
+▶ Tests  echo TESTS RAN …
+TESTS RAN
+✘ Tests failed after <duration>: exit status 3
+Push
+> Cancel
+  Push anyway
+
+Tests failed (exit status 3), nothing was pushed yet.
+-- styles --
+1 bold "▶ Lint", faint "  echo LINT RAN"
+3 green "✔ Lint passed in <duration>"
+4 bold "▶ Tests", faint "  echo TESTS RAN …"
+6 red "✘ Tests failed after <duration>: exit status 3"
+7 faint "Push"
+8 cyan "> ", white "Cancel"
+9 white "  Push anyway"
+11 yellow "Tests", red " failed (exit status 3), nothing was pushed yet."
+-- cursor --
+hidden

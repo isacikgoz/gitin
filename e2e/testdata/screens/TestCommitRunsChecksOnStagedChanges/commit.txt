@@ -1,0 +1,14 @@
+Commit
+> Run checks, then commit
+  Commit without checks
+
+Checks of .gitin.yml: Staged only
+Unstaged changes are set aside while they run, they check what gets committed.
+-- styles --
+1 faint "Commit"
+2 cyan "> ", white "Run checks, then commit"
+3 white "  Commit without checks"
+5 faint "Checks of .gitin.yml: "
+6 faint "Unstaged changes are set aside while they run, they check what gets committed."
+-- cursor --
+hidden

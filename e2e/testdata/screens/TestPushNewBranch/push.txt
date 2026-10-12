@@ -1,0 +1,14 @@
+Push
+> Push
+
+New branch topic is pushed to origin/topic with 1 commit:
+  [8b850ef] topic work
+No checks, add them to .git/gitin/config.yml to run them before pushing.
+-- styles --
+1 faint "Push"
+2 cyan "> ", white "Push"
+4 faint "New branch ", yellow "topic", faint " is pushed to ", cyan "origin/topic", faint " with ", yellow "1 commit", faint ":"
+5 cyan "8b850ef"
+6 faint "No checks, add them to .git/gitin/config.yml to run them before pushing."
+-- cursor --
+hidden

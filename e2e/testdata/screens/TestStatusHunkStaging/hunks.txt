@@ -1,0 +1,77 @@
+diff --git a/modified.txt b/modified.txt
+index f00c965..c261f35 100644
+--- a/modified.txt
++++ b/modified.txt
+█ @@ -1,4 +1,4 @@
+█ -1
+█ +one
+█  2
+█  3
+█  4
+▎ @@ -7,4 +7,4 @@
+▎  7
+▎  8
+▎  9
+▎ -10
+▎ +ten
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+(END)
+-- styles --
+1 bold "diff --git a/modified.txt b/modified.txt"
+2 bold "index f00c965..c261f35 100644"
+3 bold "--- a/modified.txt"
+4 bold "+++ b/modified.txt"
+5 cyan "@@ -1,4 +1,4 @@ "
+6 red "-1"
+7 green "+one"
+11 cyan "@@ -7,4 +7,4 @@ "
+15 red "-10"
+16 green "+ten"
+17 bold "~"
+18 bold "~"
+19 bold "~"
+20 bold "~"
+21 bold "~"
+22 bold "~"
+23 bold "~"
+24 bold "~"
+25 bold "~"
+26 bold "~"
+27 bold "~"
+28 bold "~"
+29 bold "~"
+30 bold "~"
+31 bold "~"
+32 bold "~"
+33 bold "~"
+34 bold "~"
+35 bold "~"
+36 bold "~"
+37 bold "~"
+38 bold "~"
+39 bold "~"
+40 black on white "(END)"
+-- cursor --
+row 5, column 1

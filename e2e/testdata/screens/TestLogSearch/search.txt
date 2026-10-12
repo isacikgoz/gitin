@@ -1,0 +1,14 @@
+Search Commits add█
+> [881166e] add parser
+  [e24ee92] add renderer
+
+Author Ada Lovelace <ada@example.com>
+When   <time>
+-- styles --
+1 faint "Search Commits ", white "add", faint rapid blink "█"
+2 cyan "> ", cyan "881166e", underline white "add", white " parser"
+3 white "  ", cyan "e24ee92", underline white "add", white " renderer"
+5 faint "Author ", white "Ada Lovelace <ada@example.com>"
+6 faint "When", white "   <time>"
+-- cursor --
+hidden

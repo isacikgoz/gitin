@@ -26,7 +26,7 @@ func TestReadKey(t *testing.T) {
 		in := bufio.NewReader(strings.NewReader(input))
 		var got []rune
 		for range want {
-			r, _, err := readKey(in)
+			r, _, err := readKey(in, func() bool { return false })
 			if err != nil {
 				t.Fatalf("%q: %v", input, err)
 			}

@@ -45,8 +45,9 @@ func editor(t *testing.T, message string) string {
 
 func TestStatusShowsEntries(t *testing.T) {
 	s := start(t, statusRepo(t), []string{"status"})
-	s.waitFrame("Files", 0, "[D] deleted.txt", "[M] modified.txt", "[U] new.txt", "On branch main",
+	s.waitScreen("[D] deleted.txt", "[M] modified.txt", "[U] new.txt", "On branch main",
 		"Your branch is not tracking a remote branch.")
+	s.matchScreen("files")
 	s.send("q")
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
@@ -55,21 +56,18 @@ func TestStatusShowsEntries(t *testing.T) {
 
 func TestStatusDiffs(t *testing.T) {
 	s := start(t, statusRepo(t), []string{"status"})
-	s.waitFrame("Files", 0, "deleted.txt")
+	s.waitScreen("deleted.txt")
 
 	// the staged deletion
-	m := s.mark()
 	s.send(enter)
-	s.waitText(m, "deleted file mode")
+	s.waitOutput("deleted file mode")
 
-	m = s.mark()
 	s.send(down, enter)
-	s.waitText(m, "+one", "+ten")
+	s.waitOutput("+one", "+ten")
 
 	// an untracked file is shown as a new file
-	m = s.mark()
 	s.send(down, enter)
-	s.waitText(m, "+brand")
+	s.waitOutput("+brand")
 	if !s.running() {
 		t.Fatal("gitin exited")
 	}
@@ -78,25 +76,22 @@ func TestStatusDiffs(t *testing.T) {
 func TestStatusStageAndUnstage(t *testing.T) {
 	dir := statusRepo(t)
 	s := start(t, dir, []string{"status"})
-	s.waitFrame("Files", 0, "deleted.txt")
+	s.waitScreen("deleted.txt")
 
-	m := s.mark()
 	s.send(" ") // unstage the deletion
-	s.waitFrame("Files", m, "> [D] deleted.txt")
+	s.waitScreen("> [D] deleted.txt")
 	if got := shortStatus(t, dir); !strings.Contains(got, " D deleted.txt") {
 		t.Fatalf("got\n%s", got)
 	}
 
-	m = s.mark()
 	s.send("a")
-	s.waitFrame("Files", m, "[A] new.txt")
+	s.waitScreen("[A] new.txt")
 	if got := shortStatus(t, dir); got != "D  deleted.txt\nM  modified.txt\nA  new.txt" {
 		t.Fatalf("after add all got\n%s", got)
 	}
 
-	m = s.mark()
 	s.send("r")
-	s.waitFrame("Files", m, "[U] new.txt")
+	s.waitScreen("[U] new.txt")
 	if got := shortStatus(t, dir); got != " D deleted.txt\n M modified.txt\n?? new.txt" {
 		t.Fatalf("after reset all got\n%s", got)
 	}
@@ -105,18 +100,17 @@ func TestStatusStageAndUnstage(t *testing.T) {
 func TestStatusDiscard(t *testing.T) {
 	dir := statusRepo(t)
 	s := start(t, dir, []string{"status"})
-	s.waitFrame("Files", 0, "deleted.txt")
+	s.waitScreen("deleted.txt")
 
-	m := s.mark()
 	s.send("!")
-	s.waitFrame("Files", m, "staged changes are not discarded, press space to unstage them first")
+	s.waitScreen("staged changes are not discarded, press space to unstage them first")
+	s.matchScreen("staged changes")
 
 	s.send(down, down)
-	s.waitSelected("Files", m, "new.txt")
-	m = s.mark()
+	s.waitSelected("new.txt")
 	s.send("!")
-	s.waitUntil("Files", m, "new.txt removed", func(frame string) bool {
-		return strings.Contains(frame, "modified.txt") && !strings.Contains(frame, "new.txt")
+	s.waitUntil("new.txt removed", func(screen string) bool {
+		return strings.Contains(screen, "modified.txt") && !strings.Contains(screen, "new.txt")
 	})
 	if _, err := os.Stat(filepath.Join(dir, "new.txt")); !os.IsNotExist(err) {
 		t.Fatal("untracked file was not removed")
@@ -129,15 +123,18 @@ func TestStatusDiscard(t *testing.T) {
 func TestStatusHunkStaging(t *testing.T) {
 	dir := statusRepo(t)
 	s := start(t, dir, []string{"status"})
-	s.waitFrame("Files", 0, "modified.txt")
+	s.waitScreen("modified.txt")
 
 	// stage the first of the two hunks of modified.txt
-	m := s.mark()
 	s.send(down, "p")
-	s.waitText(m, "+one", "+ten")
-	m = s.mark()
+	s.waitScreen("+one", "+ten")
+	s.matchScreen("hunks")
 	s.send(" ", "q")
-	s.waitFrame("Files", m, "modified.txt")
+	// listed twice, staged and not staged
+	s.waitUntil("modified.txt twice", func(screen string) bool {
+		return strings.Count(screen, "[M] modified.txt") == 2
+	})
+	s.matchScreen("partly staged")
 	if got := shortStatus(t, dir); !strings.Contains(got, "MM modified.txt") {
 		t.Fatalf("got\n%s", got)
 	}
@@ -149,26 +146,24 @@ func TestStatusHunkStaging(t *testing.T) {
 	}
 
 	// a new file has a single hunk
-	m = s.mark()
 	s.send(down, down, "p")
-	s.waitText(m, "+brand")
-	m = s.mark()
+	s.waitScreen("+brand")
 	s.send(" ", "q")
-	s.waitFrame("Files", m, "[A] new.txt")
+	s.waitScreen("[A] new.txt")
 }
 
 func TestStatusCommit(t *testing.T) {
 	dir := statusRepo(t)
 	gittest.Git(t, dir, "add", "--all")
 	s := start(t, dir, []string{"status"}, editor(t, "commit from gitin"))
-	s.waitFrame("Files", 0, "deleted.txt")
+	s.waitScreen("deleted.txt")
 	s.send("c")
 	// the working tree is clean afterwards, gitin says so and exits
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
 	}
-	if !strings.Contains(s.text(), "3 files changed") || !strings.Contains(s.text(), "Nothing to commit, working tree clean") {
-		t.Fatalf("got output %q", s.text())
+	if !strings.Contains(s.output(), "3 files changed") || !strings.Contains(s.output(), "Nothing to commit, working tree clean") {
+		t.Fatalf("got output %q", s.output())
 	}
 	if got := gittest.Git(t, dir, "log", "-1", "--format=%s"); got != "commit from gitin" {
 		t.Fatalf("got last commit %q", got)
@@ -178,10 +173,9 @@ func TestStatusCommit(t *testing.T) {
 func TestStatusAmend(t *testing.T) {
 	dir := statusRepo(t)
 	s := start(t, dir, []string{"status"}, editor(t, "amended base"))
-	s.waitFrame("Files", 0, "deleted.txt")
-	m := s.mark()
+	s.waitScreen("deleted.txt")
 	s.send("m")
-	s.waitFrame("Files", m, "modified.txt")
+	s.waitScreen("modified.txt")
 	if got := gittest.Git(t, dir, "log", "--format=%s"); got != "amended base" {
 		t.Fatalf("got commits %q", got)
 	}
@@ -195,10 +189,10 @@ func TestStatusShowsRejectedCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := start(t, dir, []string{"status"}, editor(t, "rejected"))
-	s.waitFrame("Files", 0, "deleted.txt")
-	m := s.mark()
+	s.waitScreen("deleted.txt")
 	s.send("c")
-	s.waitFrame("Files", m, "HOOK REJECTED: fix lint first")
+	s.waitScreen("HOOK REJECTED: fix lint first")
+	s.matchScreen("rejected")
 	if got := gittest.Git(t, dir, "log", "--format=%s"); got != "base" {
 		t.Fatalf("got commits %q", got)
 	}
@@ -217,17 +211,16 @@ func TestStatusFromSubdirectory(t *testing.T) {
 	dir := statusRepo(t)
 	gittest.WriteFile(t, dir, "sub/dir/file.txt", "x")
 	s := start(t, filepath.Join(dir, "sub", "dir"), []string{"status"})
-	s.waitFrame("Files", 0, "deleted.txt", "sub/")
-	m := s.mark()
+	s.waitScreen("deleted.txt", "sub/")
 	s.send("a") // paths are relative to the root of the working tree
-	s.waitFrame("Files", m, "[A] sub/dir/file.txt")
+	s.waitScreen("[A] sub/dir/file.txt")
 }
 
 func TestStatusDetachedHead(t *testing.T) {
 	dir := statusRepo(t)
 	gittest.Git(t, dir, "checkout", "--quiet", "--detach")
 	s := start(t, dir, []string{"status"})
-	s.waitFrame("Files", 0, "HEAD detached at ")
+	s.waitScreen("HEAD detached at ")
 }
 
 func TestStatusAheadOfUpstream(t *testing.T) {
@@ -237,5 +230,5 @@ func TestStatusAheadOfUpstream(t *testing.T) {
 	gittest.Commit(t, dir, "local", map[string]string{"a": "2"})
 	gittest.WriteFile(t, dir, "a", "3")
 	s := start(t, dir, []string{"status"})
-	s.waitFrame("Files", 0, "Your branch is ahead of origin/main by 1 commit(s).")
+	s.waitScreen("Your branch is ahead of origin/main by 1 commit(s).")
 }

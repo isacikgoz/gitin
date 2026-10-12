@@ -1,0 +1,16 @@
+Push
+> Push
+
+New branch topic is pushed to fork/topic with 2 commits:
+  [8b850ef] topic work
+  [b0f7e5e] initial commit
+No checks, add them to .git/gitin/config.yml to run them before pushing.
+-- styles --
+1 faint "Push"
+2 cyan "> ", white "Push"
+4 faint "New branch ", yellow "topic", faint " is pushed to ", cyan "fork/topic", faint " with ", yellow "2 commits", faint ":"
+5 cyan "8b850ef"
+6 cyan "b0f7e5e"
+7 faint "No checks, add them to .git/gitin/config.yml to run them before pushing."
+-- cursor --
+hidden

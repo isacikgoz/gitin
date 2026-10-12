@@ -18,13 +18,13 @@ func TestPersonalChecks(t *testing.T) {
 	}
 
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "> Run checks, then push", "Checks of .git/gitin/config.yml: Mine")
+	s.waitScreen("> Run checks, then push", "Checks of .git/gitin/config.yml: Mine")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
 	}
-	if !strings.Contains(s.text(), "MINE RAN") || !pushed(t, remote, clone) {
-		t.Fatalf("got output %q", s.text())
+	if !strings.Contains(s.output(), "MINE RAN") || !pushed(t, remote, clone) {
+		t.Fatalf("got output %q", s.output())
 	}
 }
 
@@ -35,12 +35,13 @@ func TestSharedAndPersonalChecks(t *testing.T) {
 	gittest.WriteFile(t, clone, ".git/gitin/config.yml", "push:\n  checks:\n    - name: Mine\n      run: printf 'MINE %s\\n' RAN\n")
 
 	s := start(t, clone, []string{"push"})
-	s.waitFrame(pushScreen, 0, "Checks of .gitin.yml and .git/gitin/config.yml: Team, Mine")
+	s.waitScreen("Checks of .gitin.yml and .git/gitin/config.yml: Team, Mine")
+	s.matchScreen("push")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
 	}
-	out := s.text()
+	out := s.output()
 	if team, mine := strings.Index(out, "TEAM RAN"), strings.Index(out, "MINE RAN"); team < 0 || mine < team {
 		t.Fatalf("got output %q", out)
 	}
@@ -56,16 +57,14 @@ func TestPersonalChecksInWorktree(t *testing.T) {
 	gittest.Git(t, linked, "add", "new.txt")
 
 	s := start(t, linked, []string{"status"}, editor(t, "from the worktree"))
-	s.waitFrame("Files", 0, "new.txt")
-	m := s.mark()
+	s.waitScreen("new.txt")
 	s.send("c")
-	s.waitFrame(commitScreen, m, "> Run checks, then commit", "Checks of ")
-	m = s.mark()
+	s.waitScreen("> Run checks, then commit", "Checks of ")
 	s.send(enter)
 	if code := s.wait(); code != 0 {
 		t.Fatalf("got exit code %d", code)
 	}
-	if !strings.Contains(s.text()[m:], "MINE RAN") || lastCommit(t, linked) != "from the worktree" {
-		t.Fatalf("got output %q", s.text()[m:])
+	if !strings.Contains(s.output(), "MINE RAN") || lastCommit(t, linked) != "from the worktree" {
+		t.Fatalf("got output %q", s.output())
 	}
 }

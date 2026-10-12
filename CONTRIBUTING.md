@@ -15,7 +15,16 @@ If you are adding a new feature/improving performance:
 - Possible Drawbacks
 - How did you conduct the verification process
 
-Before submitting, run `make test`. Changes that a user can see should come with an end-to-end test in [e2e](e2e), it runs gitin in a pseudo terminal like a user does.
+Before submitting, run `make test`. Changes that a user can see should come with an end-to-end test in [e2e](e2e). It runs gitin in a pseudo terminal like a user does and reads the screen of a terminal emulator:
+
+```go
+s := start(t, dir, []string{"status"}) // gitin status in a 120x40 terminal
+s.waitScreen("[M] app.txt")            // wait until gitin drew a screen showing it
+s.send("c")                            // type keys
+s.matchScreen("commit")                // compare with testdata/screens/<test>/commit.txt
+```
+
+A screen file has the text, the styles of each row and the cursor. Times, durations and temporary paths are masked. After a change to the UI, `make screens` rewrites the files: review the diff and commit it with the change. Keep git's own messages out of screen files, they differ between git versions.
 
 Commits should:
 - Limit the first line to 72 characters or less
