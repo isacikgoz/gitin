@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // Repository is the main interface to a git repository
@@ -103,9 +104,12 @@ func (r *Repository) Path() string {
 	return r.path
 }
 
+// gitBinary is the git every command runs, see findGit
+var gitBinary = sync.OnceValue(findGit)
+
 // Command returns a git command that runs in the repository
 func (r *Repository) Command(args ...string) *exec.Cmd {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command(gitBinary(), args...)
 	cmd.Dir = r.path
 	return cmd
 }
