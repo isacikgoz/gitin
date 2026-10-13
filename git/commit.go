@@ -49,7 +49,7 @@ func (r *Repository) Commits(ctx context.Context) (commits <-chan *Commit, wait 
 }
 
 func (r *Repository) streamCommits(ctx context.Context, out chan<- *Commit) error {
-	cmd := exec.CommandContext(ctx, "git", "log", "-z", "--no-show-signature", commitFormat, "--")
+	cmd := exec.CommandContext(ctx, gitBinary(), "log", "-z", "--no-show-signature", commitFormat, "--")
 	cmd.Dir = r.path
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
