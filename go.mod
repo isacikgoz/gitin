@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
-	github.com/charmbracelet/x/ansi v0.11.7
-	github.com/charmbracelet/x/vt v0.0.0-20261011004359-2acd7e345453
+	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
 	github.com/fatih/color v1.19.0
 	github.com/isacikgoz/fuzzy v0.2.0
@@ -30,10 +30,10 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/jroimartin/gocui v0.4.0 // indirect
 	github.com/justincampbell/bigduration v0.0.0-20160531141349-e45bf03c0666 // indirect
-	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.23 // indirect
+	github.com/mattn/go-runewidth v0.0.27 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/nsf/termbox-go v0.0.0-20190325093121-288510b9734e // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
